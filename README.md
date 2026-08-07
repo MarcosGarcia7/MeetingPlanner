@@ -1,2 +1,2 @@
-# Meeting-Planner
+# MeetingPlanner
 Meeting planner web app.
