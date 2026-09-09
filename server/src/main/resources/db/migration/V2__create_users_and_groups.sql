@@ -1,0 +1,32 @@
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(60) NOT NULL,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    is_private BOOLEAN DEFAULT FALSE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS groups (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    group_name VARCHAR(50) NOT NULL UNIQUE,
+    owner_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+    is_private BOOLEAN DEFAULT TRUE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS group_members (
+    group_id BIGINT REFERENCES groups(id) ON DELETE CASCADE,
+    user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+    is_admin BOOLEAN DEFAULT FALSE NOT NULL,
+    PRIMARY KEY (group_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS group_invites (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    group_id BIGINT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    recipient_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    time_sent TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    status invite_status DEFAULT 'PENDING' NOT NULL,
+    CONSTRAINT unique_group_recipient_invite UNIQUE (group_id, recipient_id)
+);

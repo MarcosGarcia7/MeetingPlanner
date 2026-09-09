@@ -1,0 +1,10 @@
+{$APP_DOMAIN:localhost} {
+	tls /certs/localhost.pem /certs/localhost-key.pem
+
+	reverse_proxy bff:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+
+	header X-Content-Type-Options "nosniff"
+	header X-Frame-Options "DENY"
+}

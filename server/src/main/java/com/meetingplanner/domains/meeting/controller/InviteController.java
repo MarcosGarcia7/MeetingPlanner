@@ -1,0 +1,50 @@
+package com.meetingplanner.domains.meeting.controller;
+
+import com.meetingplanner.common.api.dto.InviteResponse;
+import com.meetingplanner.common.api.security.CurrentUser;
+import com.meetingplanner.domains.meeting.service.InviteService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/invites")
+public class InviteController {
+
+    private final InviteService inviteService;
+
+    public InviteController(InviteService inviteService) {
+        this.inviteService = inviteService;
+    }
+
+    @GetMapping
+    public List<InviteResponse> listMine(@AuthenticationPrincipal Jwt jwt) {
+        return inviteService.listMine(CurrentUser.from(jwt).id());
+    }
+
+    @PostMapping("/group/{inviteId}/accept")
+    public InviteResponse acceptGroupInvite(@AuthenticationPrincipal Jwt jwt, @PathVariable long inviteId) {
+        return inviteService.acceptGroupInvite(CurrentUser.from(jwt).id(), inviteId);
+    }
+
+    @PostMapping("/group/{inviteId}/decline")
+    public InviteResponse declineGroupInvite(@AuthenticationPrincipal Jwt jwt, @PathVariable long inviteId) {
+        return inviteService.declineGroupInvite(CurrentUser.from(jwt).id(), inviteId);
+    }
+
+    @PostMapping("/meeting/{inviteId}/accept")
+    public InviteResponse acceptMeetingInvite(@AuthenticationPrincipal Jwt jwt, @PathVariable long inviteId) {
+        return inviteService.acceptMeetingInvite(CurrentUser.from(jwt).id(), inviteId);
+    }
+
+    @PostMapping("/meeting/{inviteId}/decline")
+    public InviteResponse declineMeetingInvite(@AuthenticationPrincipal Jwt jwt, @PathVariable long inviteId) {
+        return inviteService.declineMeetingInvite(CurrentUser.from(jwt).id(), inviteId);
+    }
+}

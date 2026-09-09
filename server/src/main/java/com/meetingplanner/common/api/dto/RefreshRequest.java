@@ -1,4 +1,7 @@
 package com.meetingplanner.common.api.dto;
 
-public record RefreshRequest() {
-}
+import jakarta.validation.constraints.NotBlank;
+
+public record RefreshRequest(
+        @NotBlank(message = "refreshToken is required")
+        String refreshToken) {}
