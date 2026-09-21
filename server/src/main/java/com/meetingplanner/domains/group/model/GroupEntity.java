@@ -22,6 +22,12 @@ public class GroupEntity {
     @Column(name = "is_private", nullable = false)
     private boolean isPrivate = true;
 
+    @Column(name = "members_can_post", nullable = false)
+    private boolean membersCanPost = true;
+
+    @Column(name = "comments_enabled", nullable = false)
+    private boolean commentsEnabled = true;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false)
     private UserEntity owner;
@@ -51,6 +57,22 @@ public class GroupEntity {
 
     public void setPrivate(boolean isPrivate) {
         this.isPrivate = isPrivate;
+    }
+
+    public boolean isMembersCanPost() {
+        return membersCanPost;
+    }
+
+    public void setMembersCanPost(boolean membersCanPost) {
+        this.membersCanPost = membersCanPost;
+    }
+
+    public boolean isCommentsEnabled() {
+        return commentsEnabled;
+    }
+
+    public void setCommentsEnabled(boolean commentsEnabled) {
+        this.commentsEnabled = commentsEnabled;
     }
 
     public UserEntity getOwner() {

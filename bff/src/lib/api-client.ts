@@ -1,7 +1,7 @@
-import { getSession, type SessionData } from "./session";
+import { getSession, type SessionData } from './session';
 
 const API_BASE_URL =
-  process.env.API_INTERNAL_URL ?? "http://localhost:8080";
+  process.env.API_INTERNAL_URL ?? 'http://localhost:8080';
 
 export class ApiError extends Error {
   constructor(
@@ -13,10 +13,10 @@ export class ApiError extends Error {
 }
 
 export function getClientIp(headers: Headers): string | undefined {
-  const forwarded = headers.get("x-forwarded-for");
+  const forwarded = headers.get('x-forwarded-for');
   if (!forwarded) return undefined;
 
-  const first = forwarded.split(",")[0].trim().replace(/[\r\n]/g, "");
+  const first = forwarded.split(',')[0].trim().replace(/[\r\n]/g, '');
   return first || undefined;
 }
 
@@ -28,10 +28,10 @@ async function request<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (session) {
-    headers.set("Authorization", `Bearer ${session.accessToken}`);
+    headers.set('Authorization', `Bearer ${session.accessToken}`);
   }
   if (clientIp) {
-    headers.set("X-Forwarded-For", clientIp);
+    headers.set('X-Forwarded-For', clientIp);
   }
 
   const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });

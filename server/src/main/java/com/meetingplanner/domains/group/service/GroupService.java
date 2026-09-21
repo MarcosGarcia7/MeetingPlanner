@@ -28,5 +28,7 @@ public interface GroupService {
 
     void promoteMember(long actorUserId, long groupId, long targetUserId);
 
+    void setShareSchedule(long userId, long groupId, boolean shareSchedule);
+
     void leave(long userId, long groupId);
 }

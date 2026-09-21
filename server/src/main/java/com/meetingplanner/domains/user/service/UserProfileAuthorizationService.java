@@ -1,9 +1,8 @@
 package com.meetingplanner.domains.user.service;
 
+import com.meetingplanner.domains.friend.repository.FriendshipRepository;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
 import com.meetingplanner.domains.group.repository.GroupMemberRepository;
-import com.meetingplanner.domains.meeting.model.MeetingParticipantEntity;
-import com.meetingplanner.domains.meeting.repository.MeetingParticipantRepository;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -16,13 +15,14 @@ public class UserProfileAuthorizationService {
 
     private final UserRepository userRepository;
     private final GroupMemberRepository groupMemberRepository;
-    private final MeetingParticipantRepository meetingParticipantRepository;
+    private final FriendshipRepository friendshipRepository;
 
-    public UserProfileAuthorizationService(UserRepository userRepository, GroupMemberRepository groupMemberRepository,
-                                           MeetingParticipantRepository meetingParticipantRepository) {
+    public UserProfileAuthorizationService(UserRepository userRepository,
+                                           GroupMemberRepository groupMemberRepository,
+                                           FriendshipRepository friendshipRepository) {
         this.userRepository = userRepository;
         this.groupMemberRepository = groupMemberRepository;
-        this.meetingParticipantRepository = meetingParticipantRepository;
+        this.friendshipRepository = friendshipRepository;
     }
 
     public boolean canViewProfile(Long viewerId, Long targetUserId) {
@@ -36,25 +36,22 @@ public class UserProfileAuthorizationService {
         if (!target.isPrivate()) {
             return true;
         }
-        return sharesContext(viewerId, targetUserId);
+        return sharesContext(viewerId, targetUserId, target);
     }
 
-    private boolean sharesContext(Long viewerId, Long targetUserId) {
-        Set<Long> viewerGroups = groupMemberRepository.findByUserId(viewerId).stream()
-                .map(member -> member.getGroup().getId())
-                .collect(Collectors.toSet());
-        boolean sharedGroup = groupMemberRepository.findByUserId(targetUserId).stream()
-                .map(GroupMemberEntity::getGroup)
-                .anyMatch(group -> viewerGroups.contains(group.getId()));
-        if (sharedGroup) {
+    private boolean sharesContext(Long viewerId, Long targetUserId, UserEntity target) {
+        if (target.isFriendsCanViewPrivate()
+                && friendshipRepository.areFriends(viewerId, targetUserId)) {
             return true;
         }
 
-        Set<Long> viewerMeetings = meetingParticipantRepository.findByUserId(viewerId).stream()
-                .map(participant -> participant.getMeeting().getId())
+        Set<Long> viewerGroupIds = groupMemberRepository.findByUserId(viewerId).stream()
+                .map(member -> member.getGroup().getId())
                 .collect(Collectors.toSet());
-        return meetingParticipantRepository.findByUserId(targetUserId).stream()
-                .map(MeetingParticipantEntity::getMeeting)
-                .anyMatch(meeting -> viewerMeetings.contains(meeting.getId()));
+
+        return groupMemberRepository.findByUserId(targetUserId).stream()
+                .filter(GroupMemberEntity::isShareSchedule)
+                .map(member -> member.getGroup().getId())
+                .anyMatch(viewerGroupIds::contains);
     }
 }

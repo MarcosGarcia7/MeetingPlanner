@@ -12,8 +12,8 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: start;
+  justify-content: start;
   font-family: var(--font-geist-sans);
   background-color: var(--background);
 }
@@ -22,12 +22,20 @@
   display: flex;
   flex: 1;
   width: 100%;
-  max-width: 800px;
   flex-direction: column;
   align-items: flex-start;
   justify-content: space-between;
   background-color: var(--foreground);
-  padding: 120px 60px;
+  padding: 0px 0px;
+}
+
+.banner {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  gap: 24px;
 }
 
 .intro {
@@ -38,10 +46,11 @@
   gap: 24px;
 }
 
-.intro h1 {
+.banner h1 {
   max-width: 320px;
-  font-size: 40px;
+  font-size: 35px;
   font-weight: 600;
+  padding: 10px 10px 10px 0px;
   line-height: 48px;
   letter-spacing: -2.4px;
   text-wrap: balance;
@@ -59,29 +68,6 @@
 .intro a {
   font-weight: 500;
   color: var(--text-primary);
-}
-
-.ctas {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  max-width: 440px;
-  gap: 16px;
-  font-size: 14px;
-}
-
-.ctas a {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 128px;
-  border: 1px solid transparent;
-  transition: 0.2s;
-  cursor: pointer;
-  width: fit-content;
-  font-weight: 500;
 }
 
 a.primary {
@@ -111,16 +97,6 @@ a.secondary {
   .main {
     padding: 48px 24px;
   }
-
-  .intro {
-    gap: 16px;
-  }
-
-  .intro h1 {
-    font-size: 32px;
-    line-height: 40px;
-    letter-spacing: -1.92px;
-  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -141,10 +117,3 @@ a.secondary {
   }
 }
 
-.code {
-  font-family: var(--font-geist-mono);
-  font-size: 0.9em;
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  padding: 0.1em 0.4em;
-  border-radius: 6px;
-}

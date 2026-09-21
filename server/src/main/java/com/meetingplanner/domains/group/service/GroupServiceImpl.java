@@ -6,6 +6,8 @@ import com.meetingplanner.common.api.dto.GroupUpdateRequest;
 import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.dto.MemberUsernameRequest;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
+import com.meetingplanner.domains.group.model.GroupMemberEntity;
+import com.meetingplanner.domains.group.repository.GroupMemberRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,9 +17,12 @@ import java.util.List;
 public class GroupServiceImpl implements GroupService {
 
     private final GroupAuthorizationService authorization;
+    private final GroupMemberRepository groupMemberRepository;
 
-    public GroupServiceImpl(GroupAuthorizationService authorization) {
+    public GroupServiceImpl(GroupAuthorizationService authorization,
+                            GroupMemberRepository groupMemberRepository) {
         this.authorization = authorization;
+        this.groupMemberRepository = groupMemberRepository;
     }
 
     @Override
@@ -93,6 +98,15 @@ public class GroupServiceImpl implements GroupService {
             throw new ResourceNotFoundException("Group not found");
         }
         throw new UnsupportedOperationException("Not yet implemented");
+    }
+
+    @Override
+    @Transactional
+    public void setShareSchedule(long userId, long groupId, boolean shareSchedule) {
+        GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+        member.setShareSchedule(shareSchedule);
+        groupMemberRepository.save(member);
     }
 
     @Override

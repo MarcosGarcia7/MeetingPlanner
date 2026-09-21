@@ -26,6 +26,26 @@ public class SecurityAuditService {
                 sanitize(username), sanitize(ip), remainingAttempts);
     }
 
+    public void loginRejectedNotVerified(String email, String ip) {
+        log.warn("event=login_rejected_not_verified email={} ip={}", sanitize(email), sanitize(ip));
+    }
+
+    public void emailVerified(String email, long userId) {
+        log.info("event=email_verified email={} user_id={}", sanitize(email), userId);
+    }
+
+    public void forgotPasswordRequested(String email, String ip) {
+        log.info("event=password_reset_requested email={} ip={}", sanitize(email), sanitize(ip));
+    }
+
+    public void forgotPasswordNotRequested(String email, String ip) {
+        log.info("event=password_reset_no_account email={} ip={}", sanitize(email), sanitize(ip));
+    }
+
+    public void passwordResetCompleted(String email, String ip) {
+        log.info("event=password_reset_completed email={} ip={}", sanitize(email), sanitize(ip));
+    }
+
     public void accountLocked(String username, int tier, long durationMinutes, String ip) {
         log.warn("event=account_locked username={} tier={} duration_minutes={} ip={}",
                 sanitize(username), tier, durationMinutes, sanitize(ip));

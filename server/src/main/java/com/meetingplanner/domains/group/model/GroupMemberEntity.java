@@ -13,6 +13,9 @@ public class GroupMemberEntity {
     @Column(name = "is_admin", nullable = false)
     private boolean isAdmin = false;
 
+    @Column(name = "share_schedule", nullable = false)
+    private boolean shareSchedule = true;
+
     @Id
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "group_id", nullable = false)
@@ -32,6 +35,14 @@ public class GroupMemberEntity {
 
     public void setAdmin(boolean isAdmin) {
         this.isAdmin = isAdmin;
+    }
+
+    public boolean isShareSchedule() {
+        return shareSchedule;
+    }
+
+    public void setShareSchedule(boolean shareSchedule) {
+        this.shareSchedule = shareSchedule;
     }
 
     public GroupEntity getGroup() {

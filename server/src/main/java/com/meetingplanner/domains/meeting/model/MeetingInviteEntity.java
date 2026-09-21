@@ -3,6 +3,10 @@ package com.meetingplanner.domains.meeting.model;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.domains.user.model.UserEntity;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "meeting_invites",
@@ -26,9 +30,19 @@ public class MeetingInviteEntity {
     @JoinColumn(name = "meeting_id", nullable = false)
     private MeetingEntity meeting;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "recipient_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "recipient_id", nullable = true)
     private UserEntity recipient;
+
+    @Column(name = "recipient_email", columnDefinition = "citext")
+    private String recipientEmail;
+
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "token_hash", columnDefinition = "char(64)")
+    private String tokenHash;
+
+    @Column(name = "responded_at")
+    private OffsetDateTime respondedAt;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "invite_status DEFAULT 'PENDING'")
@@ -67,6 +81,30 @@ public class MeetingInviteEntity {
 
     public void setRecipient(UserEntity recipient) {
         this.recipient = recipient;
+    }
+
+    public String getRecipientEmail() {
+        return recipientEmail;
+    }
+
+    public void setRecipientEmail(String recipientEmail) {
+        this.recipientEmail = recipientEmail;
+    }
+
+    public String getTokenHash() {
+        return tokenHash;
+    }
+
+    public void setTokenHash(String tokenHash) {
+        this.tokenHash = tokenHash;
+    }
+
+    public OffsetDateTime getRespondedAt() {
+        return respondedAt;
+    }
+
+    public void setRespondedAt(OffsetDateTime respondedAt) {
+        this.respondedAt = respondedAt;
     }
 
     public InviteStatus getStatus() {

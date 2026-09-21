@@ -1,14 +1,14 @@
-import { cookies } from "next/headers";
-import { getRedis } from "./redis";
+import { cookies } from 'next/headers';
+import { getRedis } from './redis';
 
-const SESSION_PREFIX = "sess:";
+const SESSION_PREFIX = 'sess:';
 const SESSION_TTL_SECONDS = Number(process.env.SESSION_TTL ?? 1800);
 const COOKIE_SECURE =
   process.env.COOKIE_SECURE !== undefined
-    ? process.env.COOKIE_SECURE === "true"
-    : process.env.NODE_ENV === "production";
+    ? process.env.COOKIE_SECURE === 'true'
+    : process.env.NODE_ENV === 'production';
 
-export const SESSION_COOKIE = "mp_session";
+export const SESSION_COOKIE = 'mp_session';
 
 export interface SessionData {
   userId: number;
@@ -22,7 +22,7 @@ export async function createSession(data: SessionData): Promise<string> {
   await getRedis().set(
     `${SESSION_PREFIX}${sessionId}`,
     JSON.stringify(data),
-    "EX",
+    'EX',
     SESSION_TTL_SECONDS
   );
 
@@ -30,8 +30,8 @@ export async function createSession(data: SessionData): Promise<string> {
   cookieStore.set(SESSION_COOKIE, sessionId, {
     httpOnly: true,
     secure: COOKIE_SECURE,
-    sameSite: "lax",
-    path: "/",
+    sameSite: 'lax',
+    path: '/',
     maxAge: SESSION_TTL_SECONDS,
   });
 

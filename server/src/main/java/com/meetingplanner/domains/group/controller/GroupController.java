@@ -1,6 +1,7 @@
 package com.meetingplanner.domains.group.controller;
 
 import com.meetingplanner.common.api.dto.GroupCreateRequest;
+import com.meetingplanner.common.api.dto.GroupPrivacyRequest;
 import com.meetingplanner.common.api.dto.GroupResponse;
 import com.meetingplanner.common.api.dto.GroupUpdateRequest;
 import com.meetingplanner.common.api.dto.InviteResponse;
@@ -88,6 +89,13 @@ public class GroupController {
     @PostMapping("/{groupId}/leave")
     public ResponseEntity<Void> leave(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId) {
         groupService.leave(CurrentUser.from(jwt).id(), groupId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{groupId}/privacy")
+    public ResponseEntity<Void> setShareSchedule(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
+                                                 @Valid @RequestBody GroupPrivacyRequest request) {
+        groupService.setShareSchedule(CurrentUser.from(jwt).id(), groupId, request.shareSchedule());
         return ResponseEntity.noContent().build();
     }
 }

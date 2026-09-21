@@ -1,6 +1,5 @@
 package com.meetingplanner.config.security;
 
-import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -38,12 +37,12 @@ public class SecurityConfig {
 
     @Bean
     public JwtEncoder accessJwtEncoder(@Value("${JWT_ACCESS_SECRET}") String accessSecret) {
-        return new NimbusJwtEncoder(new ImmutableSecret<>(accessSecret.getBytes()));
+        return NimbusJwtEncoder.withSecretKey(new SecretKeySpec(accessSecret.getBytes(), "HmacSHA256")).build();
     }
 
     @Bean
     public JwtEncoder refreshJwtEncoder(@Value("${JWT_REFRESH_SECRET}") String refreshSecret) {
-        return new NimbusJwtEncoder(new ImmutableSecret<>(refreshSecret.getBytes()));
+        return NimbusJwtEncoder.withSecretKey(new SecretKeySpec(refreshSecret.getBytes(), "HmacSHA256")).build();
     }
 
     @Bean

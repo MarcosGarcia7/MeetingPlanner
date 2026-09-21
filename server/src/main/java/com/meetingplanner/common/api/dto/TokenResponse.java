@@ -1,3 +1,3 @@
 package com.meetingplanner.common.api.dto;
 
-public record TokenResponse(String accessToken, String refreshToken) {}
+public record TokenResponse(String accessToken, String refreshToken, UserProfileResponse user) {}
