@@ -1,0 +1,85 @@
+.header {
+  --accent: #0047AB;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: var(--background);
+}
+
+.h1 {
+  padding: 0 12px;
+  font-family: var(--font-instrument-serif);
+  font-size: larger;
+  color: var(--text-primary);
+}
+
+.logoLink {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.logo {
+  border-radius: 8px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.buttonPrimary {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #B2BEB5;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.buttonPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.buttonSecondary {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: transparent;
+  color: #B2BEB5;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.buttonSecondary:hover {
+  border-color: var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  .header {
+    border-bottom-color: #1f2937;
+  }
+
+  .buttonSecondary {
+    border-color: #1f2937;
+  }
+}

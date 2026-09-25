@@ -5,6 +5,13 @@
     margin-top: 24px;
 }
 
+.title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+}
+
 .checkRow {
     display: flex;
     align-items: center;
@@ -45,7 +52,7 @@
     padding: 0 12px;
     border-radius: 8px;
     border: 1px solid var(--border);
-    background: var(--foreground);
+    background: var(--input-background);
     color: var(--text-primary);
     font-size: 16px;
     transition: border-color 0.2s;

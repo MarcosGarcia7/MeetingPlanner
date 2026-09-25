@@ -1,12 +1,34 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  --text-primary: #000;
+  --text-secondary: #666;
+
+  --button-primary-hover: #383838;
+  --button-secondary-hover: #f2f2f2;
+  --button-secondary-border: #ebebeb;
+
+  --accent: #0047AB;
+  --danger: #dc2626;
+  --border: #e5e7eb;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
-    --foreground: #cec7c7;
+    --foreground: #202035;
+
+    --text-primary: #B2BEB5;
+    --text-secondary: #999;
+
+    --button-primary-hover: #ccc;
+    --button-secondary-hover: #1a1a1a;
+    --button-secondary-border: #1a1a1a;
+
+    --border: #1f2937;
+
+    --input-background: #303854;
   }
 }
 
@@ -21,10 +43,12 @@ body {
 }
 
 body {
-  min-height: 100%;
+  height: 100dvh;
+  min-height: 0;
   display: flex;
+  overflow: hidden;
   flex-direction: column;
-  color: var(--foreground);
+  color: var(--text-primary);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
