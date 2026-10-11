@@ -6,6 +6,7 @@ public record UserProfileResponse(
         String email,
         String firstName,
         String lastName,
+        String avatarColor,
         boolean isPrivate,
         boolean friendsCanViewPrivate,
         boolean emailVerified

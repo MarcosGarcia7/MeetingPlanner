@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import Image from 'next/image';
-import styles from '@/app/ui/auth/auth.module.css';
-import VerifyEmailContent from '../ui/verify-email/verify-email-content';
+import styles from '@/app/components/auth/auth.module.css';
+import VerifyEmailContent from '../components/verify-email/verify-email-content';
 
 export default function VerifyEmailPage() {
   return (

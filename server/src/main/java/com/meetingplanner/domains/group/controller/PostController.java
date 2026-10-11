@@ -1,7 +1,7 @@
 package com.meetingplanner.domains.group.controller;
 
 import com.meetingplanner.common.api.dto.*;
-import com.meetingplanner.common.api.security.CurrentUser;
+import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.group.service.PostService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

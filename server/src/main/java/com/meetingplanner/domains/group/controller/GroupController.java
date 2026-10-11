@@ -6,7 +6,7 @@ import com.meetingplanner.common.api.dto.GroupResponse;
 import com.meetingplanner.common.api.dto.GroupUpdateRequest;
 import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.dto.MemberUsernameRequest;
-import com.meetingplanner.common.api.security.CurrentUser;
+import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.group.service.GroupService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

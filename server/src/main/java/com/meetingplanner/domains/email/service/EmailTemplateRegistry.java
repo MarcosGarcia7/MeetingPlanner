@@ -65,6 +65,9 @@ public class EmailTemplateRegistry {
             case "MEETING_INVITE" -> new Template(
                     "{{sender}} invited you to a meeting",
                     "Hi {{name}},\n\n{{sender}} invited you to a meeting.\nOpen the invite:\n{{link}}\n\n- {{app_url}}");
+            case "MEETING_INVITE_ACCEPTED" -> new Template(
+                    "You're confirmed for \"{{title}}\"",
+                    "Hi {{name}},\n\nYou've accepted the invite for \"{{title}}\".\nIf you can no longer attend, you can leave the meeting here:\n{{link}}\n\n- {{app_url}}");
             case "MEETING_REMINDER" -> new Template(
                     "Reminder: {{title}} starts soon",
                     "Hi {{name}},\n\nA quick reminder that \"{{title}}\" starts at {{start_time}}.\n\n- {{app_url}}");

@@ -39,7 +39,7 @@ public class MeetingEntity {
     private String description;
 
     @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "external_participant_names", columnDefinition = "varchar(50)[]")
+    @Column(name = "external_participant_names", columnDefinition = "varchar(255)[]")
     private List<String> externalParticipantNames = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

@@ -9,12 +9,7 @@ import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "meeting_invites",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "unique_meeting_recipient_invite",
-                        columnNames = {"meeting_id", "recipient_id"}
-                )})
+@Table(name = "meeting_invites")
 public class MeetingInviteEntity {
 
     @Id
@@ -34,18 +29,18 @@ public class MeetingInviteEntity {
     @JoinColumn(name = "recipient_id", nullable = true)
     private UserEntity recipient;
 
-    @Column(name = "recipient_email", columnDefinition = "citext")
+    @Column(name = "recipient_email", nullable = false, columnDefinition = "citext")
     private String recipientEmail;
 
     @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "token_hash", columnDefinition = "char(64)")
+    @Column(name = "token_hash", nullable = false, columnDefinition = "char(64)")
     private String tokenHash;
 
     @Column(name = "responded_at")
     private OffsetDateTime respondedAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, columnDefinition = "invite_status DEFAULT 'PENDING'")
+    @Column(name = "status", nullable = false, length = 32)
     private InviteStatus status = InviteStatus.PENDING;
 
     public MeetingInviteEntity() {

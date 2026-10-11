@@ -1,8 +1,8 @@
-package com.meetingplanner.domains.meeting.controller;
+package com.meetingplanner.domains.invite.controller;
 
 import com.meetingplanner.common.api.dto.InviteResponse;
-import com.meetingplanner.common.api.security.CurrentUser;
-import com.meetingplanner.domains.meeting.service.InviteService;
+import com.meetingplanner.common.security.CurrentUser;
+import com.meetingplanner.domains.invite.service.InviteService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -28,6 +28,9 @@ public class UserEntity {
     @Column(name = "last_name", length = 50)
     private String lastName;
 
+    @Column(name = "avatar_color", length = 7)
+    private String avatarColor;
+
     @Column(name = "is_private", nullable = false)
     private boolean isPrivate = false;
 
@@ -52,10 +55,12 @@ public class UserEntity {
     public UserEntity(String username,
                       String email,
                       String passwordHash,
+                      String avatarColor,
                       boolean isPrivate) {
         this.username = username;
         this.email = email;
         this.passwordHash = passwordHash;
+        this.avatarColor = avatarColor;
         this.isPrivate = isPrivate;
     }
 
@@ -98,6 +103,10 @@ public class UserEntity {
     public void setLastName(String lastName) {
         this.lastName = lastName;
     }
+
+    public String getAvatarColor() { return avatarColor; }
+
+    public void setAvatarColor(String avatarColor) { this.avatarColor = avatarColor; }
 
     public boolean isPrivate() {
         return isPrivate;

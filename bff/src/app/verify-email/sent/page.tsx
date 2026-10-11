@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import styles from '@/app/ui/auth/auth.module.css';
+import styles from '@/app/components/auth/auth.module.css';
 
 export default async function VerificationSentPage({
   searchParams,

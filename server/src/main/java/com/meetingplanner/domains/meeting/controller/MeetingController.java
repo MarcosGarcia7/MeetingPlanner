@@ -1,12 +1,15 @@
 package com.meetingplanner.domains.meeting.controller;
 
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.dto.MeetingCreateRequest;
+import com.meetingplanner.common.api.dto.MeetingInviteRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
+import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
 import com.meetingplanner.common.api.dto.MemberUsernameRequest;
 import com.meetingplanner.common.api.dto.ParticipantResponse;
-import com.meetingplanner.common.api.security.CurrentUser;
+import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.meeting.service.MeetingService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -40,12 +43,18 @@ public class MeetingController {
     }
 
     @GetMapping
-    public List<MeetingResponse> list(@AuthenticationPrincipal Jwt jwt, @RequestParam(required = false) Long groupId) {
-        long userId = CurrentUser.from(jwt).id();
-        if (groupId != null) {
-            return meetingService.listForGroup(userId, groupId);
-        }
-        return List.of();
+    public CursorPage<MeetingSummaryResponse> list(@AuthenticationPrincipal Jwt jwt,
+                                                    @RequestParam(required = false) Long groupId,
+                                                    @RequestParam(required = false) String cursor,
+                                                    @RequestParam(defaultValue = "20") int size) {
+        return meetingService.listMine(CurrentUser.from(jwt).id(), groupId, cursor, size);
+    }
+
+    @GetMapping("/created")
+    public CursorPage<MeetingSummaryResponse> listCreated(@AuthenticationPrincipal Jwt jwt,
+                                                          @RequestParam(required = false) String cursor,
+                                                          @RequestParam(defaultValue = "20") int size) {
+        return meetingService.listCreated(CurrentUser.from(jwt).id(), cursor, size);
     }
 
     @GetMapping("/upcoming")
@@ -85,7 +94,7 @@ public class MeetingController {
 
     @PostMapping("/{meetingId}/invites")
     public InviteResponse invite(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId,
-                                 @Valid @RequestBody MemberUsernameRequest request) {
+                                 @Valid @RequestBody MeetingInviteRequest request) {
         return meetingService.invite(CurrentUser.from(jwt).id(), meetingId, request);
     }
 }

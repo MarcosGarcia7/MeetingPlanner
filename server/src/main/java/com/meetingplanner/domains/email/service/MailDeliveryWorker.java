@@ -10,16 +10,16 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 
-@Service
-public class MailDeliveryService {
+@Component
+public class MailDeliveryWorker {
 
-    private static final Logger log = LoggerFactory.getLogger(MailDeliveryService.class);
+    private static final Logger log = LoggerFactory.getLogger(MailDeliveryWorker.class);
 
     private static final int MAX_ATTEMPTS = 12;
     private static final long BASE_BACKOFF_SECONDS = 60;
@@ -31,7 +31,7 @@ public class MailDeliveryService {
     @Value("${app.email.from:meetingplanner@localhost}")
     private String fromAddress;
 
-    public MailDeliveryService(ObjectProvider<JavaMailSender> mailSenderProvider,
+    public MailDeliveryWorker(ObjectProvider<JavaMailSender> mailSenderProvider,
                                EmailOutboxRepository emailOutboxRepository,
                                EmailTemplateRegistry templateRegistry) {
         this.mailSenderProvider = mailSenderProvider;

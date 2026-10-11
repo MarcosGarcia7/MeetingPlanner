@@ -57,6 +57,9 @@ public class UserServiceImpl implements UserService {
         if (request.lastName() != null) {
             user.setLastName(request.lastName().trim());
         }
+        if (request.avatarColor() != null) {
+            user.setAvatarColor(request.avatarColor());
+        }
         if (request.isPrivate() != null) {
             user.setPrivate(request.isPrivate());
         }
@@ -130,6 +133,7 @@ public class UserServiceImpl implements UserService {
                 user.getEmail(),
                 user.getFirstName(),
                 user.getLastName(),
+                user.getAvatarColor(),
                 user.isPrivate(),
                 user.isFriendsCanViewPrivate(),
                 user.getEmailVerifiedAt() != null

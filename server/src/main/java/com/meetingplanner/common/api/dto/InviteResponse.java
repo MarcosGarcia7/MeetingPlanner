@@ -9,6 +9,7 @@ public record InviteResponse(
         Long senderId,
         String senderUsername,
         Long recipientId,
+        String recipientEmail,
         Long groupId,
         Long meetingId
 ) {

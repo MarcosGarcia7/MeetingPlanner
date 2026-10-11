@@ -2,7 +2,7 @@ package com.meetingplanner.domains.friend.controller;
 
 import com.meetingplanner.common.api.dto.FriendshipResponse;
 import com.meetingplanner.common.api.dto.MemberUsernameRequest;
-import com.meetingplanner.common.api.security.CurrentUser;
+import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.friend.service.FriendshipService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

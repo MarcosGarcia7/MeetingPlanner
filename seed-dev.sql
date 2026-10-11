@@ -12,9 +12,9 @@
 -- `crypt(..., gen_salt('bf', 10))` produces a $2a$ bcrypt hash that Spring
 -- Security's BCryptPasswordEncoder verifies.
 
-INSERT INTO users (username, email, password_hash, first_name, last_name, is_private, email_verified_at)
+INSERT INTO users (username, email, password_hash, first_name, last_name, avatar_color, is_private, email_verified_at)
 VALUES
-    ('alice', 'alice@example.com', crypt('Password123!', gen_salt('bf', 10)), 'Alice', 'Anderson', false, NOW()),
-    ('bob', 'bob@example.com', crypt('Password123!', gen_salt('bf', 10)), 'Bob', 'Brown', false, NOW()),
-    ('unverified', 'unverified@example.com', crypt('Password123!', gen_salt('bf', 10)), NULL, NULL, false, NULL)
+    ('alice', 'alice@example.com', crypt('Password123!', gen_salt('bf', 10)), 'Alice', 'Anderson', '#F59E0B', false, NOW()),
+    ('bob', 'bob@example.com', crypt('Password123!', gen_salt('bf', 10)), 'Bob', 'Brown', '#F59E0B', false, NOW()),
+    ('unverified', 'unverified@example.com', crypt('Password123!', gen_salt('bf', 10)), NULL, NULL, '#F59E0B', false, NULL)
 ON CONFLICT DO NOTHING;

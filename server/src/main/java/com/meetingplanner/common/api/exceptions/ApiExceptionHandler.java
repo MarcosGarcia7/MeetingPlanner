@@ -105,4 +105,12 @@ public class ApiExceptionHandler {
                         "retryAfterSeconds", e.getRetryAfterSeconds()
                 ));
     }
+
+    @ExceptionHandler(AvailabilityNotSetException.class)
+    public ResponseEntity<Map<String, Object>> handleAvailabilityNotSet(AvailabilityNotSetException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "not_found",
+                "message", e.getMessage()
+        ));
+    }
 }

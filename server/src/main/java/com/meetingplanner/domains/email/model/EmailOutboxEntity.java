@@ -31,7 +31,7 @@ public class EmailOutboxEntity {
     private String payload = "{}";
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, columnDefinition = "email_status")
+    @Column(name = "status", nullable = false, length = 32)
     private EmailStatus status = EmailStatus.PENDING;
 
     @Column(name = "attempts", nullable = false)

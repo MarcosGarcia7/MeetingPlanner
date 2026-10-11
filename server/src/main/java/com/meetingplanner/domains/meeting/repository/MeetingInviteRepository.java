@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MeetingInviteRepository extends JpaRepository<MeetingInviteEntity, Long> {
@@ -14,7 +15,13 @@ public interface MeetingInviteRepository extends JpaRepository<MeetingInviteEnti
 
     List<MeetingInviteEntity> findByRecipientIdAndStatus(Long recipientId, InviteStatus status);
 
+    List<MeetingInviteEntity> findByRecipientEmail(String recipientEmail);
+
     List<MeetingInviteEntity> findBySenderId(Long senderId);
 
     boolean existsByMeetingIdAndRecipientId(Long meetingId, Long recipientId);
+
+    Optional<MeetingInviteEntity> findByTokenHash(String tokenHash);
+
+    Optional<MeetingInviteEntity> findByMeetingIdAndRecipientEmail(Long meetingId, String recipientEmail);
 }

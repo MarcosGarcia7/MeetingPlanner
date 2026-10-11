@@ -1,5 +1,5 @@
-import styles from '@/app/ui/auth/auth.module.css';
-import LoginForm from '@/app/ui/auth/login/login-form';
+import styles from '@/app/components/auth/auth.module.css';
+import LoginForm from '@/app/components/auth/login/login-form';
 
 export default function LoginPage() {
   return (

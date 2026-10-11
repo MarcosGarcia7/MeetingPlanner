@@ -24,7 +24,7 @@ public class AccountTokenEntity {
     private String tokenHash;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "token_type", nullable = false, columnDefinition = "account_token_type")
+    @Column(name = "token_type", nullable = false, length = 32)
     private AccountTokenType tokenType;
 
     @Column(name = "email", columnDefinition = "citext")
@@ -39,7 +39,7 @@ public class AccountTokenEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
-    @Column(name = "requested_ip", columnDefinition = "inet")
+    @Column(name = "requested_ip", columnDefinition = "VARCHAR(45)")
     private String requestedIp;
 
     public AccountTokenEntity() {

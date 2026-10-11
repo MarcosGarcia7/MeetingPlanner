@@ -1,1 +1,0 @@
-ALTER TABLE account_tokens ALTER COLUMN requested_ip TYPE VARCHAR(45) USING requested_ip::text;

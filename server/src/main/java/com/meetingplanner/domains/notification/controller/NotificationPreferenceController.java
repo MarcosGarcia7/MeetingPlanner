@@ -2,7 +2,7 @@ package com.meetingplanner.domains.notification.controller;
 
 import com.meetingplanner.common.api.dto.NotificationPreferenceUpdateRequest;
 import com.meetingplanner.common.api.dto.NotificationPreferencesResponse;
-import com.meetingplanner.common.api.security.CurrentUser;
+import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.notification.service.NotificationPreferenceService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;

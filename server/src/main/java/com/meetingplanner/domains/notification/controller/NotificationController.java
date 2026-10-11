@@ -1,7 +1,7 @@
 package com.meetingplanner.domains.notification.controller;
 
 import com.meetingplanner.common.api.dto.NotificationResponse;
-import com.meetingplanner.common.api.security.CurrentUser;
+import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.notification.service.NotificationFeedService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;

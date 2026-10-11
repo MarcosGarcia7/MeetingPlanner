@@ -26,7 +26,7 @@ public class FriendshipEntity {
     private UserEntity requester;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, columnDefinition = "friendship_status")
+    @Column(name = "status", nullable = false, length = 32)
     private FriendshipStatus status = FriendshipStatus.PENDING;
 
     @Column(name = "created_at", nullable = false, updatable = false)

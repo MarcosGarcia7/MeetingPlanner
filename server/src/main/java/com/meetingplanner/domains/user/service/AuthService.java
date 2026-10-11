@@ -32,6 +32,7 @@ import java.time.OffsetDateTime;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -86,6 +87,9 @@ public class AuthService {
     private static final Pattern USERNAME_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,20}$");
     private static final Pattern FALLBACK_CLEAN = Pattern.compile("[^A-Za-z0-9_-]");
 
+    private static final String[] AVATAR_COLORS = { "#3B82F6", "#10B981", "#EF4444", "#8B5CF6",
+            "#F59E0B", "#06B6D4", "#EC4899", "#6366F1" };
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
@@ -116,7 +120,8 @@ public class AuthService {
 
         String resolvedUsername = resolveUsername(normalizedEmail, username);
 
-        UserEntity user = new UserEntity(resolvedUsername, normalizedEmail, passwordEncoder.encode(password), isPrivate);
+        Random rand = new Random();
+        UserEntity user = new UserEntity(resolvedUsername, normalizedEmail, passwordEncoder.encode(password), AVATAR_COLORS[rand.nextInt(8)], isPrivate);
 
         if (firstName != null && !firstName.isBlank()) {
             user.setFirstName(firstName.trim());
@@ -361,6 +366,7 @@ public class AuthService {
                 user.getEmail(),
                 user.getFirstName(),
                 user.getLastName(),
+                user.getAvatarColor(),
                 user.isPrivate(),
                 user.isFriendsCanViewPrivate(),
                 user.getEmailVerifiedAt() != null

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 public record UserProfileUpdateRequest(
         @Size(max = 50) String firstName,
         @Size(max = 50) String lastName,
+        String avatarColor,
         Boolean isPrivate,
         Boolean friendsCanViewPrivate,
         @Email @Size(max = 254) String pendingEmail

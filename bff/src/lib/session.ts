@@ -49,6 +49,11 @@ export async function getSession(): Promise<SessionData | null> {
   return JSON.parse(raw) as SessionData;
 }
 
+export async function getSessionId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(SESSION_COOKIE)?.value ?? null;
+}
+
 export async function destroySession(): Promise<void> {
   const cookieStore = await cookies();
   const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
@@ -66,4 +71,13 @@ export async function refreshSessionTtl(): Promise<void> {
   if (!sessionId) return;
 
   await getRedis().expire(`${SESSION_PREFIX}${sessionId}`, SESSION_TTL_SECONDS);
+}
+
+export async function updateSession(sessionId: string, data: SessionData): Promise<void> {
+  await getRedis().set(
+    `${SESSION_PREFIX}${sessionId}`,
+    JSON.stringify(data),
+    'EX',
+    SESSION_TTL_SECONDS
+  );
 }

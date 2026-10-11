@@ -1,6 +1,6 @@
 import Image from 'next/image';
-import styles from '@/app/ui/auth/auth.module.css';
-import SignupForm from '@/app/ui/auth/signup/signup-form';
+import styles from '@/app/components/auth/auth.module.css';
+import SignupForm from '@/app/components/auth/signup/signup-form';
 
 export default function SignupPage() {
   return (

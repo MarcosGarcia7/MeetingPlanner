@@ -65,6 +65,9 @@ services:
       - MAIL_SMTP_USERNAME=${MAIL_SMTP_USERNAME:-}
       - MAIL_SMTP_PASSWORD=${MAIL_SMTP_PASSWORD:-}
       - MAIL_FROM=${MAIL_FROM:-meetingplanner@localhost}
+      - EMAIL_DRAIN_DELAY_MS=${EMAIL_DRAIN_DELAY_MS:-30000}
+      - REMINDER_DELAY_MS=${REMINDER_DELAY_MS:-60000}
+      - MEETING_CLEANUP_CRON=${MEETING_CLEANUP_CRON:-0 0 3 * * *}
     depends_on:
       db:
         condition: service_healthy
