@@ -6,8 +6,17 @@ Meeting planner web app.
 ### Prerequisites
 
 - Docker with Docker Compose
+- [mkcert](https://github.com/FiloSottile/mkcert) (for local HTTPS)
 
-Copy `.env.example` to `.env` and fill in the values.
+Copy `.env.example` to `.env`. The example ships with a commented local block; uncomment it for local
+HTTPS (or set these values):
+
+```
+APP_DOMAIN=localhost
+CADDYFILE=./Caddyfile.local
+APP_BASE_URL=https://localhost
+JWT_ISSUER=https://localhost
+```
 
 ### 1. Start the database
 
@@ -25,7 +34,19 @@ docker exec -it postgres_db psql -U postgres
 CREATE DATABASE meeting_planner_db;
 ```
 
-### 2. Start the app
+### 2. Generate local TLS certificates
+
+The `proxy` service uses `Caddyfile.local`, which serves `certs/localhost.pem` and
+`certs/localhost-key.pem`. That folder is gitignored, so generate the certificate once from the repo
+root:
+
+```bash
+mkcert -install
+mkdir certs
+mkcert -cert-file certs/localhost.pem -key-file certs/localhost-key.pem localhost 127.0.0.1 ::1
+```
+
+### 3. Start the app
 
 ```bash
 docker compose up --build
@@ -36,7 +57,7 @@ in `server/src/main/resources/db/migration`, creating the schema.
 
 Open https://localhost.
 
-### 3. Seed the database
+### 4. Seed the database
 
 Seed **after** the app has started and the migrations have run (so the schema exists and `pgcrypto`
 is installed). Open a `psql` session against the created database and run/paste in `seed-dev.sql`:
@@ -76,3 +97,6 @@ points at the local stack.
 
 - The API runs Flyway on startup, so the schema is created the first time the stack starts.
 - Keep `seed-dev.sql` out of `db/migration` — it is a manual, development-only script.
+- `node_modules/` is gitignored by design and not needed locally: `docker compose up --build`
+  installs dependencies inside the BFF image from the tracked `bff/package-lock.json`. Only run
+  `pnpm install` if you want to run the BFF outside Docker.
