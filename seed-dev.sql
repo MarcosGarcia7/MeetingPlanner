@@ -4,9 +4,9 @@
 -- applies the migrations (which create the `users` table and the pgcrypto
 -- extension used below).
 --
--- Usage (from the repo root, with local Postgres running):
---   $env:PGPASSWORD = (Select-String -Path .env -Pattern '^DB_PASSWORD=').Line.Split('=',2)[1]
---   psql -h localhost -U postgres -d meeting_planner_db -f seed-dev.sql
+-- Usage (with the Docker stack running):
+--   docker exec -it postgres_db psql -U postgres -d meeting_planner_db
+--   -- then paste the contents of this file
 --
 -- All users share the password: Password123!
 -- `crypt(..., gen_salt('bf', 10))` produces a $2a$ bcrypt hash that Spring

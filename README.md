@@ -5,43 +5,48 @@ Meeting planner web app.
 
 ### Prerequisites
 
-- Docker (for Redis)
-- Node.js + pnpm (BFF)
-- JDK 21 (API)
-- PostgreSQL 18 running locally on `localhost:5432` (the API connects to `meeting_planner_db`)
+- Docker with Docker Compose
 
-Copy `.env.example` to `.env` and fill in the values (the BFF reads `bff/.env`).
+Copy `.env.example` to `.env` and fill in the values.
 
-### 1. Start Redis
-
-The compose `redis` service is published on the host so the native API and BFF can reach it:
+### 1. Start the database
 
 ```bash
-docker compose up -d redis
+docker compose up db
 ```
 
-### 2. Start the API
-
-Run `com.meetingplanner.MeetingPlannerApplication` with the `.env` values available as environment
-variables (e.g. an IntelliJ run configuration). On startup Flyway applies the migrations in
-`server/src/main/resources/db/migration`, creating the schema. Confirm with `\dt` in `psql`.
-
-### 3. Start the BFF
+In a separate terminal, open a `psql` session inside the running container and create the database:
 
 ```bash
-pnpm dev
+docker exec -it postgres_db psql -U postgres
 ```
 
-Open http://localhost:3000.
+```sql
+CREATE DATABASE meeting_planner_db;
+```
 
-### 4. Seed the database
+### 2. Start the app
 
-Seed **after** the API has run once (so the migrations exist and `pgcrypto` is installed). From the
-repo root:
+```bash
+docker compose up --build
+```
 
-```powershell
-$env:PGPASSWORD = (Select-String -Path .env -Pattern '^DB_PASSWORD=').Line.Split('=',2)[1]
-psql -h localhost -U postgres -d meeting_planner_db -f seed-dev.sql
+This builds and starts the API, BFF, Redis, and TLS proxy. On startup Flyway applies the migrations
+in `server/src/main/resources/db/migration`, creating the schema.
+
+Open https://localhost.
+
+### 3. Seed the database
+
+Seed **after** the app has started and the migrations have run (so the schema exists and `pgcrypto`
+is installed). Open a `psql` session against the created database and run/paste in `seed-dev.sql`:
+
+```bash
+docker exec -it postgres_db psql -U postgres -d meeting_planner_db
+```
+
+```sql
+-- paste the contents of seed-dev.sql here
 ```
 
 This creates three fixtures, all with the password `Password123!`:
@@ -52,7 +57,7 @@ This creates three fixtures, all with the password `Password123!`:
 | `bob@example.com`         | `bob`        | yes      |
 | `unverified@example.com`  | `unverified` | no       |
 
-Sign in at http://localhost:3000/login. The `unverified` account exercises the
+Sign in at https://localhost/login. The `unverified` account exercises the
 `email_not_verified` branch (including the resend link).
 
 ### Testing signup without email delivery
@@ -64,12 +69,10 @@ Sign in at http://localhost:3000/login. The `unverified` account exercises the
 SELECT payload->>'link' FROM email_outbox WHERE template = 'EMAIL_VERIFY' ORDER BY created_at DESC LIMIT 1;
 ```
 
-Open the link to verify the account. Set `APP_BASE_URL=http://localhost:3000` in `.env` first so the
-link points at the local BFF.
+Open the link to verify the account. Make sure `APP_BASE_URL=https://localhost` in `.env` so the link
+points at the local stack.
 
 ### Notes
 
-- The API runs Flyway on startup, so the schema must be created by starting the API at least once.
+- The API runs Flyway on startup, so the schema is created the first time the stack starts.
 - Keep `seed-dev.sql` out of `db/migration` — it is a manual, development-only script.
-- If the session does not persist after login over plain HTTP, set `COOKIE_SECURE=false` in
-  `bff/.env`.
