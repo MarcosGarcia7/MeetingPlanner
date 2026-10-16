@@ -8,15 +8,8 @@ Meeting planner web app.
 - Docker with Docker Compose
 - [mkcert](https://github.com/FiloSottile/mkcert) (for local HTTPS)
 
-Copy `.env.example` to `.env`. The example ships with a commented local block; uncomment it for local
-HTTPS (or set these values):
-
-```
-APP_DOMAIN=localhost
-CADDYFILE=./Caddyfile.local
-APP_BASE_URL=https://localhost
-JWT_ISSUER=https://localhost
-```
+Copy `.env.example` to `.env`. It already defaults to a local HTTPS setup (`https://localhost`); the
+production values are included commented out in the file.
 
 ### 1. Start the database
 

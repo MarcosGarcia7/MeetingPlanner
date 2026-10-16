@@ -14,7 +14,18 @@ import java.util.List;
 @Repository
 public interface NotificationRepository extends JpaRepository<NotificationEntity, Long> {
 
-    List<NotificationEntity> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    @Query("""
+            select n from NotificationEntity n
+            where n.user.id = :userId
+              and (:cursorTime is null
+                   or n.createdAt < :cursorTime
+                   or (n.createdAt = :cursorTime and n.id < :cursorId))
+            order by n.createdAt desc, n.id desc
+            """)
+    List<NotificationEntity> listForUser(@Param("userId") Long userId,
+                                         @Param("cursorTime") OffsetDateTime cursorTime,
+                                         @Param("cursorId") Long cursorId,
+                                         Pageable pageable);
 
     long countByUserIdAndReadAtIsNull(Long userId);
 

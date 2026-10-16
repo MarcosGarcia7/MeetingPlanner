@@ -1,5 +1,6 @@
 package com.meetingplanner.domains.friend.controller;
 
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.FriendshipResponse;
 import com.meetingplanner.common.api.dto.MemberUsernameRequest;
 import com.meetingplanner.common.security.CurrentUser;
@@ -14,9 +15,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/users/me/friends")
@@ -29,23 +29,31 @@ public class FriendshipController {
     }
 
     @GetMapping
-    public List<FriendshipResponse> list(@AuthenticationPrincipal Jwt jwt) {
-        return friendshipService.listFriends(CurrentUser.from(jwt).id());
+    public CursorPage<FriendshipResponse> list(@AuthenticationPrincipal Jwt jwt,
+                                               @RequestParam(required = false) String cursor,
+                                               @RequestParam(defaultValue = "20") int size) {
+        return friendshipService.listFriends(CurrentUser.from(jwt).id(), cursor, size);
     }
 
     @GetMapping("/requests/incoming")
-    public List<FriendshipResponse> incoming(@AuthenticationPrincipal Jwt jwt) {
-        return friendshipService.listIncomingRequests(CurrentUser.from(jwt).id());
+    public CursorPage<FriendshipResponse> incoming(@AuthenticationPrincipal Jwt jwt,
+                                                   @RequestParam(required = false) String cursor,
+                                                   @RequestParam(defaultValue = "20") int size) {
+        return friendshipService.listIncomingRequests(CurrentUser.from(jwt).id(), cursor, size);
     }
 
     @GetMapping("/requests/outgoing")
-    public List<FriendshipResponse> outgoing(@AuthenticationPrincipal Jwt jwt) {
-        return friendshipService.listOutgoingRequests(CurrentUser.from(jwt).id());
+    public CursorPage<FriendshipResponse> outgoing(@AuthenticationPrincipal Jwt jwt,
+                                                   @RequestParam(required = false) String cursor,
+                                                   @RequestParam(defaultValue = "20") int size) {
+        return friendshipService.listOutgoingRequests(CurrentUser.from(jwt).id(), cursor, size);
     }
 
     @GetMapping("/blocked")
-    public List<FriendshipResponse> blocked(@AuthenticationPrincipal Jwt jwt) {
-        return friendshipService.listBlocked(CurrentUser.from(jwt).id());
+    public CursorPage<FriendshipResponse> blocked(@AuthenticationPrincipal Jwt jwt,
+                                                  @RequestParam(required = false) String cursor,
+                                                  @RequestParam(defaultValue = "20") int size) {
+        return friendshipService.listBlocked(CurrentUser.from(jwt).id(), cursor, size);
     }
 
     @PostMapping("/requests")

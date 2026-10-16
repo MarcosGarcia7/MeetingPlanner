@@ -1,12 +1,11 @@
 package com.meetingplanner.domains.invite.service;
 
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteResponse;
-
-import java.util.List;
 
 public interface InviteService {
 
-    List<InviteResponse> listMine(long userId);
+    CursorPage<InviteResponse> listMine(long userId, String cursor, int size);
 
     InviteResponse acceptGroupInvite(long userId, long inviteId);
 

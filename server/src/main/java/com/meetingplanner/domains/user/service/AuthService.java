@@ -1,5 +1,6 @@
 package com.meetingplanner.domains.user.service;
 
+import com.meetingplanner.common.api.Timezones;
 import com.meetingplanner.common.api.dto.AccountCreatedResponse;
 import com.meetingplanner.common.api.dto.TokenResponse;
 import com.meetingplanner.common.api.dto.UserProfileResponse;
@@ -15,7 +16,9 @@ import com.meetingplanner.common.api.model.TokenPair;
 import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.AccountTokenEntity;
 import com.meetingplanner.domains.user.model.AccountTokenType;
+import com.meetingplanner.domains.user.model.UserAvailabilityEntity;
 import com.meetingplanner.domains.user.model.UserEntity;
+import com.meetingplanner.domains.user.repository.UserAvailabilityRepository;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,7 +46,8 @@ public class AuthService {
                        @Qualifier("refreshJwtDecoder") JwtDecoder refreshJwtDecoder,
                        LoginAttemptService loginAttemptService, AccountLockoutService accountLockoutService,
                        JtiStorageService jtiStorageService, SecurityAuditService auditService,
-                       AccountTokenService accountTokenService, NotificationService notificationService) {
+                       AccountTokenService accountTokenService, NotificationService notificationService,
+                       UserAvailabilityRepository availabilityRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
@@ -54,6 +58,7 @@ public class AuthService {
         this.auditService = auditService;
         this.accountTokenService = accountTokenService;
         this.notificationService = notificationService;
+        this.availabilityRepository = availabilityRepository;
     }
 
     private static final int USER_MAX_ATTEMPTS = 5;
@@ -100,12 +105,13 @@ public class AuthService {
     private final SecurityAuditService auditService;
     private final AccountTokenService accountTokenService;
     private final NotificationService notificationService;
+    private final UserAvailabilityRepository availabilityRepository;
 
     @Value("${app.base-url:https://meetingplanner.example.com}")
     private String appBaseUrl;
 
     public AccountCreatedResponse create(String email, String password, String username, String firstName, String lastName,
-                                         boolean isPrivate, String clientIp) {
+                                         boolean isPrivate, String timezone, String clientIp) {
         rateLimit(CREATE_RATE_LIMIT_PREFIX, clientIp, CREATE_MAX_PER_IP, CREATE_WINDOW_SECONDS, "create");
 
         String normalizedEmail = normalizeEmail(email);
@@ -129,6 +135,7 @@ public class AuthService {
         if (lastName != null && !lastName.isBlank()) {
             user.setLastName(lastName.trim());
         }
+        user.setTimezone(Timezones.resolve(timezone));
 
         try {
             userRepository.save(user);
@@ -136,6 +143,8 @@ public class AuthService {
             auditService.createAccountFailure(normalizedEmail, clientIp);
             throw new EmailTakenException(normalizedEmail);
         }
+
+        seedAvailability(user);
 
         auditService.createAccountSuccess(normalizedEmail, clientIp);
 
@@ -367,8 +376,9 @@ public class AuthService {
                 user.getFirstName(),
                 user.getLastName(),
                 user.getAvatarColor(),
+                user.getTimezone(),
                 user.isPrivate(),
-                user.isFriendsCanViewPrivate(),
+                user.isFriendsCanViewSchedule(),
                 user.getEmailVerifiedAt() != null
         );
 
@@ -428,6 +438,20 @@ public class AuthService {
             local = email.substring(0, at);
         }
         return local;
+    }
+
+    private void seedAvailability(UserEntity user) {
+        UserAvailabilityEntity availability = new UserAvailabilityEntity();
+        availability.setUser(user);
+        availability.setSunAvailability(new int[0][]);
+        availability.setMonAvailability(new int[0][]);
+        availability.setTueAvailability(new int[0][]);
+        availability.setWedAvailability(new int[0][]);
+        availability.setThuAvailability(new int[0][]);
+        availability.setFriAvailability(new int[0][]);
+        availability.setSatAvailability(new int[0][]);
+        availability.setAvailabilitySet(false);
+        availabilityRepository.save(availability);
     }
 
     private String displayName(UserEntity user) {

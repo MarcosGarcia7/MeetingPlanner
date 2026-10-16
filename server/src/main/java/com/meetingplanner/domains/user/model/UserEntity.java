@@ -34,8 +34,11 @@ public class UserEntity {
     @Column(name = "is_private", nullable = false)
     private boolean isPrivate = false;
 
-    @Column(name = "friends_can_view_private", nullable = false)
-    private boolean friendsCanViewPrivate = false;
+    @Column(name = "friends_can_view_schedule", nullable = false)
+    private boolean friendsCanViewSchedule = false;
+
+    @Column(name = "timezone", length = 64)
+    private String timezone;
 
     @Column(name = "email_verified_at")
     private OffsetDateTime emailVerifiedAt;
@@ -124,12 +127,20 @@ public class UserEntity {
         this.email = email;
     }
 
-    public boolean isFriendsCanViewPrivate() {
-        return friendsCanViewPrivate;
+    public boolean isFriendsCanViewSchedule() {
+        return friendsCanViewSchedule;
     }
 
-    public void setFriendsCanViewPrivate(boolean friendsCanViewPrivate) {
-        this.friendsCanViewPrivate = friendsCanViewPrivate;
+    public void setFriendsCanViewSchedule(boolean friendsCanViewSchedule) {
+        this.friendsCanViewSchedule = friendsCanViewSchedule;
+    }
+
+    public String getTimezone() {
+        return timezone;
+    }
+
+    public void setTimezone(String timezone) {
+        this.timezone = timezone;
     }
 
     public OffsetDateTime getEmailVerifiedAt() {

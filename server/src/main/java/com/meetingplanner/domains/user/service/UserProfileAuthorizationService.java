@@ -25,7 +25,7 @@ public class UserProfileAuthorizationService {
         this.friendshipRepository = friendshipRepository;
     }
 
-    public boolean canViewProfile(Long viewerId, Long targetUserId) {
+    public boolean canViewSchedule(Long viewerId, Long targetUserId) {
         UserEntity target = userRepository.findById(targetUserId).orElse(null);
         if (target == null) {
             return false;
@@ -40,7 +40,7 @@ public class UserProfileAuthorizationService {
     }
 
     private boolean sharesContext(Long viewerId, Long targetUserId, UserEntity target) {
-        if (target.isFriendsCanViewPrivate()
+        if (target.isFriendsCanViewSchedule()
                 && friendshipRepository.areFriends(viewerId, targetUserId)) {
             return true;
         }

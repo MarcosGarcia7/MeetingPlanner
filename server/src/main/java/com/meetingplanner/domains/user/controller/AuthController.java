@@ -24,7 +24,8 @@ public class AuthController {
     public ResponseEntity<AccountCreatedResponse> create(@Valid @RequestBody CreateAccountRequest request,
                                                          HttpServletRequest httpRequest) {
         AccountCreatedResponse response = authService.create(request.email(), request.password(), request.username(),
-                request.firstName(), request.lastName(), request.isPrivate(), resolveClientIp(httpRequest));
+                request.firstName(), request.lastName(), request.isPrivate(), request.timezone(),
+                resolveClientIp(httpRequest));
         return ResponseEntity.accepted().body(response);
     }
 

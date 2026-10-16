@@ -63,6 +63,14 @@ public class ApiExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<Map<String, Object>> handleForbidden(ForbiddenException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                "error", "forbidden",
+                "message", e.getMessage()
+        ));
+    }
+
     @ExceptionHandler(UsernameTakenException.class)
     public ResponseEntity<Map<String, Object>> handleUsernameTaken(UsernameTakenException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(

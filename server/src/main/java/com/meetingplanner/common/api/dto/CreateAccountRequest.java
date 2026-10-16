@@ -20,5 +20,7 @@ public record CreateAccountRequest(
         String username,
         @Size(max = 50) String firstName,
         @Size(max = 50) String lastName,
-        boolean isPrivate
+        boolean isPrivate,
+        @Size(max = 64, message = "timezone must be at most 64 characters")
+        String timezone
 ) {}

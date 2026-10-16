@@ -9,8 +9,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/groups/{groupId}/posts")
 public class PostController {
@@ -22,8 +20,18 @@ public class PostController {
     }
 
     @GetMapping
-    public List<PostResponse> list(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId) {
-        return postService.list(CurrentUser.from(jwt).id(), groupId);
+    public CursorPage<PostResponse> list(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
+                                         @RequestParam(required = false) String cursor,
+                                         @RequestParam(defaultValue = "20") int size) {
+        return postService.list(CurrentUser.from(jwt).id(), groupId, cursor, size);
+    }
+
+    @GetMapping("/{postId}/comments")
+    public CursorPage<PostCommentResponse> listComments(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
+                                                        @PathVariable long postId,
+                                                        @RequestParam(required = false) String cursor,
+                                                        @RequestParam(defaultValue = "20") int size) {
+        return postService.listComments(CurrentUser.from(jwt).id(), groupId, postId, cursor, size);
     }
 
     @PostMapping

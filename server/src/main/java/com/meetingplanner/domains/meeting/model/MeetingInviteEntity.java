@@ -39,6 +39,9 @@ public class MeetingInviteEntity {
     @Column(name = "responded_at")
     private OffsetDateTime respondedAt;
 
+    @Column(name = "time_sent", nullable = false, columnDefinition = "TIMESTAMPTZ DEFAULT NOW()")
+    private OffsetDateTime timeSent = OffsetDateTime.now();
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
     private InviteStatus status = InviteStatus.PENDING;
@@ -100,6 +103,14 @@ public class MeetingInviteEntity {
 
     public void setRespondedAt(OffsetDateTime respondedAt) {
         this.respondedAt = respondedAt;
+    }
+
+    public OffsetDateTime getTimeSent() {
+        return timeSent;
+    }
+
+    public void setTimeSent(OffsetDateTime timeSent) {
+        this.timeSent = timeSent;
     }
 
     public InviteStatus getStatus() {

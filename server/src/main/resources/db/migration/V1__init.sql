@@ -11,7 +11,8 @@ CREATE TABLE users (
     last_name VARCHAR(50),
     avatar_color VARCHAR(7) NOT NULL,
     is_private BOOLEAN NOT NULL DEFAULT FALSE,
-    friends_can_view_private BOOLEAN NOT NULL DEFAULT FALSE,
+    friends_can_view_schedule BOOLEAN NOT NULL DEFAULT FALSE,
+    timezone VARCHAR(64),
     email_verified_at TIMESTAMPTZ,
     pending_email CITEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -39,7 +40,8 @@ CREATE TABLE groups (
     owner_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     is_private BOOLEAN NOT NULL DEFAULT TRUE,
     members_can_post BOOLEAN NOT NULL DEFAULT TRUE,
-    comments_enabled BOOLEAN NOT NULL DEFAULT TRUE
+    comments_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    members_can_create BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE group_members (
@@ -95,10 +97,15 @@ CREATE TABLE meeting_invites (
     recipient_email CITEXT NOT NULL,
     token_hash CHAR(64) NOT NULL,
     responded_at TIMESTAMPTZ,
+    time_sent TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING'
 );
 
 CREATE UNIQUE INDEX ux_meeting_invites_email ON meeting_invites(meeting_id, recipient_email);
+CREATE INDEX ix_meeting_invites_recipient ON meeting_invites(recipient_id, time_sent DESC);
+CREATE INDEX ix_meeting_invites_recipient_email ON meeting_invites(recipient_email, time_sent DESC);
+CREATE INDEX ix_group_invites_recipient ON group_invites(recipient_id, time_sent DESC);
+CREATE INDEX ix_group_invites_recipient_email ON group_invites(recipient_email, time_sent DESC);
 
 CREATE TABLE account_tokens (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -141,7 +148,7 @@ CREATE TABLE notifications (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ix_notifications_user ON notifications(user_id, created_at DESC);
+CREATE INDEX ix_notifications_user ON notifications(user_id, created_at DESC, id DESC);
 
 CREATE TABLE notification_preferences (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -149,6 +156,7 @@ CREATE TABLE notification_preferences (
     group_invites BOOLEAN NOT NULL DEFAULT TRUE,
     meeting_invites BOOLEAN NOT NULL DEFAULT TRUE,
     meeting_reminders BOOLEAN NOT NULL DEFAULT TRUE,
+    meeting_updates BOOLEAN NOT NULL DEFAULT TRUE,
     friend_requests BOOLEAN NOT NULL DEFAULT TRUE,
     post_comments BOOLEAN NOT NULL DEFAULT TRUE,
     group_posts BOOLEAN NOT NULL DEFAULT TRUE,
@@ -194,5 +202,61 @@ CREATE TABLE friendships (
     CHECK (user_id <> friend_id)
 );
 
-CREATE INDEX ix_friendships_user ON friendships(user_id, status);
-CREATE INDEX ix_friendships_friend ON friendships(friend_id, status);
+CREATE INDEX ix_friendships_user_status_created ON friendships(user_id, status, created_at DESC, friend_id DESC);
+CREATE INDEX ix_friendships_friend_status_created ON friendships(friend_id, status, created_at DESC, user_id DESC);
+
+CREATE TABLE group_join_requests (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    requester_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    group_id BIGINT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    responded_at TIMESTAMPTZ,
+    time_sent TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX ux_group_join_requests_pending
+    ON group_join_requests(group_id, requester_id) WHERE status = 'PENDING';
+CREATE INDEX ix_group_join_requests_group ON group_join_requests(group_id, time_sent DESC);
+CREATE INDEX ix_group_join_requests_requester ON group_join_requests(requester_id, time_sent DESC);
+
+CREATE TABLE meeting_join_requests (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    requester_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    meeting_id BIGINT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    responded_at TIMESTAMPTZ,
+    time_sent TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX ux_meeting_join_requests_pending
+    ON meeting_join_requests(meeting_id, requester_id) WHERE status = 'PENDING';
+CREATE INDEX ix_meeting_join_requests_meeting ON meeting_join_requests(meeting_id, time_sent DESC);
+CREATE INDEX ix_meeting_join_requests_requester ON meeting_join_requests(requester_id, time_sent DESC);
+
+CREATE TABLE meeting_time_change_proposals (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    meeting_id BIGINT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    proposed_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    proposed_start_time TIMESTAMPTZ NOT NULL,
+    proposed_end_time TIMESTAMPTZ,
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    time_sent TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX ux_time_change_proposals_pending
+    ON meeting_time_change_proposals(meeting_id) WHERE status = 'PENDING';
+CREATE INDEX ix_time_change_proposals_meeting ON meeting_time_change_proposals(meeting_id, time_sent DESC);
+CREATE INDEX ix_time_change_proposals_expiry ON meeting_time_change_proposals(status, time_sent);
+
+CREATE TABLE meeting_time_change_votes (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    proposal_id BIGINT NOT NULL REFERENCES meeting_time_change_proposals(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    responded_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX ux_time_change_votes_proposal_user
+    ON meeting_time_change_votes(proposal_id, user_id);
+CREATE INDEX ix_time_change_votes_proposal ON meeting_time_change_votes(proposal_id);

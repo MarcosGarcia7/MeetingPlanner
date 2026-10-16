@@ -8,6 +8,7 @@ public record NotificationPreferenceUpdateRequest(
         Boolean groupInvites,
         Boolean meetingInvites,
         Boolean meetingReminders,
+        Boolean meetingUpdates,
         Boolean friendRequests,
         Boolean postComments,
         Boolean groupPosts,

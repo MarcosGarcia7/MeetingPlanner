@@ -27,6 +27,9 @@ public class NotificationPreferenceEntity {
     @Column(name = "meeting_reminders", nullable = false)
     private boolean meetingReminders = true;
 
+    @Column(name = "meeting_updates", nullable = false)
+    private boolean meetingUpdates = true;
+
     @Column(name = "friend_requests", nullable = false)
     private boolean friendRequests = true;
 
@@ -88,6 +91,14 @@ public class NotificationPreferenceEntity {
 
     public void setMeetingReminders(boolean meetingReminders) {
         this.meetingReminders = meetingReminders;
+    }
+
+    public boolean isMeetingUpdates() {
+        return meetingUpdates;
+    }
+
+    public void setMeetingUpdates(boolean meetingUpdates) {
+        this.meetingUpdates = meetingUpdates;
     }
 
     public boolean isFriendRequests() {

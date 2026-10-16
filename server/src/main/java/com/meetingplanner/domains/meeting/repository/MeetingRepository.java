@@ -55,6 +55,7 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
             select m from MeetingEntity m
             where m.group.id = :groupId
               and (m.isPrivate = false
+                   or :canSeePrivate = true
                    or m.creator.id = :userId
                    or exists (select 1 from MeetingParticipantEntity p
                               where p.meeting = m and p.user.id = :userId))
@@ -65,11 +66,59 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
             """)
     List<MeetingEntity> listGroup(@Param("groupId") Long groupId,
                                   @Param("userId") Long userId,
+                                  @Param("canSeePrivate") boolean canSeePrivate,
                                   @Param("cursorTime") OffsetDateTime cursorTime,
                                   @Param("cursorId") Long cursorId,
                                   Pageable pageable);
 
+    @Query("""
+            select m from MeetingEntity m
+            join m.participants p
+            where p.user.id = :userId
+              and (:publicOnly = false or m.isPrivate = false)
+              and (:cursorTime is null
+                   or m.startTime < :cursorTime
+                   or (m.startTime = :cursorTime and m.id < :cursorId))
+            order by m.startTime desc, m.id desc
+            """)
+    List<MeetingEntity> listForUser(@Param("userId") Long userId,
+                                    @Param("publicOnly") boolean publicOnly,
+                                    @Param("cursorTime") OffsetDateTime cursorTime,
+                                    @Param("cursorId") Long cursorId,
+                                    Pageable pageable);
+
     @Modifying
     @Query("DELETE FROM MeetingEntity m WHERE COALESCE(m.endTime, m.startTime) < :cutoff")
     int deleteMeetingsEndedBefore(@Param("cutoff") OffsetDateTime cutoff);
+
+    @Query("""
+            select m from MeetingEntity m
+            where (m.creator.id = :userId
+                   or exists (select 1 from MeetingParticipantEntity p
+                              where p.meeting = m and p.user.id = :userId))
+              and (:excludeMeetingId is null or m.id <> :excludeMeetingId)
+              and m.startTime < :end
+              and COALESCE(m.endTime, m.startTime) > :start
+            order by m.startTime asc
+            """)
+    List<MeetingEntity> findScheduleConflicts(@Param("userId") Long userId,
+                                              @Param("start") OffsetDateTime start,
+                                              @Param("end") OffsetDateTime end,
+                                              @Param("excludeMeetingId") Long excludeMeetingId);
+
+    @Query("""
+            select m from MeetingEntity m
+            join m.participants p
+            where p.user.id = :userId
+              and (:publicOnly = false or m.isPrivate = false)
+              and (:excludeMeetingId is null or m.id <> :excludeMeetingId)
+              and m.startTime < :end
+              and COALESCE(m.endTime, m.startTime) > :start
+            order by m.startTime asc
+            """)
+    List<MeetingEntity> findScheduleConflictsForUser(@Param("userId") Long userId,
+                                                     @Param("publicOnly") boolean publicOnly,
+                                                     @Param("start") OffsetDateTime start,
+                                                     @Param("end") OffsetDateTime end,
+                                                     @Param("excludeMeetingId") Long excludeMeetingId);
 }

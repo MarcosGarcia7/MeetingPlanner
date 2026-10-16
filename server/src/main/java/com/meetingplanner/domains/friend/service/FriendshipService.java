@@ -1,5 +1,7 @@
 package com.meetingplanner.domains.friend.service;
 
+import com.meetingplanner.common.api.CursorCodec;
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.FriendshipResponse;
 import com.meetingplanner.common.api.dto.MemberUsernameRequest;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
@@ -10,12 +12,15 @@ import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -144,31 +149,76 @@ public class FriendshipService {
     }
 
     @Transactional(readOnly = true)
-    public List<FriendshipResponse> listFriends(long userId) {
-        return friendshipRepository.findAcceptedByUserId(userId).stream()
-                .map(f -> FriendshipResponse.from(f, userId))
-                .toList();
+    public CursorPage<FriendshipResponse> listFriends(long userId, String cursor, int size) {
+        return listByStatus(userId, FriendshipStatus.ACCEPTED, cursor, size);
     }
 
     @Transactional(readOnly = true)
-    public List<FriendshipResponse> listIncomingRequests(long userId) {
-        return friendshipRepository.findByFriendIdAndStatus(userId, FriendshipStatus.PENDING).stream()
-                .map(f -> FriendshipResponse.from(f, userId))
-                .toList();
+    public CursorPage<FriendshipResponse> listIncomingRequests(long userId, String cursor, int size) {
+        return listRequests(userId, true, cursor, size);
     }
 
     @Transactional(readOnly = true)
-    public List<FriendshipResponse> listOutgoingRequests(long userId) {
-        return friendshipRepository.findByUserIdAndStatus(userId, FriendshipStatus.PENDING).stream()
-                .map(f -> FriendshipResponse.from(f, userId))
-                .toList();
+    public CursorPage<FriendshipResponse> listOutgoingRequests(long userId, String cursor, int size) {
+        return listRequests(userId, false, cursor, size);
     }
 
     @Transactional(readOnly = true)
-    public List<FriendshipResponse> listBlocked(long userId) {
-        return friendshipRepository.findBlockedByUserId(userId).stream()
+    public CursorPage<FriendshipResponse> listBlocked(long userId, String cursor, int size) {
+        return listByStatus(userId, FriendshipStatus.BLOCKED, cursor, size);
+    }
+
+    private CursorPage<FriendshipResponse> listByStatus(long userId, FriendshipStatus status, String cursor, int size) {
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        OffsetDateTime cursorTime = decoded == null ? null : decoded.time();
+        Long cursorId = decoded == null ? null : decoded.id();
+
+        List<FriendshipEntity> asUser = friendshipRepository.listByStatusAsUser(
+                userId, status, cursorTime, cursorId, PageRequest.of(0, limit + 1));
+        List<FriendshipEntity> asFriend = friendshipRepository.listByStatusAsFriend(
+                userId, status, cursorTime, cursorId, PageRequest.of(0, limit + 1));
+        return toPage(merge(asUser, asFriend, userId), limit, userId);
+    }
+
+    private CursorPage<FriendshipResponse> listRequests(long userId, boolean incoming, String cursor, int size) {
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        OffsetDateTime cursorTime = decoded == null ? null : decoded.time();
+        Long cursorId = decoded == null ? null : decoded.id();
+
+        List<FriendshipEntity> asUser = friendshipRepository.listRequestsAsUser(
+                userId, FriendshipStatus.PENDING, incoming, cursorTime, cursorId, PageRequest.of(0, limit + 1));
+        List<FriendshipEntity> asFriend = friendshipRepository.listRequestsAsFriend(
+                userId, FriendshipStatus.PENDING, incoming, cursorTime, cursorId, PageRequest.of(0, limit + 1));
+        return toPage(merge(asUser, asFriend, userId), limit, userId);
+    }
+
+    private List<FriendshipEntity> merge(List<FriendshipEntity> asUser, List<FriendshipEntity> asFriend, long userId) {
+        List<FriendshipEntity> rows = new ArrayList<>(asUser);
+        rows.addAll(asFriend);
+        rows.sort(Comparator
+                .comparing(FriendshipEntity::getCreatedAt).reversed()
+                .thenComparing(f -> counterpartId(f, userId), Comparator.reverseOrder()));
+        return rows;
+    }
+
+    private CursorPage<FriendshipResponse> toPage(List<FriendshipEntity> rows, int size, long userId) {
+        boolean hasMore = rows.size() > size;
+        List<FriendshipEntity> page = hasMore ? rows.subList(0, size) : rows;
+        List<FriendshipResponse> items = page.stream()
                 .map(f -> FriendshipResponse.from(f, userId))
                 .toList();
+        String nextCursor = hasMore && !page.isEmpty()
+                ? CursorCodec.encode(page.getLast().getCreatedAt(), counterpartId(page.getLast(), userId))
+                : null;
+        return new CursorPage<>(items, nextCursor);
+    }
+
+    private static long counterpartId(FriendshipEntity friendship, long userId) {
+        return friendship.getUser().getId() == userId
+                ? friendship.getFriend().getId()
+                : friendship.getUser().getId();
     }
 
     @Transactional(readOnly = true)

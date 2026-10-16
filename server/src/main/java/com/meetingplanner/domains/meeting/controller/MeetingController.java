@@ -1,17 +1,20 @@
 package com.meetingplanner.domains.meeting.controller;
 
 import com.meetingplanner.common.api.dto.CursorPage;
-import com.meetingplanner.common.api.dto.InviteResponse;
+import com.meetingplanner.common.api.dto.InviteBatchResponse;
+import com.meetingplanner.common.api.dto.InviteCheckResponse;
+import com.meetingplanner.common.api.dto.JoinRequestResponse;
 import com.meetingplanner.common.api.dto.MeetingCreateRequest;
-import com.meetingplanner.common.api.dto.MeetingInviteRequest;
+import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
-import com.meetingplanner.common.api.dto.MemberUsernameRequest;
 import com.meetingplanner.common.api.dto.ParticipantResponse;
 import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.meeting.service.MeetingService;
+import com.meetingplanner.domains.request.service.JoinRequestService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -32,9 +35,11 @@ import java.util.List;
 public class MeetingController {
 
     private final MeetingService meetingService;
+    private final JoinRequestService joinRequestService;
 
-    public MeetingController(MeetingService meetingService) {
+    public MeetingController(MeetingService meetingService, JoinRequestService joinRequestService) {
         this.meetingService = meetingService;
+        this.joinRequestService = joinRequestService;
     }
 
     @PostMapping
@@ -58,7 +63,7 @@ public class MeetingController {
     }
 
     @GetMapping("/upcoming")
-    public List<MeetingResponse> listUpcoming(@AuthenticationPrincipal Jwt jwt) {
+    public List<MeetingSummaryResponse> listUpcoming(@AuthenticationPrincipal Jwt jwt) {
         return meetingService.listUpcoming(CurrentUser.from(jwt).id());
     }
 
@@ -79,12 +84,6 @@ public class MeetingController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{meetingId}/participants")
-    public ParticipantResponse addParticipant(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId,
-                                              @Valid @RequestBody MemberUsernameRequest request) {
-        return meetingService.addParticipant(CurrentUser.from(jwt).id(), meetingId, request);
-    }
-
     @DeleteMapping("/{meetingId}/participants/{userId}")
     public ResponseEntity<Void> removeParticipant(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId,
                                                   @PathVariable long userId) {
@@ -92,9 +91,36 @@ public class MeetingController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/{meetingId}/participants/me")
+    public ResponseEntity<Void> leave(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId) {
+        meetingService.leaveMeeting(CurrentUser.from(jwt).id(), meetingId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{meetingId}/invites")
-    public InviteResponse invite(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId,
-                                 @Valid @RequestBody MeetingInviteRequest request) {
-        return meetingService.invite(CurrentUser.from(jwt).id(), meetingId, request);
+    public InviteBatchResponse invite(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId,
+                                      @Valid @RequestBody MeetingInviteBatchRequest request) {
+        return meetingService.inviteBatch(CurrentUser.from(jwt).id(), meetingId, request);
+    }
+
+    @PostMapping("/{meetingId}/invites/check")
+    public InviteCheckResponse checkInvites(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId,
+                                            @Valid @RequestBody MeetingInviteBatchRequest request) {
+        return meetingService.checkInvites(CurrentUser.from(jwt).id(), meetingId, request);
+    }
+
+    @PostMapping("/{meetingId}/join-requests")
+    public ResponseEntity<JoinRequestResponse> requestJoin(@AuthenticationPrincipal Jwt jwt,
+                                                           @PathVariable long meetingId) {
+        JoinRequestResponse response = joinRequestService.requestMeetingJoin(CurrentUser.from(jwt).id(), meetingId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/{meetingId}/join-requests")
+    public CursorPage<JoinRequestResponse> listJoinRequests(@AuthenticationPrincipal Jwt jwt,
+                                                            @PathVariable long meetingId,
+                                                            @RequestParam(required = false) String cursor,
+                                                            @RequestParam(defaultValue = "20") int size) {
+        return joinRequestService.listForMeeting(CurrentUser.from(jwt).id(), meetingId, cursor, size);
     }
 }

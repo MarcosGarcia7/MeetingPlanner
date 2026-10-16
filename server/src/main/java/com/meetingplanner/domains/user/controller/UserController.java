@@ -1,10 +1,13 @@
 package com.meetingplanner.domains.user.controller;
 
+import com.meetingplanner.common.api.dto.CursorPage;
+import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.UserAvailabilityResponse;
 import com.meetingplanner.common.api.dto.UserAvailabilityUpdateRequest;
 import com.meetingplanner.common.api.dto.UserProfileResponse;
 import com.meetingplanner.common.api.dto.UserProfileUpdateRequest;
 import com.meetingplanner.common.security.CurrentUser;
+import com.meetingplanner.domains.meeting.service.MeetingService;
 import com.meetingplanner.domains.user.service.UserAvailabilityService;
 import com.meetingplanner.domains.user.service.UserService;
 import jakarta.validation.Valid;
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -26,10 +30,13 @@ public class UserController {
 
     private final UserService userService;
     private final UserAvailabilityService availabilityService;
+    private final MeetingService meetingService;
 
-    public UserController(UserService userService, UserAvailabilityService availabilityService) {
+    public UserController(UserService userService, UserAvailabilityService availabilityService,
+                          MeetingService meetingService) {
         this.userService = userService;
         this.availabilityService = availabilityService;
+        this.meetingService = meetingService;
     }
 
     @GetMapping("/me")
@@ -54,9 +61,19 @@ public class UserController {
         return userService.getByUsername(CurrentUser.from(jwt).id(), username);
     }
 
-    @GetMapping("/{username}/availability}")
+    @GetMapping("/{username}/availability")
     public UserAvailabilityResponse getAvailability(@AuthenticationPrincipal Jwt jwt, @PathVariable String username) {
-        return availabilityService.getAvailability(username);
+        return availabilityService.getAvailability(CurrentUser.from(jwt).id(), username);
+    }
+
+    @GetMapping("/{username}/schedule")
+    public CursorPage<MeetingSummaryResponse> getSchedule(@AuthenticationPrincipal Jwt jwt,
+                                                          @PathVariable String username,
+                                                          @RequestParam(required = false) String cursor,
+                                                          @RequestParam(defaultValue = "20") int size) {
+        long viewerId = CurrentUser.from(jwt).id();
+        long targetUserId = userService.resolveUserId(username);
+        return meetingService.listSchedule(viewerId, targetUserId, cursor, size);
     }
 
     @GetMapping("/me/availability")

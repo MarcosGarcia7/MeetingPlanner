@@ -3,6 +3,7 @@ package com.meetingplanner.domains.user.service;
 import com.meetingplanner.common.api.dto.UserAvailabilityResponse;
 import com.meetingplanner.common.api.dto.UserAvailabilityUpdateRequest;
 import com.meetingplanner.common.api.exceptions.AvailabilityNotSetException;
+import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.domains.user.model.UserAvailabilityEntity;
 import com.meetingplanner.domains.user.repository.UserAvailabilityRepository;
 import com.meetingplanner.domains.user.repository.UserRepository;
@@ -18,11 +19,14 @@ public class UserAvailabilityService {
 
     private final UserAvailabilityRepository availabilityRepository;
     private final UserRepository userRepository;
+    private final UserProfileAuthorizationService authorization;
 
     public UserAvailabilityService(UserAvailabilityRepository availabilityRepository,
-                                    UserRepository userRepository) {
+                                    UserRepository userRepository,
+                                    UserProfileAuthorizationService authorization) {
         this.availabilityRepository = availabilityRepository;
         this.userRepository = userRepository;
+        this.authorization = authorization;
     }
 
     @Transactional(readOnly = true)
@@ -44,10 +48,14 @@ public class UserAvailabilityService {
     }
 
     @Transactional(readOnly = true)
-    public UserAvailabilityResponse getAvailability(String username) {
+    public UserAvailabilityResponse getAvailability(long viewerId, String username) {
         Long userId = userRepository.findIdByUsername(username);
 
         if (userId == null) throw new EntityNotFoundException("User not found: " + username);
+
+        if (!authorization.canViewSchedule(viewerId, userId)) {
+            throw new ResourceNotFoundException("User not found");
+        }
 
         UserAvailabilityEntity av = availabilityRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User availability not found: " + userId));

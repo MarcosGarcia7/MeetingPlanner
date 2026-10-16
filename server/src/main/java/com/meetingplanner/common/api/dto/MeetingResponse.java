@@ -13,6 +13,8 @@ public record MeetingResponse(
         String description,
         boolean isPrivate,
         List<String> externalParticipantNames,
-        List<ParticipantResponse> participants
+        List<ParticipantResponse> participants,
+        List<String> warnings,
+        PendingTimeChange pendingTimeChange
 ) {
 }

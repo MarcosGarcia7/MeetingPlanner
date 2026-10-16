@@ -28,6 +28,9 @@ public class GroupEntity {
     @Column(name = "comments_enabled", nullable = false)
     private boolean commentsEnabled = true;
 
+    @Column(name = "members_can_create", nullable = false)
+    private boolean membersCanCreate = true;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false)
     private UserEntity owner;
@@ -73,6 +76,14 @@ public class GroupEntity {
 
     public void setCommentsEnabled(boolean commentsEnabled) {
         this.commentsEnabled = commentsEnabled;
+    }
+
+    public boolean isMembersCanCreate() {
+        return membersCanCreate;
+    }
+
+    public void setMembersCanCreate(boolean membersCanCreate) {
+        this.membersCanCreate = membersCanCreate;
     }
 
     public UserEntity getOwner() {

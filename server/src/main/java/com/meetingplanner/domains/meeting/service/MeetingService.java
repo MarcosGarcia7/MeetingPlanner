@@ -1,20 +1,21 @@
 package com.meetingplanner.domains.meeting.service;
 
 import com.meetingplanner.common.api.dto.CursorPage;
-import com.meetingplanner.common.api.dto.InviteResponse;
+import com.meetingplanner.common.api.dto.InviteBatchResponse;
+import com.meetingplanner.common.api.dto.InviteCheckResponse;
 import com.meetingplanner.common.api.dto.MeetingCreateRequest;
-import com.meetingplanner.common.api.dto.MeetingInviteRequest;
+import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
-import com.meetingplanner.common.api.dto.MemberUsernameRequest;
-import com.meetingplanner.common.api.dto.ParticipantResponse;
 
 import java.util.List;
 
 public interface MeetingService {
 
     MeetingResponse create(long userId, MeetingCreateRequest request);
+
+    MeetingResponse createInGroup(long userId, long groupId, MeetingCreateRequest request);
 
     MeetingResponse get(long userId, long meetingId);
 
@@ -28,11 +29,15 @@ public interface MeetingService {
 
     CursorPage<MeetingSummaryResponse> listForGroup(long userId, long groupId, String cursor, int size);
 
-    List<MeetingResponse> listUpcoming(long userId);
+    CursorPage<MeetingSummaryResponse> listSchedule(long viewerId, long targetUserId, String cursor, int size);
 
-    ParticipantResponse addParticipant(long actorUserId, long meetingId, MemberUsernameRequest request);
+    List<MeetingSummaryResponse> listUpcoming(long userId);
 
     void removeParticipant(long actorUserId, long meetingId, long targetUserId);
 
-    InviteResponse invite(long actorUserId, long meetingId, MeetingInviteRequest request);
+    void leaveMeeting(long userId, long meetingId);
+
+    InviteBatchResponse inviteBatch(long actorUserId, long meetingId, MeetingInviteBatchRequest request);
+
+    InviteCheckResponse checkInvites(long actorUserId, long meetingId, MeetingInviteBatchRequest request);
 }

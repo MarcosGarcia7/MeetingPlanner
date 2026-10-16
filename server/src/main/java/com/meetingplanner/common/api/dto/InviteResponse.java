@@ -2,6 +2,8 @@ package com.meetingplanner.common.api.dto;
 
 import com.meetingplanner.common.api.model.InviteStatus;
 
+import java.util.List;
+
 public record InviteResponse(
         Long id,
         String kind,
@@ -11,6 +13,7 @@ public record InviteResponse(
         Long recipientId,
         String recipientEmail,
         Long groupId,
-        Long meetingId
+        Long meetingId,
+        List<String> warnings
 ) {
 }

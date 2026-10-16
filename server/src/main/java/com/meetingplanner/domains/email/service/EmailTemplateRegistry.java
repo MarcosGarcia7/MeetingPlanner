@@ -71,6 +71,30 @@ public class EmailTemplateRegistry {
             case "MEETING_REMINDER" -> new Template(
                     "Reminder: {{title}} starts soon",
                     "Hi {{name}},\n\nA quick reminder that \"{{title}}\" starts at {{start_time}}.\n\n- {{app_url}}");
+            case "MEETING_UPDATED" -> new Template(
+                    "{{title}} was updated",
+                    "Hi {{name}},\n\n\"{{title}}\" was updated.\nStart time: {{start_time}}\nLocation: {{location}}\nOpen the meeting:\n{{link}}\n\n- {{app_url}}");
+            case "MEETING_DELETED" -> new Template(
+                    "{{title}} was deleted",
+                    "Hi {{name}},\n\n\"{{title}}\" has been deleted by the organizer.\n\n- {{app_url}}");
+            case "GROUP_JOIN_REQUEST" -> new Template(
+                    "{{requester}} requested to join {{group}}",
+                    "Hi {{name}},\n\n{{requester}} requested to join the group \"{{group}}\".\nReview the request:\n{{link}}\n\n- {{app_url}}");
+            case "MEETING_JOIN_REQUEST" -> new Template(
+                    "{{requester}} requested to join your meeting",
+                    "Hi {{name}},\n\n{{requester}} requested to join \"{{title}}\".\nReview the request:\n{{link}}\n\n- {{app_url}}");
+            case "GROUP_JOIN_REQUEST_APPROVED" -> new Template(
+                    "Your request to join {{group}} was approved",
+                    "Hi {{name}},\n\nYour request to join the group \"{{group}}\" was approved.\nOpen the group:\n{{link}}\n\n- {{app_url}}");
+            case "GROUP_JOIN_REQUEST_DECLINED" -> new Template(
+                    "Your request to join {{group}} was declined",
+                    "Hi {{name}},\n\nYour request to join the group \"{{group}}\" was declined.\n\n- {{app_url}}");
+            case "MEETING_JOIN_REQUEST_APPROVED" -> new Template(
+                    "You're confirmed for \"{{title}}\"",
+                    "Hi {{name}},\n\nYour request to join \"{{title}}\" was approved.\nOpen the meeting:\n{{link}}\n\n- {{app_url}}");
+            case "MEETING_JOIN_REQUEST_DECLINED" -> new Template(
+                    "Your request to join \"{{title}}\" was declined",
+                    "Hi {{name}},\n\nYour request to join \"{{title}}\" was declined.\n\n- {{app_url}}");
             case "FRIEND_REQUEST" -> new Template(
                     "{{requester}} sent you a friend request",
                     "Hi {{name}},\n\n{{requester}} sent you a friend request.\nOpen it:\n{{link}}\n\n- {{app_url}}");

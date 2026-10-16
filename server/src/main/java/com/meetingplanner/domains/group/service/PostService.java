@@ -1,6 +1,8 @@
 package com.meetingplanner.domains.group.service;
 
+import com.meetingplanner.common.api.CursorCodec;
 import com.meetingplanner.common.api.dto.CommentsEnabledRequest;
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.PostCommentCreateRequest;
 import com.meetingplanner.common.api.dto.PostCommentResponse;
 import com.meetingplanner.common.api.dto.PostCreateRequest;
@@ -29,8 +31,6 @@ import java.util.Map;
 
 @Service
 public class PostService {
-
-    private static final int LIST_LIMIT = 50;
 
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
@@ -71,24 +71,59 @@ public class PostService {
 
         notifyGroupMembers(group, post, author);
 
-        return PostResponse.from(post, List.of());
+        return PostResponse.from(post);
     }
 
     @Transactional(readOnly = true)
-    public List<PostResponse> list(long userId, long groupId) {
+    public CursorPage<PostResponse> list(long userId, long groupId, String cursor, int size) {
         GroupEntity group = requireGroup(groupId);
         requireMember(group, userId);
 
-        return postRepository.findByGroupIdOrderByCreatedAtDesc(groupId, PageRequest.of(0, LIST_LIMIT)).stream()
-                .map(this::withComments)
-                .toList();
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        List<GroupPostEntity> rows = postRepository.listByGroup(
+                groupId,
+                decoded == null ? null : decoded.time(),
+                decoded == null ? null : decoded.id(),
+                PageRequest.of(0, limit + 1));
+
+        boolean hasMore = rows.size() > limit;
+        List<GroupPostEntity> page = hasMore ? rows.subList(0, limit) : rows;
+        List<PostResponse> items = page.stream().map(PostResponse::from).toList();
+        String nextCursor = hasMore && !page.isEmpty()
+                ? CursorCodec.encode(page.getLast().getCreatedAt(), page.getLast().getId())
+                : null;
+        return new CursorPage<>(items, nextCursor);
+    }
+
+    @Transactional(readOnly = true)
+    public CursorPage<PostCommentResponse> listComments(long userId, long groupId, long postId, String cursor, int size) {
+        GroupEntity group = requireGroup(groupId);
+        requireMember(group, userId);
+        requirePost(postId);
+
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        List<GroupPostCommentEntity> rows = commentRepository.listByPost(
+                postId,
+                decoded == null ? null : decoded.time(),
+                decoded == null ? null : decoded.id(),
+                PageRequest.of(0, limit + 1));
+
+        boolean hasMore = rows.size() > limit;
+        List<GroupPostCommentEntity> page = hasMore ? rows.subList(0, limit) : rows;
+        List<PostCommentResponse> items = page.stream().map(PostCommentResponse::from).toList();
+        String nextCursor = hasMore && !page.isEmpty()
+                ? CursorCodec.encode(page.getLast().getCreatedAt(), page.getLast().getId())
+                : null;
+        return new CursorPage<>(items, nextCursor);
     }
 
     @Transactional(readOnly = true)
     public PostResponse get(long userId, long groupId, long postId) {
         GroupEntity group = requireGroup(groupId);
         requireMember(group, userId);
-        return withComments(requirePost(postId));
+        return PostResponse.from(requirePost(postId));
     }
 
     @Transactional
@@ -147,11 +182,6 @@ public class PostService {
         }
         post.setCommentsEnabled(request.commentsEnabled());
         postRepository.save(post);
-    }
-
-    private PostResponse withComments(GroupPostEntity post) {
-        List<GroupPostCommentEntity> comments = commentRepository.findByPostIdOrderByCreatedAtAsc(post.getId());
-        return PostResponse.from(post, comments);
     }
 
     private boolean isCommentsEnabled(GroupPostEntity post) {

@@ -1,40 +1,46 @@
 package com.meetingplanner.domains.meeting.service;
 
+import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.service.GroupAuthorizationService;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
 import com.meetingplanner.domains.meeting.repository.MeetingParticipantRepository;
-import com.meetingplanner.domains.meeting.repository.MeetingRepository;
 import org.springframework.stereotype.Service;
-
-import java.util.Optional;
 
 @Service
 public class MeetingAuthorizationService {
 
-    private final MeetingRepository meetingRepository;
     private final MeetingParticipantRepository meetingParticipantRepository;
     private final GroupAuthorizationService groupAuthorizationService;
 
-    public MeetingAuthorizationService(MeetingRepository meetingRepository,
-                                       MeetingParticipantRepository meetingParticipantRepository,
+    public MeetingAuthorizationService(MeetingParticipantRepository meetingParticipantRepository,
                                        GroupAuthorizationService groupAuthorizationService) {
-        this.meetingRepository = meetingRepository;
         this.meetingParticipantRepository = meetingParticipantRepository;
         this.groupAuthorizationService = groupAuthorizationService;
     }
 
-    public boolean canView(Long userId, Long meetingId) {
-        Optional<MeetingEntity> meeting = meetingRepository.findById(meetingId);
-        return meeting.map(m -> isParticipantOrCreator(userId, m)
-                || (m.getGroup() != null && groupAuthorizationService.isMember(userId, m.getGroup().getId())))
-                .orElse(false);
+    public boolean canView(Long userId, MeetingEntity m) {
+        if (isParticipantOrCreator(userId, m)) {
+            return true;
+        }
+        GroupEntity group = m.getGroup();
+        if (group == null) {
+            return false;
+        }
+        if (m.isPrivate()) {
+            return groupAuthorizationService.isOwner(userId, group)
+                    || groupAuthorizationService.isAdmin(userId, group);
+        }
+        if (group.isPrivate()) {
+            return groupAuthorizationService.isOwner(userId, group)
+                    || groupAuthorizationService.isMember(userId, group);
+        }
+        return true;
     }
 
-    public boolean canManage(Long userId, Long meetingId) {
-        Optional<MeetingEntity> meeting = meetingRepository.findById(meetingId);
-        return meeting.map(m -> m.getCreator().getId().equals(userId)
-                || (m.getGroup() != null && groupAuthorizationService.isAdminOrOwner(userId, m.getGroup().getId())))
-                .orElse(false);
+    public boolean canManage(Long userId, MeetingEntity m) {
+        GroupEntity group = m.getGroup();
+        return m.getCreator().getId().equals(userId)
+                || (group != null && groupAuthorizationService.isAdminOrOwner(userId, group));
     }
 
     public boolean isParticipantOrCreator(Long userId, MeetingEntity meeting) {

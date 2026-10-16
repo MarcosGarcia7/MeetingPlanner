@@ -1,5 +1,7 @@
 package com.meetingplanner.domains.invite.service;
 
+import com.meetingplanner.common.api.CursorCodec;
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.exceptions.InvalidTokenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
@@ -16,10 +18,12 @@ import com.meetingplanner.domains.meeting.model.MeetingParticipantEntity;
 import com.meetingplanner.domains.meeting.repository.MeetingInviteRepository;
 import com.meetingplanner.domains.meeting.repository.MeetingParticipantRepository;
 import com.meetingplanner.domains.meeting.repository.MeetingRepository;
+import com.meetingplanner.domains.meeting.service.MeetingConflictService;
 import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +45,7 @@ public class InviteServiceImpl implements InviteService {
     private final MeetingParticipantRepository meetingParticipantRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final MeetingConflictService conflictService;
 
     @Value("${app.base-url:https://meetingplanner.example.com}")
     private String appBaseUrl;
@@ -51,7 +56,8 @@ public class InviteServiceImpl implements InviteService {
                              MeetingRepository meetingRepository,
                              MeetingParticipantRepository meetingParticipantRepository,
                              UserRepository userRepository,
-                             NotificationService notificationService) {
+                             NotificationService notificationService,
+                             MeetingConflictService conflictService) {
         this.groupInviteRepository = groupInviteRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.meetingInviteRepository = meetingInviteRepository;
@@ -59,28 +65,50 @@ public class InviteServiceImpl implements InviteService {
         this.meetingParticipantRepository = meetingParticipantRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.conflictService = conflictService;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<InviteResponse> listMine(long userId) {
+    public CursorPage<InviteResponse> listMine(long userId, String cursor, int size) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        Map<Long, InviteResponse> byId = new LinkedHashMap<>();
-        for (GroupInviteEntity invite : groupInviteRepository.findByRecipientId(userId)) {
-            byId.put(invite.getId(), toGroupResponse(invite));
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        OffsetDateTime cursorTime = decoded == null ? null : decoded.time();
+        String cursorKind = decoded == null ? null : decoded.kind();
+        Long cursorId = decoded == null ? null : decoded.id();
+
+        List<GroupInviteEntity> groupInvites = groupInviteRepository.listForRecipient(
+                userId, user.getEmail(), "GROUP", cursorTime, cursorKind, cursorId,
+                PageRequest.of(0, limit + 1));
+        List<MeetingInviteEntity> meetingInvites = meetingInviteRepository.listForRecipient(
+                userId, user.getEmail(), "MEETING", cursorTime, cursorKind, cursorId,
+                PageRequest.of(0, limit + 1));
+
+        List<FeedEntry> entries = new ArrayList<>();
+        for (GroupInviteEntity invite : groupInvites) {
+            entries.add(new FeedEntry(toGroupResponse(invite), invite.getTimeSent(), "GROUP", invite.getId()));
         }
-        for (GroupInviteEntity invite : groupInviteRepository.findByRecipientEmail(user.getEmail())) {
-            byId.put(invite.getId(), toGroupResponse(invite));
+        for (MeetingInviteEntity invite : meetingInvites) {
+            entries.add(new FeedEntry(toMeetingResponse(invite), invite.getTimeSent(), "MEETING", invite.getId()));
         }
-        for (MeetingInviteEntity invite : meetingInviteRepository.findByRecipientId(userId)) {
-            byId.put(invite.getId(), toMeetingResponse(invite));
-        }
-        for (MeetingInviteEntity invite : meetingInviteRepository.findByRecipientEmail(user.getEmail())) {
-            byId.put(invite.getId(), toMeetingResponse(invite));
-        }
-        return new ArrayList<>(byId.values());
+        entries.sort(Comparator
+                .comparing(FeedEntry::timeSent).reversed()
+                .thenComparing(FeedEntry::kind, Comparator.reverseOrder())
+                .thenComparing(FeedEntry::id, Comparator.reverseOrder()));
+
+        boolean hasMore = entries.size() > limit;
+        List<FeedEntry> page = hasMore ? entries.subList(0, limit) : entries;
+        List<InviteResponse> items = page.stream().map(FeedEntry::response).toList();
+        String nextCursor = hasMore && !page.isEmpty()
+                ? CursorCodec.encode(page.getLast().timeSent(), page.getLast().kind(), page.getLast().id())
+                : null;
+        return new CursorPage<>(items, nextCursor);
+    }
+
+    private record FeedEntry(InviteResponse response, OffsetDateTime timeSent, String kind, long id) {
     }
 
     @Override
@@ -117,6 +145,7 @@ public class InviteServiceImpl implements InviteService {
         }
         respondPendingOnly(invite, InviteStatus.ACCEPTED, "Invite has already been responded to");
         if (invite.getRecipient() != null) {
+            assertNoScheduleConflict(invite.getRecipient(), invite.getMeeting());
             addParticipant(invite.getMeeting(), invite.getRecipient());
         }
         sendAcceptedEmail(invite);
@@ -169,6 +198,7 @@ public class InviteServiceImpl implements InviteService {
         MeetingInviteEntity invite = meetingByToken(token);
         respondPendingOnly(invite, InviteStatus.ACCEPTED, "Invite has already been responded to");
         if (invite.getRecipient() != null) {
+            assertNoScheduleConflict(invite.getRecipient(), invite.getMeeting());
             addParticipant(invite.getMeeting(), invite.getRecipient());
         } else {
             addExternalParticipant(invite.getMeeting(), invite.getRecipientEmail());
@@ -227,6 +257,14 @@ public class InviteServiceImpl implements InviteService {
         invite.setStatus(InviteStatus.ACCEPTED);
         invite.setRespondedAt(OffsetDateTime.now());
         groupInviteRepository.save(invite);
+    }
+
+    private void assertNoScheduleConflict(UserEntity recipient, MeetingEntity meeting) {
+        boolean conflicts = !conflictService.findScheduleConflicts(
+                recipient.getId(), meeting.getStartTime(), meeting.getEndTime(), meeting.getId()).isEmpty();
+        if (conflicts) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This meeting conflicts with your schedule");
+        }
     }
 
     private void addParticipant(MeetingEntity meeting, UserEntity user) {
@@ -319,7 +357,8 @@ public class InviteServiceImpl implements InviteService {
                 invite.getRecipient() == null ? null : invite.getRecipient().getId(),
                 invite.getRecipientEmail(),
                 group == null ? null : group.getId(),
-                null);
+                null,
+                List.of());
     }
 
     private static InviteResponse toMeetingResponse(MeetingInviteEntity invite) {
@@ -333,6 +372,7 @@ public class InviteServiceImpl implements InviteService {
                 invite.getRecipient() == null ? null : invite.getRecipient().getId(),
                 invite.getRecipientEmail(),
                 null,
-                invite.getMeeting() == null ? null : invite.getMeeting().getId());
+                invite.getMeeting() == null ? null : invite.getMeeting().getId(),
+                List.of());
     }
 }

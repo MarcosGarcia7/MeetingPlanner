@@ -1,12 +1,6 @@
 package com.meetingplanner.domains.group.service;
 
-import com.meetingplanner.common.api.dto.GroupCreateRequest;
-import com.meetingplanner.common.api.dto.GroupResponse;
-import com.meetingplanner.common.api.dto.GroupUpdateRequest;
-import com.meetingplanner.common.api.dto.InviteResponse;
-import com.meetingplanner.common.api.dto.MemberUsernameRequest;
-
-import java.util.List;
+import com.meetingplanner.common.api.dto.*;
 
 public interface GroupService {
 
@@ -14,15 +8,17 @@ public interface GroupService {
 
     GroupResponse get(long userId, long groupId);
 
-    List<GroupResponse> listMine(long userId);
+    CursorPage<GroupResponse> listMine(long userId, String cursor, int size);
 
     GroupResponse update(long userId, long groupId, GroupUpdateRequest request);
 
     void delete(long userId, long groupId);
 
-    void invite(long userId, long groupId, MemberUsernameRequest request);
+    void join(long userId, long groupId);
 
-    List<InviteResponse> listInvites(long userId, long groupId);
+    InviteBatchResponse inviteBatch(long actorUserId, long groupId, GroupInviteBatchRequest request);
+
+    CursorPage<InviteResponse> listInvites(long userId, long groupId, String cursor, int size);
 
     void removeMember(long actorUserId, long groupId, long targetUserId);
 

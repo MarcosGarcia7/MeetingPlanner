@@ -7,6 +7,7 @@ public record GroupResponse(
         String groupName,
         Long ownerId,
         boolean isPrivate,
+        int memberCount,
         List<GroupMemberResponse> members
 ) {
 }

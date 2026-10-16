@@ -7,8 +7,9 @@ public record UserProfileResponse(
         String firstName,
         String lastName,
         String avatarColor,
+        String timezone,
         boolean isPrivate,
-        boolean friendsCanViewPrivate,
+        boolean friendsCanViewSchedule,
         boolean emailVerified
 ) {
 }

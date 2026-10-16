@@ -1,5 +1,6 @@
 package com.meetingplanner.domains.notification.controller;
 
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.NotificationResponse;
 import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.notification.service.NotificationFeedService;
@@ -13,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -27,9 +27,10 @@ public class NotificationController {
     }
 
     @GetMapping
-    public List<NotificationResponse> list(@AuthenticationPrincipal Jwt jwt,
-                                           @RequestParam(defaultValue = "30") int limit) {
-        return notificationFeedService.list(CurrentUser.from(jwt).id(), limit);
+    public CursorPage<NotificationResponse> list(@AuthenticationPrincipal Jwt jwt,
+                                                 @RequestParam(required = false) String cursor,
+                                                 @RequestParam(defaultValue = "20") int size) {
+        return notificationFeedService.list(CurrentUser.from(jwt).id(), cursor, size);
     }
 
     @GetMapping("/unread-count")

@@ -13,7 +13,7 @@ interface UserProfile {
   lastName: string;
   avatarColor: string;
   isPrivate: boolean;
-  friendsCanViewPrivate: boolean;
+  friendsCanViewSchedule: boolean;
   emailVerified: boolean;
 }
 

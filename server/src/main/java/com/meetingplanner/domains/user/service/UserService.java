@@ -11,5 +11,7 @@ public interface UserService {
 
     UserProfileResponse getByUsername(long viewerId, String username);
 
+    long resolveUserId(String username);
+
     void deleteMe(long userId);
 }

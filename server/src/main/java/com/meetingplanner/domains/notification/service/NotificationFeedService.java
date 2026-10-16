@@ -1,5 +1,7 @@
 package com.meetingplanner.domains.notification.service;
 
+import com.meetingplanner.common.api.CursorCodec;
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.NotificationResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.domains.notification.model.NotificationEntity;
@@ -21,12 +23,24 @@ public class NotificationFeedService {
     }
 
     @Transactional(readOnly = true)
-    public List<NotificationResponse> list(long userId, int limit) {
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(
-                        userId, PageRequest.of(0, Math.min(Math.max(limit, 1), 100)))
-                .stream()
+    public CursorPage<NotificationResponse> list(long userId, String cursor, int size) {
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        List<NotificationEntity> rows = notificationRepository.listForUser(
+                userId,
+                decoded == null ? null : decoded.time(),
+                decoded == null ? null : decoded.id(),
+                PageRequest.of(0, limit + 1));
+
+        boolean hasMore = rows.size() > limit;
+        List<NotificationEntity> page = hasMore ? rows.subList(0, limit) : rows;
+        List<NotificationResponse> items = page.stream()
                 .map(NotificationResponse::from)
                 .toList();
+        String nextCursor = hasMore && !page.isEmpty()
+                ? CursorCodec.encode(page.getLast().getCreatedAt(), page.getLast().getId())
+                : null;
+        return new CursorPage<>(items, nextCursor);
     }
 
     @Transactional(readOnly = true)

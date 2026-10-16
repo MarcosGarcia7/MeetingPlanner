@@ -1,5 +1,6 @@
 package com.meetingplanner.domains.user.service;
 
+import com.meetingplanner.common.api.Timezones;
 import com.meetingplanner.common.api.dto.UserProfileResponse;
 import com.meetingplanner.common.api.dto.UserProfileUpdateRequest;
 import com.meetingplanner.common.api.exceptions.EmailTakenException;
@@ -20,18 +21,15 @@ import java.util.Map;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-    private final UserProfileAuthorizationService authorization;
     private final AccountTokenService accountTokenService;
     private final NotificationService notificationService;
     private final JtiStorageService jtiStorageService;
 
     public UserServiceImpl(UserRepository userRepository,
-                           UserProfileAuthorizationService authorization,
                            AccountTokenService accountTokenService,
                            NotificationService notificationService,
                            JtiStorageService jtiStorageService) {
         this.userRepository = userRepository;
-        this.authorization = authorization;
         this.accountTokenService = accountTokenService;
         this.notificationService = notificationService;
         this.jtiStorageService = jtiStorageService;
@@ -43,7 +41,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserProfileResponse getMe(long userId) {
-        return toProfile(requireUser(userId));
+        return toProfile(requireUser(userId), true);
     }
 
     @Override
@@ -60,11 +58,14 @@ public class UserServiceImpl implements UserService {
         if (request.avatarColor() != null) {
             user.setAvatarColor(request.avatarColor());
         }
+        if (request.timezone() != null) {
+            user.setTimezone(Timezones.resolve(request.timezone()));
+        }
         if (request.isPrivate() != null) {
             user.setPrivate(request.isPrivate());
         }
-        if (request.friendsCanViewPrivate() != null) {
-            user.setFriendsCanViewPrivate(request.friendsCanViewPrivate());
+        if (request.friendsCanViewSchedule() != null) {
+            user.setFriendsCanViewSchedule(request.friendsCanViewSchedule());
         }
         if (request.pendingEmail() != null) {
             updatePendingEmail(user, request.pendingEmail());
@@ -72,7 +73,7 @@ public class UserServiceImpl implements UserService {
 
         user.setUpdatedAt(OffsetDateTime.now());
         userRepository.save(user);
-        return toProfile(user);
+        return toProfile(user, true);
     }
 
     @Override
@@ -80,10 +81,15 @@ public class UserServiceImpl implements UserService {
     public UserProfileResponse getByUsername(long viewerId, String username) {
         UserEntity user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        if (!authorization.canViewProfile(viewerId, user.getId())) {
-            throw new ResourceNotFoundException("User not found");
-        }
-        return toProfile(user);
+        return toProfile(user, viewerId == user.getId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long resolveUserId(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"))
+                .getId();
     }
 
     @Override
@@ -126,16 +132,17 @@ public class UserServiceImpl implements UserService {
         return user.getUsername();
     }
 
-    private UserProfileResponse toProfile(UserEntity user) {
+    private UserProfileResponse toProfile(UserEntity user, boolean includeEmail) {
         return new UserProfileResponse(
                 user.getId(),
                 user.getUsername(),
-                user.getEmail(),
+                includeEmail ? user.getEmail() : null,
                 user.getFirstName(),
                 user.getLastName(),
                 user.getAvatarColor(),
+                user.getTimezone(),
                 user.isPrivate(),
-                user.isFriendsCanViewPrivate(),
+                user.isFriendsCanViewSchedule(),
                 user.getEmailVerifiedAt() != null
         );
     }

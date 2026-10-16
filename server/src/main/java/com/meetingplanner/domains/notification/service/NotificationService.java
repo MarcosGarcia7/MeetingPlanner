@@ -102,6 +102,7 @@ public class NotificationService {
             case "group_invites" -> prefs.isGroupInvites();
             case "meeting_invites" -> prefs.isMeetingInvites();
             case "meeting_reminders" -> prefs.isMeetingReminders();
+            case "meeting_updates" -> prefs.isMeetingUpdates();
             case "friend_requests" -> prefs.isFriendRequests();
             case "post_comments" -> prefs.isPostComments();
             case "group_posts" -> prefs.isGroupPosts();

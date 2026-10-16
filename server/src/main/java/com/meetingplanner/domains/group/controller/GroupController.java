@@ -1,14 +1,11 @@
 package com.meetingplanner.domains.group.controller;
 
-import com.meetingplanner.common.api.dto.GroupCreateRequest;
-import com.meetingplanner.common.api.dto.GroupPrivacyRequest;
-import com.meetingplanner.common.api.dto.GroupResponse;
-import com.meetingplanner.common.api.dto.GroupUpdateRequest;
-import com.meetingplanner.common.api.dto.InviteResponse;
-import com.meetingplanner.common.api.dto.MemberUsernameRequest;
+import com.meetingplanner.common.api.dto.*;
 import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.group.service.GroupService;
+import com.meetingplanner.domains.request.service.JoinRequestService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -19,18 +16,19 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/groups")
 public class GroupController {
 
     private final GroupService groupService;
+    private final JoinRequestService joinRequestService;
 
-    public GroupController(GroupService groupService) {
+    public GroupController(GroupService groupService, JoinRequestService joinRequestService) {
         this.groupService = groupService;
+        this.joinRequestService = joinRequestService;
     }
 
     @PostMapping
@@ -39,8 +37,10 @@ public class GroupController {
     }
 
     @GetMapping
-    public List<GroupResponse> listMine(@AuthenticationPrincipal Jwt jwt) {
-        return groupService.listMine(CurrentUser.from(jwt).id());
+    public CursorPage<GroupResponse> listMine(@AuthenticationPrincipal Jwt jwt,
+                                              @RequestParam(required = false) String cursor,
+                                              @RequestParam(defaultValue = "20") int size) {
+        return groupService.listMine(CurrentUser.from(jwt).id(), cursor, size);
     }
 
     @GetMapping("/{groupId}")
@@ -60,16 +60,38 @@ public class GroupController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{groupId}/join")
+    public ResponseEntity<Void> join(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId) {
+        groupService.join(CurrentUser.from(jwt).id(), groupId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{groupId}/join-requests")
+    public ResponseEntity<JoinRequestResponse> requestJoin(@AuthenticationPrincipal Jwt jwt,
+                                                           @PathVariable long groupId) {
+        JoinRequestResponse response = joinRequestService.requestGroupJoin(CurrentUser.from(jwt).id(), groupId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/{groupId}/join-requests")
+    public CursorPage<JoinRequestResponse> listJoinRequests(@AuthenticationPrincipal Jwt jwt,
+                                                            @PathVariable long groupId,
+                                                            @RequestParam(required = false) String cursor,
+                                                            @RequestParam(defaultValue = "20") int size) {
+        return joinRequestService.listForGroup(CurrentUser.from(jwt).id(), groupId, cursor, size);
+    }
+
     @PostMapping("/{groupId}/invites")
-    public ResponseEntity<Void> invite(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
-                                       @Valid @RequestBody MemberUsernameRequest request) {
-        groupService.invite(CurrentUser.from(jwt).id(), groupId, request);
-        return ResponseEntity.accepted().build();
+    public InviteBatchResponse invite(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
+                                      @Valid @RequestBody GroupInviteBatchRequest request) {
+        return groupService.inviteBatch(CurrentUser.from(jwt).id(), groupId, request);
     }
 
     @GetMapping("/{groupId}/invites")
-    public List<InviteResponse> listInvites(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId) {
-        return groupService.listInvites(CurrentUser.from(jwt).id(), groupId);
+    public CursorPage<InviteResponse> listInvites(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
+                                                  @RequestParam(required = false) String cursor,
+                                                  @RequestParam(defaultValue = "20") int size) {
+        return groupService.listInvites(CurrentUser.from(jwt).id(), groupId, cursor, size);
     }
 
     @DeleteMapping("/{groupId}/members/{userId}")

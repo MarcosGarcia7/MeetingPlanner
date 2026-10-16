@@ -1,10 +1,8 @@
 package com.meetingplanner.common.api.dto;
 
-import com.meetingplanner.domains.group.model.GroupPostCommentEntity;
 import com.meetingplanner.domains.group.model.GroupPostEntity;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 
 public record PostResponse(
         Long id,
@@ -13,11 +11,10 @@ public record PostResponse(
         String authorUsername,
         String body,
         boolean commentsEnabled,
-        OffsetDateTime createdAt,
-        List<PostCommentResponse> comments
+        OffsetDateTime createdAt
 ) {
 
-    public static PostResponse from(GroupPostEntity post, List<GroupPostCommentEntity> comments) {
+    public static PostResponse from(GroupPostEntity post) {
         return new PostResponse(
                 post.getId(),
                 post.getGroup().getId(),
@@ -25,8 +22,7 @@ public record PostResponse(
                 post.getAuthor().getUsername(),
                 post.getBody(),
                 post.getCommentsEnabled() != null ? post.getCommentsEnabled() : post.getGroup().isCommentsEnabled(),
-                post.getCreatedAt(),
-                comments.stream().map(PostCommentResponse::from).toList()
+                post.getCreatedAt()
         );
     }
 }

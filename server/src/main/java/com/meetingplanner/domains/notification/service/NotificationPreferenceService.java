@@ -42,6 +42,9 @@ public class NotificationPreferenceService {
         if (request.meetingReminders() != null) {
             prefs.setMeetingReminders(request.meetingReminders());
         }
+        if (request.meetingUpdates() != null) {
+            prefs.setMeetingUpdates(request.meetingUpdates());
+        }
         if (request.friendRequests() != null) {
             prefs.setFriendRequests(request.friendRequests());
         }
@@ -55,8 +58,7 @@ public class NotificationPreferenceService {
             prefs.setReminderLeadMinutes(request.reminderLeadMinutes());
         }
 
-        preferenceRepository.save(prefs);
-        return NotificationPreferencesResponse.from(prefs);
+        return NotificationPreferencesResponse.from(preferenceRepository.save(prefs));
     }
 
     private NotificationPreferenceEntity preferencesFor(long userId) {
