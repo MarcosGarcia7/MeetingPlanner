@@ -83,16 +83,13 @@ public class MeetingReminderWorker {
     }
 
     private java.util.Map<String, String> reminderVars(MeetingEntity meeting, UserEntity user) {
-        String title = meeting.getDescription() != null && !meeting.getDescription().isBlank()
-                ? meeting.getDescription()
-                : "Meeting";
         String startTime = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getStartTime());
         String name = user.getFirstName() != null && !user.getFirstName().isBlank()
                 ? user.getFirstName()
                 : user.getUsername();
         return java.util.Map.of(
                 "name", name,
-                "title", title,
+                "title", meeting.getTitle(),
                 "start_time", startTime);
     }
 }

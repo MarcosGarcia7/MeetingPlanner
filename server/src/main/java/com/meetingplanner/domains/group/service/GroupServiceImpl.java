@@ -4,6 +4,7 @@ import com.meetingplanner.common.api.CursorCodec;
 import com.meetingplanner.common.api.dto.*;
 import com.meetingplanner.common.api.exceptions.EmailNotVerifiedException;
 import com.meetingplanner.common.api.exceptions.ForbiddenException;
+import com.meetingplanner.common.api.exceptions.GroupNameTakenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.common.security.InviteTokens;
@@ -18,6 +19,7 @@ import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -57,7 +59,28 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public GroupResponse create(long userId, GroupCreateRequest request) {
-        throw new UnsupportedOperationException("Not yet implemented");
+        UserEntity owner = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        String groupName = request.groupName().trim();
+        if (groupRepository.existsByGroupName(groupName)) {
+            throw new GroupNameTakenException(groupName);
+        }
+
+        GroupEntity group = new GroupEntity();
+        group.setGroupName(groupName);
+        group.setOwner(owner);
+        if (request.isPrivate() != null) {
+            group.setPrivate(request.isPrivate());
+        }
+        group.addMember(owner, true);
+
+        GroupEntity saved;
+        try {
+            saved = groupRepository.save(group);
+        } catch (DataIntegrityViolationException e) {
+            throw new GroupNameTakenException(groupName);
+        }
+        return toGroupResponse(saved, true);
     }
 
     @Override
@@ -212,10 +235,10 @@ public class GroupServiceImpl implements GroupService {
         groupInviteRepository.save(invite);
 
         String link = appBaseUrl + "/invites/group?token=" + rawToken;
-        notificationService.queueEmailTo(recipientEmail, "GROUP_INVITE", Map.of(
+        notificationService.queueEmailToForUser(recipient, recipientEmail, "GROUP_INVITE", Map.of(
                 "name", recipient.getUsername(),
                 "sender", sender.getUsername(),
-                "link", link));
+                "link", link), "group_invites");
 
         return toInviteResponse(invite);
     }

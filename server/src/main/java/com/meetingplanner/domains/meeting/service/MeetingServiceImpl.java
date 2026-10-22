@@ -132,7 +132,7 @@ public class MeetingServiceImpl implements MeetingService {
         meeting.setStartTime(request.startTime());
         meeting.setEndTime(request.endTime());
         meeting.setLocation(request.location());
-        meeting.setDescription(request.description());
+        meeting.setTitle(request.title());
         meeting.setPrivate(Boolean.TRUE.equals(request.isPrivate()));
         meeting.addParticipant(creator);
 
@@ -152,10 +152,7 @@ public class MeetingServiceImpl implements MeetingService {
 
     private static String scheduleConflictMessage(List<MeetingEntity> conflicts) {
         MeetingEntity first = conflicts.getFirst();
-        String title = first.getDescription() != null && !first.getDescription().isBlank()
-                ? first.getDescription()
-                : "another meeting";
-        return "Conflicts with an existing meeting: \"" + title + "\" at "
+        return "Conflicts with an existing meeting: \"" + first.getTitle() + "\" at "
                 + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(first.getStartTime());
     }
 
@@ -191,8 +188,8 @@ public class MeetingServiceImpl implements MeetingService {
             meeting.setLocation(request.location());
             nonTimeChanged = true;
         }
-        if (request.description() != null && !Objects.equals(request.description(), meeting.getDescription())) {
-            meeting.setDescription(request.description());
+        if (request.title() != null && !Objects.equals(request.title(), meeting.getTitle())) {
+            meeting.setTitle(request.title());
             nonTimeChanged = true;
         }
         if (request.isPrivate() != null && !Objects.equals(request.isPrivate(), meeting.isPrivate())) {
@@ -271,17 +268,11 @@ public class MeetingServiceImpl implements MeetingService {
 
     private Map<String, String> notificationVars(MeetingEntity meeting) {
         Map<String, String> vars = new HashMap<>();
-        vars.put("title", meetingTitle(meeting));
+        vars.put("title", meeting.getTitle());
         vars.put("start_time", DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getStartTime()));
         vars.put("location", meeting.getLocation() == null ? "" : meeting.getLocation());
         vars.put("link", appBaseUrl + "/meetings/" + meeting.getId());
         return vars;
-    }
-
-    private static String meetingTitle(MeetingEntity meeting) {
-        return meeting.getDescription() != null && !meeting.getDescription().isBlank()
-                ? meeting.getDescription()
-                : "Meeting";
     }
 
     private static String displayName(UserEntity user) {
@@ -384,7 +375,7 @@ public class MeetingServiceImpl implements MeetingService {
                 m.getStartTime(),
                 m.getEndTime(),
                 m.getLocation(),
-                m.getDescription(),
+                m.getTitle(),
                 m.isPrivate(),
                 m.getExternalParticipantNames(),
                 participants,
@@ -426,7 +417,7 @@ public class MeetingServiceImpl implements MeetingService {
                 m.getStartTime(),
                 m.getEndTime(),
                 m.getLocation(),
-                m.getDescription(),
+                m.getTitle(),
                 m.isPrivate(),
                 (int) participants + external);
     }
@@ -569,10 +560,19 @@ public class MeetingServiceImpl implements MeetingService {
         meetingInviteRepository.save(invite);
 
         String link = appBaseUrl + "/invites/meeting?token=" + rawToken;
-        notificationService.queueEmailTo(recipientEmail, "MEETING_INVITE", Map.of(
+        String details = "Starts: " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getStartTime());
+        if (meeting.getEndTime() != null) {
+            details += "\nEnds: " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getEndTime());
+        }
+        if (meeting.getLocation() != null && !meeting.getLocation().isBlank()) {
+            details += "\nLocation: " + meeting.getLocation();
+        }
+        notificationService.queueEmailToForUser(recipient, recipientEmail, "MEETING_INVITE", Map.of(
                 "name", recipient != null ? recipient.getUsername() : emailDisplayName(recipientEmail),
                 "sender", sender.getUsername(),
-                "link", link));
+                "title", meeting.getTitle(),
+                "details", details,
+                "link", link), "meeting_invites");
 
         return toInviteResponse(invite, recipientWarnings(sender, recipient, meeting));
     }

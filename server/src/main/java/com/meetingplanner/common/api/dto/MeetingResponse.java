@@ -10,7 +10,7 @@ public record MeetingResponse(
         OffsetDateTime startTime,
         OffsetDateTime endTime,
         String location,
-        String description,
+        String title,
         boolean isPrivate,
         List<String> externalParticipantNames,
         List<ParticipantResponse> participants,

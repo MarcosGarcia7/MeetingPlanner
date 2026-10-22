@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS "citext";
 
 CREATE TABLE users (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    username VARCHAR(20) NOT NULL UNIQUE,
+    username CITEXT NOT NULL UNIQUE,
     email CITEXT NOT NULL UNIQUE,
     password_hash VARCHAR(60) NOT NULL,
     first_name VARCHAR(50),
@@ -36,7 +36,7 @@ CREATE TABLE user_availability (
 
 CREATE TABLE groups (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    group_name VARCHAR(50) NOT NULL UNIQUE,
+    group_name CITEXT NOT NULL UNIQUE CHECK (char_length(group_name) <= 50),
     owner_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     is_private BOOLEAN NOT NULL DEFAULT TRUE,
     members_can_post BOOLEAN NOT NULL DEFAULT TRUE,
@@ -72,7 +72,7 @@ CREATE TABLE meetings (
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ,
     location VARCHAR(500),
-    description VARCHAR(500),
+    title VARCHAR(100) NOT NULL,
     external_participant_names VARCHAR(255)[] DEFAULT '{}',
     creator_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     is_private BOOLEAN NOT NULL DEFAULT FALSE

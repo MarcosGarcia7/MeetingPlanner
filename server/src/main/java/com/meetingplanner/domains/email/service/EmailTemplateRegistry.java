@@ -63,8 +63,8 @@ public class EmailTemplateRegistry {
                     "{{sender}} invited you to {{group}}",
                     "Hi {{name}},\n\n{{sender}} invited you to join the group \"{{group}}\".\nOpen the invite:\n{{link}}\n\n- {{app_url}}");
             case "MEETING_INVITE" -> new Template(
-                    "{{sender}} invited you to a meeting",
-                    "Hi {{name}},\n\n{{sender}} invited you to a meeting.\nOpen the invite:\n{{link}}\n\n- {{app_url}}");
+                    "{{sender}} invited you to \"{{title}}\"",
+                    "Hi {{name}},\n\n{{sender}} invited you to a meeting \"{{title}}\".\n\n{{details}}\n\nOpen the invite:\n{{link}}\n\n- {{app_url}}");
             case "MEETING_INVITE_ACCEPTED" -> new Template(
                     "You're confirmed for \"{{title}}\"",
                     "Hi {{name}},\n\nYou've accepted the invite for \"{{title}}\".\nIf you can no longer attend, you can leave the meeting here:\n{{link}}\n\n- {{app_url}}");

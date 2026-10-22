@@ -9,7 +9,7 @@ public record MeetingSummaryResponse(
         OffsetDateTime startTime,
         OffsetDateTime endTime,
         String location,
-        String description,
+        String title,
         boolean isPrivate,
         int participantCount
 ) {

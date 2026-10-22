@@ -16,7 +16,7 @@ public class GroupEntity {
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "group_name", length = 50, nullable = false, unique = true)
+    @Column(name = "group_name", nullable = false, unique = true, columnDefinition = "citext")
     private String groupName;
 
     @Column(name = "is_private", nullable = false)

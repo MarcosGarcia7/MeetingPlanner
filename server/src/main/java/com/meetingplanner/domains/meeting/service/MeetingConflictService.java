@@ -66,7 +66,7 @@ public class MeetingConflictService {
                 targetUserId, true, start, effectiveEnd(start, end), null);
         List<String> warnings = new ArrayList<>();
         for (MeetingEntity conflict : conflicts) {
-            warnings.add(target.getUsername() + " may be busy: \"" + title(conflict) + "\" at "
+            warnings.add(target.getUsername() + " may be busy: \"" + conflict.getTitle() + "\" at "
                     + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(conflict.getStartTime()));
         }
         return warnings;
@@ -173,11 +173,5 @@ public class MeetingConflictService {
 
     private static OffsetDateTime effectiveEnd(OffsetDateTime start, OffsetDateTime end) {
         return end != null ? end : start;
-    }
-
-    private static String title(MeetingEntity meeting) {
-        return meeting.getDescription() != null && !meeting.getDescription().isBlank()
-                ? meeting.getDescription()
-                : "Meeting";
     }
 }

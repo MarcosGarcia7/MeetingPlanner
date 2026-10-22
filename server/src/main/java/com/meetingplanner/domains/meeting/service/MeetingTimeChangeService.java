@@ -215,7 +215,7 @@ public class MeetingTimeChangeService {
         List<TimeChangeConflict> conflicts = conflictService.findScheduleConflicts(
                         viewerId, proposal.getProposedStartTime(), proposal.getProposedEndTime(), meeting.getId())
                 .stream()
-                .map(m -> new TimeChangeConflict(m.getId(), title(m), m.getStartTime()))
+                .map(m -> new TimeChangeConflict(m.getId(), m.getTitle(), m.getStartTime()))
                 .toList();
         return new TimeChangeProposalResponse(
                 proposal.getId(),
@@ -241,7 +241,7 @@ public class MeetingTimeChangeService {
 
     private Map<String, String> requestVars(MeetingEntity meeting, MeetingTimeChangeProposalEntity proposal) {
         Map<String, String> vars = new LinkedHashMap<>();
-        vars.put("title", title(meeting));
+        vars.put("title", meeting.getTitle());
         vars.put("old_start", DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getStartTime()));
         vars.put("new_start", DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(proposal.getProposedStartTime()));
         vars.put("link", appBaseUrl + "/meetings/" + meeting.getId());
@@ -250,7 +250,7 @@ public class MeetingTimeChangeService {
 
     private Map<String, String> resultVars(MeetingEntity meeting, MeetingTimeChangeProposalEntity proposal) {
         Map<String, String> vars = new LinkedHashMap<>();
-        vars.put("title", title(meeting));
+        vars.put("title", meeting.getTitle());
         vars.put("start_time", DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(
                 proposal.getStatus() == ProposalStatus.APPROVED
                         ? proposal.getProposedStartTime()
@@ -279,12 +279,6 @@ public class MeetingTimeChangeService {
             recipients.putIfAbsent(meeting.getCreator().getId(), meeting.getCreator());
         }
         return recipients;
-    }
-
-    private static String title(MeetingEntity meeting) {
-        return meeting.getDescription() != null && !meeting.getDescription().isBlank()
-                ? meeting.getDescription()
-                : "Meeting";
     }
 
     private static String displayName(UserEntity user) {

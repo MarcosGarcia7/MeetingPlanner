@@ -77,6 +77,22 @@ public class NotificationService {
         emailOutboxRepository.save(outbox);
     }
 
+    @Transactional
+    public void queueEmailToForUser(UserEntity user, String email, String template, Map<String, String> vars, String category) {
+        if (user != null) {
+            NotificationPreferenceEntity prefs = preferencesFor(user.getId());
+            if (!prefs.isEmailEnabled()) {
+                return;
+            }
+            if (category != null && !categoryEnabled(prefs, category)) {
+                return;
+            }
+            queueEmail(user, template, vars);
+            return;
+        }
+        queueEmailTo(email, template, vars);
+    }
+
     private void queueEmail(UserEntity user, String template, Map<String, String> vars) {
         EmailOutboxEntity outbox = new EmailOutboxEntity();
         outbox.setRecipientUser(user);

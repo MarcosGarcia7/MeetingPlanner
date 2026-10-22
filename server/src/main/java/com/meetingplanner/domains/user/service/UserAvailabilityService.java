@@ -7,7 +7,6 @@ import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.domains.user.model.UserAvailabilityEntity;
 import com.meetingplanner.domains.user.repository.UserAvailabilityRepository;
 import com.meetingplanner.domains.user.repository.UserRepository;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +31,7 @@ public class UserAvailabilityService {
     @Transactional(readOnly = true)
     public UserAvailabilityResponse getAvailability(long userId) {
         UserAvailabilityEntity av = availabilityRepository.findById(userId)
-                        .orElseThrow(() -> new EntityNotFoundException("User availability not found: " + userId));
+                        .orElseThrow(AvailabilityNotSetException::new);
 
         return new UserAvailabilityResponse(
                     userId,
@@ -51,14 +50,14 @@ public class UserAvailabilityService {
     public UserAvailabilityResponse getAvailability(long viewerId, String username) {
         Long userId = userRepository.findIdByUsername(username);
 
-        if (userId == null) throw new EntityNotFoundException("User not found: " + username);
+        if (userId == null) throw new ResourceNotFoundException("User not found");
 
         if (!authorization.canViewSchedule(viewerId, userId)) {
             throw new ResourceNotFoundException("User not found");
         }
 
         UserAvailabilityEntity av = availabilityRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("User availability not found: " + userId));
+                .orElseThrow(AvailabilityNotSetException::new);
 
         if (!av.isAvailabilitySet()) throw new AvailabilityNotSetException();
 
@@ -78,7 +77,7 @@ public class UserAvailabilityService {
     @Transactional
     public UserAvailabilityResponse updateAvailability(long userId, UserAvailabilityUpdateRequest request) {
         UserAvailabilityEntity av = availabilityRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("User availability not found: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Availability not found"));
 
         if (request.sunday() != null) av.setSunAvailability(toPrimitive(request.sunday()));
         if (request.monday() != null) av.setMonAvailability(toPrimitive(request.monday()));

@@ -82,7 +82,10 @@ public class SecurityConfig {
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
                         .decoder(accessJwtDecoder)
-                        .jwtAuthenticationConverter(accessTokenJwtAuthenticationConverter())));
+                        .jwtAuthenticationConverter(accessTokenJwtAuthenticationConverter())))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(new JsonAuthenticationEntryPoint())
+                        .accessDeniedHandler(new JsonAccessDeniedHandler()));
 
         return http.build();
     }

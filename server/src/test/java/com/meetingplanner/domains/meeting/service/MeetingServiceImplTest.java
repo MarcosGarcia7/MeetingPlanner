@@ -96,6 +96,7 @@ class MeetingServiceImplTest {
         MeetingEntity meeting = new MeetingEntity();
         meeting.setId(id);
         meeting.setCreator(creator);
+        meeting.setTitle("Test meeting");
         meeting.setStartTime(OffsetDateTime.parse("2026-10-20T10:00:00Z"));
         for (UserEntity participant : participants) {
             meeting.addParticipant(participant);
@@ -268,7 +269,7 @@ class MeetingServiceImplTest {
         assertEquals(1, response.invited().size());
         assertEquals(InviteStatus.PENDING, existing.getStatus());
         assertTrue(existing.getTimeSent().isAfter(staleSentAt));
-        verify(notificationService).queueEmailTo(eq("bob@example.com"), eq("MEETING_INVITE"), anyMap());
+        verify(notificationService).queueEmailToForUser(eq(bob), eq("bob@example.com"), eq("MEETING_INVITE"), anyMap(), eq("meeting_invites"));
     }
 
     @Test

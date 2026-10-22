@@ -13,7 +13,7 @@ public class UserEntity {
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "username", length = 20, nullable = false, unique = true)
+    @Column(name = "username", nullable = false, unique = true, columnDefinition = "citext")
     private String username;
 
     @Column(name = "email", nullable = false, unique = true, columnDefinition = "citext")

@@ -66,6 +66,7 @@ class MeetingTimeChangeServiceTest {
         MeetingEntity meeting = new MeetingEntity();
         meeting.setId(id);
         meeting.setCreator(creator);
+        meeting.setTitle("Test meeting");
         meeting.setStartTime(OffsetDateTime.parse("2026-10-20T10:00:00Z"));
         for (UserEntity participant : participants) {
             meeting.addParticipant(participant);

@@ -327,17 +327,14 @@ public class InviteServiceImpl implements InviteService {
         meetingInviteRepository.save(invite);
 
         MeetingEntity meeting = invite.getMeeting();
-        String title = meeting.getDescription() != null && !meeting.getDescription().isBlank()
-                ? meeting.getDescription()
-                : "your meeting";
         String recipientName = invite.getRecipient() != null
                 ? invite.getRecipient().getUsername()
                 : emailDisplayName(invite.getRecipientEmail());
         String leaveLink = appBaseUrl + "/invites/meeting?token=" + rawToken;
-        notificationService.queueEmailTo(invite.getRecipientEmail(), "MEETING_INVITE_ACCEPTED", Map.of(
+        notificationService.queueEmailToForUser(invite.getRecipient(), invite.getRecipientEmail(), "MEETING_INVITE_ACCEPTED", Map.of(
                 "name", recipientName,
-                "title", title,
-                "link", leaveLink));
+                "title", meeting.getTitle(),
+                "link", leaveLink), "meeting_invites");
     }
 
     private static String emailDisplayName(String email) {

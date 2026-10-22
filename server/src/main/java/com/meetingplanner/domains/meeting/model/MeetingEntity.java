@@ -35,8 +35,8 @@ public class MeetingEntity {
     @Column(name = "location", length = 500, nullable = true)
     private String location;
 
-    @Column(name = "description", length = 500, nullable = true)
-    private String description;
+    @Column(name = "title", length = 100, nullable = false)
+    private String title;
 
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "external_participant_names", columnDefinition = "varchar(255)[]")
@@ -95,12 +95,12 @@ public class MeetingEntity {
         this.location = location;
     }
 
-    public String getDescription() {
-        return description;
+    public String getTitle() {
+        return title;
     }
 
-    public void setDescription(String description) {
-        this.description = description;
+    public void setTitle(String title) {
+        this.title = title;
     }
 
     public List<String> getExternalParticipantNames() {

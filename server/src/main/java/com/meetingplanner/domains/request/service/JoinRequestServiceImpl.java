@@ -290,7 +290,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         respond(request, RequestStatus.APPROVED);
         notifyRequester(request.getRequester(), CATEGORY_MEETING, "MEETING_JOIN_REQUEST_APPROVED", Map.of(
                 "name", request.getRequester().getUsername(),
-                "title", meetingTitle(meeting),
+                "title", meeting.getTitle(),
                 "link", appBaseUrl + "/meetings/" + meeting.getId()));
         return toMeetingResponse(request);
     }
@@ -308,7 +308,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         respond(request, RequestStatus.DECLINED);
         notifyRequester(request.getRequester(), CATEGORY_MEETING, "MEETING_JOIN_REQUEST_DECLINED", Map.of(
                 "name", request.getRequester().getUsername(),
-                "title", meetingTitle(meeting),
+                "title", meeting.getTitle(),
                 "link", appBaseUrl + "/meetings/" + meeting.getId()));
         return toMeetingResponse(request);
     }
@@ -415,19 +415,13 @@ public class JoinRequestServiceImpl implements JoinRequestService {
                     "MEETING_JOIN_REQUEST", Map.of(
                             "name", approver.getValue(),
                             "requester", requester.getUsername(),
-                            "title", meetingTitle(meeting),
+                            "title", meeting.getTitle(),
                             "link", appBaseUrl + "/meetings/" + meeting.getId()));
         }
     }
 
     private void notifyRequester(UserEntity requester, String category, String type, Map<String, String> vars) {
         notificationService.push(requester.getId(), type, category, type, vars);
-    }
-
-    private static String meetingTitle(MeetingEntity meeting) {
-        return meeting.getDescription() != null && !meeting.getDescription().isBlank()
-                ? meeting.getDescription()
-                : "your meeting";
     }
 
     private static JoinRequestResponse toGroupResponse(GroupJoinRequestEntity request) {
