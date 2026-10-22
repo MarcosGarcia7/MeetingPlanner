@@ -97,7 +97,7 @@ class MeetingServiceImplTest {
         meeting.setId(id);
         meeting.setCreator(creator);
         meeting.setTitle("Test meeting");
-        meeting.setStartTime(OffsetDateTime.parse("2026-10-20T10:00:00Z"));
+        meeting.setStartTime(OffsetDateTime.now().plusDays(7));
         for (UserEntity participant : participants) {
             meeting.addParticipant(participant);
         }
@@ -144,7 +144,8 @@ class MeetingServiceImplTest {
         UserEntity creator = user(1L, "alice");
         UserEntity bob = user(2L, "bob");
         MeetingEntity meeting = meeting(10L, creator, creator, bob);
-        OffsetDateTime newStart = OffsetDateTime.parse("2026-10-21T10:00:00Z");
+        OffsetDateTime originalStart = meeting.getStartTime();
+        OffsetDateTime newStart = originalStart.plusDays(1);
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
@@ -153,14 +154,14 @@ class MeetingServiceImplTest {
         service.update(1L, 10L, new MeetingUpdateRequest(newStart, null, null, null, null));
 
         verify(timeChangeService).createProposal(eq(1L), eq(meeting), eq(newStart), isNull());
-        assertEquals(OffsetDateTime.parse("2026-10-20T10:00:00Z"), meeting.getStartTime());
+        assertEquals(originalStart, meeting.getStartTime());
     }
 
     @Test
     void updateWithTimeChangeAloneAppliesImmediately() {
         UserEntity creator = user(1L, "alice");
         MeetingEntity meeting = meeting(10L, creator, creator);
-        OffsetDateTime newStart = OffsetDateTime.parse("2026-10-21T10:00:00Z");
+        OffsetDateTime newStart = meeting.getStartTime().plusDays(1);
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
@@ -177,7 +178,7 @@ class MeetingServiceImplTest {
         UserEntity creator = user(1L, "alice");
         UserEntity bob = user(2L, "bob");
         MeetingEntity meeting = meeting(10L, creator, creator, bob);
-        OffsetDateTime newStart = OffsetDateTime.parse("2026-10-21T10:00:00Z");
+        OffsetDateTime newStart = meeting.getStartTime().plusDays(1);
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));

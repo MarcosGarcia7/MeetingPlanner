@@ -22,7 +22,9 @@ public interface GroupService {
 
     void removeMember(long actorUserId, long groupId, long targetUserId);
 
-    void promoteMember(long actorUserId, long groupId, long targetUserId);
+    void promoteOrDemoteMember(long actorUserId, long groupId, long targetUserId);
+
+    void transferOwnership(long actorUserId, long groupId, long targetUserId);
 
     void setShareSchedule(long userId, long groupId, boolean shareSchedule);
 

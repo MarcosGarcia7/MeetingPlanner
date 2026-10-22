@@ -88,19 +88,33 @@ class GroupServiceImplTest {
                 Arrays.stream(usernames).map(MemberUsernameRequest::new).toList());
     }
 
+    private static GroupMemberEntity member(GroupEntity group, UserEntity user, boolean admin) {
+        GroupMemberEntity member = new GroupMemberEntity();
+        member.setGroup(group);
+        member.setUser(user);
+        member.setAdmin(admin);
+        return member;
+    }
+
     private GroupEntity prepareAdmin(long groupId, UserEntity actor) {
         GroupEntity group = group(groupId);
+        GroupMemberEntity actorMember = member(group, actor, true);
         when(groupRepository.findById(groupId)).thenReturn(Optional.of(group));
-        when(authorization.isAdminOrOwner(actor.getId(), group)).thenReturn(true);
-        when(userRepository.findById(actor.getId())).thenReturn(Optional.of(actor));
+        when(groupMemberRepository.findByGroupIdAndUserId(groupId, actor.getId()))
+                .thenReturn(Optional.of(actorMember));
+        when(authorization.isAdminOrOwner(actorMember, group)).thenReturn(true);
         return group;
     }
 
     @Test
     void nonAdminCannotInvite() {
+        UserEntity actor = user(9L, "dave", true);
         GroupEntity group = group(1L);
+        GroupMemberEntity actorMember = member(group, actor, false);
         when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
-        when(authorization.isAdminOrOwner(9L, group)).thenReturn(false);
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 9L))
+                .thenReturn(Optional.of(actorMember));
+        when(authorization.isAdminOrOwner(actorMember, group)).thenReturn(false);
 
         assertThrows(ResourceNotFoundException.class,
                 () -> service.inviteBatch(9L, 1L, batch("bob")));
@@ -362,5 +376,144 @@ class GroupServiceImplTest {
                 () -> service.create(1L, new GroupCreateRequest("Team", null)));
 
         assertEquals("Group name is already taken", exception.getMessage());
+    }
+
+    @Test
+    void memberLeaveRemovesMembership() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity member = member(group, bob, false);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(member));
+        when(authorization.isOwner(member, group)).thenReturn(false);
+
+        service.leave(2L, 1L);
+
+        verify(groupMemberRepository).delete(member);
+        verify(groupRepository, never()).delete(any(GroupEntity.class));
+    }
+
+    @Test
+    void ownerCannotLeaveWhileOtherMembersRemain() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+        when(groupMemberRepository.countByGroupId(1L)).thenReturn(2L);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.leave(1L, 1L));
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        verify(groupMemberRepository, never()).delete(any(GroupMemberEntity.class));
+        verify(groupRepository, never()).delete(any(GroupEntity.class));
+    }
+
+    @Test
+    void soleOwnerLeaveDeletesGroup() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+        when(groupMemberRepository.countByGroupId(1L)).thenReturn(1L);
+
+        service.leave(1L, 1L);
+
+        verify(groupRepository).delete(group);
+    }
+
+    @Test
+    void nonMemberCannotLeave() {
+        GroupEntity group = group(1L);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 9L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.leave(9L, 1L));
+
+        verify(groupMemberRepository, never()).delete(any(GroupMemberEntity.class));
+        verify(groupRepository, never()).delete(any(GroupEntity.class));
+    }
+
+    @Test
+    void ownerTransfersOwnershipToMember() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        GroupMemberEntity targetMember = member(group, bob, false);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(targetMember));
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+        when(groupRepository.save(group)).thenReturn(group);
+
+        service.transferOwnership(1L, 1L, 2L);
+
+        assertEquals(bob, group.getOwner());
+        assertTrue(targetMember.isAdmin());
+        verify(groupRepository).save(group);
+        verify(groupMemberRepository).save(targetMember);
+    }
+
+    @Test
+    void nonOwnerCannotTransferOwnership() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity actorMember = member(group, bob, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(actorMember));
+        when(authorization.isOwner(actorMember, group)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.transferOwnership(2L, 1L, 3L));
+
+        verify(groupRepository, never()).save(any(GroupEntity.class));
+        verify(groupMemberRepository, never()).save(any(GroupMemberEntity.class));
+    }
+
+    @Test
+    void ownerCannotTransferToSelf() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.transferOwnership(1L, 1L, 1L));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verify(groupRepository, never()).save(any(GroupEntity.class));
+    }
+
+    @Test
+    void transferTargetMustBeMember() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 9L)).thenReturn(Optional.empty());
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.transferOwnership(1L, 1L, 9L));
+
+        verify(groupRepository, never()).save(any(GroupEntity.class));
     }
 }

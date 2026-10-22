@@ -6,6 +6,7 @@ public record GroupUpdateRequest(
         @Size(max = 50) String groupName,
         Boolean isPrivate,
         Boolean membersCanPost,
-        Boolean commentsEnabled
+        Boolean commentsEnabled,
+        Boolean membersCanCreate
 ) {
 }

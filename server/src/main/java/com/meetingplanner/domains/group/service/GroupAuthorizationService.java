@@ -5,8 +5,6 @@ import com.meetingplanner.domains.group.model.GroupMemberEntity;
 import com.meetingplanner.domains.group.repository.GroupMemberRepository;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
-
 @Service
 public class GroupAuthorizationService {
 
@@ -16,12 +14,22 @@ public class GroupAuthorizationService {
         this.groupMemberRepository = groupMemberRepository;
     }
 
+    public boolean isOwner(GroupMemberEntity member, GroupEntity group) {
+        return group.getOwner().getId().equals(member.getUser().getId());
+    }
+
+    public boolean isAdminOrOwner(GroupMemberEntity member, GroupEntity group) {
+        return isOwner(member, group) || member.isAdmin();
+    }
+
     public boolean isOwner(Long userId, GroupEntity group) {
         return group.getOwner().getId().equals(userId);
     }
 
     public boolean isAdmin(Long userId, GroupEntity group) {
-        return member(group.getId(), userId).map(GroupMemberEntity::isAdmin).orElse(false);
+        return groupMemberRepository.findByGroupIdAndUserId(group.getId(), userId)
+                .map(GroupMemberEntity::isAdmin)
+                .orElse(false);
     }
 
     public boolean isAdminOrOwner(Long userId, GroupEntity group) {
@@ -32,7 +40,4 @@ public class GroupAuthorizationService {
         return groupMemberRepository.existsByGroupIdAndUserId(group.getId(), userId);
     }
 
-    private Optional<GroupMemberEntity> member(Long groupId, Long userId) {
-        return groupMemberRepository.findByGroupIdAndUserId(groupId, userId);
-    }
 }

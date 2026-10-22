@@ -88,7 +88,7 @@ public class GroupServiceImpl implements GroupService {
     public GroupResponse get(long userId, long groupId) {
         GroupEntity group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        boolean includeMembers = authorization.isOwner(userId, group) || authorization.isMember(userId, group);
+        boolean includeMembers = authorization.isMember(userId, group);
         return toGroupResponse(group, includeMembers);
     }
 
@@ -131,10 +131,37 @@ public class GroupServiceImpl implements GroupService {
     public GroupResponse update(long userId, long groupId, GroupUpdateRequest request) {
         GroupEntity group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        if (!authorization.isAdminOrOwner(userId, group)) {
+
+        GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        if (!authorization.isAdminOrOwner(member, group)) {
             throw new ResourceNotFoundException("Group not found");
         }
-        throw new UnsupportedOperationException("Not yet implemented");
+
+        if (request.groupName() != null && !Objects.equals(request.groupName(), group.getGroupName())) {
+            group.setGroupName(request.groupName());
+        }
+
+        if (request.isPrivate() != null && !Objects.equals(request.isPrivate(), group.isPrivate())) {
+            group.setPrivate(request.isPrivate());
+        }
+
+        if (request.membersCanPost() != null && !Objects.equals(request.membersCanPost(), group.isMembersCanPost())) {
+            group.setMembersCanPost(request.membersCanPost());
+        }
+
+        if (request.commentsEnabled() != null && !Objects.equals(request.commentsEnabled(), group.isCommentsEnabled())) {
+            group.setCommentsEnabled(request.commentsEnabled());
+        }
+
+        if (request.membersCanCreate() != null && !Objects.equals(request.membersCanCreate(), group.isMembersCanCreate())) {
+            group.setMembersCanCreate(request.membersCanCreate());
+        }
+
+        GroupEntity saved = groupRepository.save(group);
+
+        return toGroupResponse(saved, false);
     }
 
     @Override
@@ -142,10 +169,14 @@ public class GroupServiceImpl implements GroupService {
     public void delete(long userId, long groupId) {
         GroupEntity group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        if (!authorization.isOwner(userId, group)) {
+
+        GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        if (!authorization.isOwner(member, group)) {
             throw new ResourceNotFoundException("Group not found");
         }
-        throw new UnsupportedOperationException("Not yet implemented");
+        groupRepository.delete(group);
     }
 
     @Override
@@ -156,8 +187,8 @@ public class GroupServiceImpl implements GroupService {
         if (group.isPrivate()) {
             throw new ForbiddenException("This group is invite-only");
         }
-        if (authorization.isOwner(userId, group)
-                || authorization.isMember(userId, group)) {
+
+        if (authorization.isMember(userId, group)) {
             return;
         }
         UserEntity user = userRepository.findById(userId)
@@ -174,11 +205,14 @@ public class GroupServiceImpl implements GroupService {
     public InviteBatchResponse inviteBatch(long actorUserId, long groupId, GroupInviteBatchRequest request) {
         GroupEntity group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        if (!authorization.isAdminOrOwner(actorUserId, group)) {
+
+        GroupMemberEntity actorMember = groupMemberRepository.findByGroupIdAndUserId(groupId, actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+
+        if (!authorization.isAdminOrOwner(actorMember, group)) {
             throw new ResourceNotFoundException("Group not found");
         }
-        UserEntity sender = userRepository.findById(actorUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        UserEntity sender = actorMember.getUser();
 
         List<InviteResponse> invited = new ArrayList<>();
         List<InviteFailure> failed = new ArrayList<>();
@@ -279,7 +313,11 @@ public class GroupServiceImpl implements GroupService {
     public CursorPage<InviteResponse> listInvites(long userId, long groupId, String cursor, int size) {
         GroupEntity group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        if (!authorization.isAdminOrOwner(userId, group)) {
+
+        GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        if (!authorization.isAdminOrOwner(member, group)) {
             throw new ResourceNotFoundException("Group not found");
         }
         int limit = CursorCodec.clampSize(size);
@@ -304,30 +342,82 @@ public class GroupServiceImpl implements GroupService {
     public void removeMember(long actorUserId, long groupId, long targetUserId) {
         GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        if (!authorization.isAdminOrOwner(actorUserId, group)) {
+
+        GroupMemberEntity actorMember = groupMemberRepository.findByGroupIdAndUserId(groupId, actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        if (!authorization.isAdminOrOwner(actorMember, group) || authorization.isOwner(member, group)) {
             throw new ResourceNotFoundException("Group not found");
         }
-        throw new UnsupportedOperationException("Not yet implemented");
+
+        if (authorization.isOwner(actorMember, group)) {
+            groupMemberRepository.delete(member);
+        }
+
+        if (member.isAdmin()) {
+            throw new ResourceNotFoundException("Group not found");
+        }
+
+        groupMemberRepository.delete(member);
     }
 
     @Override
     @Transactional
-    public void promoteMember(long actorUserId, long groupId, long targetUserId) {
+    public void promoteOrDemoteMember(long actorUserId, long groupId, long targetUserId) {
         GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        if (!authorization.isAdminOrOwner(actorUserId, group)) {
+
+        GroupMemberEntity actorMember = groupMemberRepository.findByGroupIdAndUserId(groupId, actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        if (!authorization.isOwner(actorMember, group)) {
             throw new ResourceNotFoundException("Group not found");
         }
-        throw new UnsupportedOperationException("Not yet implemented");
+
+        member.setAdmin(!member.isAdmin());
+
+        groupMemberRepository.save(member);
     }
 
     @Override
     @Transactional
     public void setShareSchedule(long userId, long groupId, boolean shareSchedule) {
         GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
         member.setShareSchedule(shareSchedule);
         groupMemberRepository.save(member);
+    }
+
+    @Override
+    @Transactional
+    public void transferOwnership(long actorUserId, long groupId, long targetUserId) {
+        GroupEntity group = groupRepository.findByIdForUpdate(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+
+        GroupMemberEntity actorMember = groupMemberRepository.findByGroupIdAndUserId(groupId, actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+
+        if (!authorization.isOwner(actorMember, group)) {
+            throw new ResourceNotFoundException("Group not found");
+        }
+
+        if (actorUserId == targetUserId) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You already own this group");
+        }
+
+        GroupMemberEntity targetMember = groupMemberRepository.findByGroupIdAndUserId(groupId, targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        group.setOwner(targetMember.getUser());
+        targetMember.setAdmin(true);
+        groupRepository.save(group);
+        groupMemberRepository.save(targetMember);
     }
 
     @Override
@@ -335,10 +425,20 @@ public class GroupServiceImpl implements GroupService {
     public void leave(long userId, long groupId) {
         GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        if (!authorization.isMember(userId, group) && !authorization.isOwner(userId, group)) {
-            throw new ResourceNotFoundException("Group not found");
+
+        GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+
+        if (authorization.isOwner(member, group)) {
+            if (groupMemberRepository.countByGroupId(groupId) > 1) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Transfer ownership or delete the group to leave");
+            }
+            groupRepository.delete(group);
+            return;
         }
-        throw new UnsupportedOperationException("Not yet implemented");
+
+        groupMemberRepository.delete(member);
     }
 
     private GroupInviteEntity reuseForReinvite(GroupInviteEntity existing) {
