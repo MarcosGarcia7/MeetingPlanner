@@ -8,7 +8,9 @@ public interface GroupService {
 
     GroupResponse get(long userId, long groupId);
 
-    CursorPage<GroupResponse> listMine(long userId, String cursor, int size);
+    CursorPage<GroupSummaryResponse> listMine(long userId, String cursor, int size);
+
+    CursorPage<GroupSummaryResponse> search(long viewerId, String query, String cursor, int size);
 
     GroupResponse update(long userId, long groupId, GroupUpdateRequest request);
 

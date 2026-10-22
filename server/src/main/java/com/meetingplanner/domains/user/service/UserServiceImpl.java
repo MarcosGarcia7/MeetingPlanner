@@ -1,8 +1,13 @@
 package com.meetingplanner.domains.user.service;
 
+import com.meetingplanner.common.api.CursorCodec;
+import com.meetingplanner.common.api.SearchCursorCodec;
+import com.meetingplanner.common.api.SearchQuery;
 import com.meetingplanner.common.api.Timezones;
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.UserProfileResponse;
 import com.meetingplanner.common.api.dto.UserProfileUpdateRequest;
+import com.meetingplanner.common.api.dto.UserSearchResult;
 import com.meetingplanner.common.api.exceptions.EmailTakenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.domains.notification.service.NotificationService;
@@ -10,10 +15,12 @@ import com.meetingplanner.domains.user.model.AccountTokenType;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -86,6 +93,27 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
+    public CursorPage<UserSearchResult> search(String query, String cursor, int size) {
+        SearchQuery search = SearchQuery.parse(query);
+        int limit = CursorCodec.clampSize(size);
+        SearchCursorCodec.Cursor decoded = SearchCursorCodec.decode(cursor);
+        List<UserEntity> rows = userRepository.search(
+                search.pattern(),
+                decoded == null ? null : decoded.value(),
+                decoded == null ? null : decoded.id(),
+                PageRequest.of(0, limit + 1));
+
+        boolean hasMore = rows.size() > limit;
+        List<UserEntity> page = hasMore ? rows.subList(0, limit) : rows;
+        List<UserSearchResult> items = page.stream().map(UserServiceImpl::toSearchResult).toList();
+        String nextCursor = hasMore && !page.isEmpty()
+                ? SearchCursorCodec.encode(page.getLast().getUsername().toLowerCase(Locale.ROOT), page.getLast().getId())
+                : null;
+        return new CursorPage<>(items, nextCursor);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public long resolveUserId(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"))
@@ -130,6 +158,15 @@ public class UserServiceImpl implements UserService {
             return user.getFirstName();
         }
         return user.getUsername();
+    }
+
+    private static UserSearchResult toSearchResult(UserEntity user) {
+        return new UserSearchResult(
+                user.getId(),
+                user.getUsername(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getAvatarColor());
     }
 
     private UserProfileResponse toProfile(UserEntity user, boolean includeEmail) {

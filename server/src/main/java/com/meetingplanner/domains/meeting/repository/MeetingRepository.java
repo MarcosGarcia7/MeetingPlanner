@@ -121,4 +121,33 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
                                                      @Param("start") OffsetDateTime start,
                                                      @Param("end") OffsetDateTime end,
                                                      @Param("excludeMeetingId") Long excludeMeetingId);
+
+    @Query("""
+            select m from MeetingEntity m
+            left join m.group g
+            where (lower(m.title) like :pattern escape '!'
+                   or lower(coalesce(m.location, '')) like :pattern escape '!')
+              and (m.creator.id = :userId
+                   or exists (select 1 from MeetingParticipantEntity p
+                              where p.meeting = m and p.user.id = :userId)
+                   or (g is not null
+                       and ((m.isPrivate = false
+                             and (g.isPrivate = false
+                                  or g.owner.id = :userId
+                                  or exists (select 1 from GroupMemberEntity gm
+                                             where gm.group = g and gm.user.id = :userId)))
+                            or (m.isPrivate = true
+                                and (g.owner.id = :userId
+                                     or exists (select 1 from GroupMemberEntity gm
+                                                where gm.group = g and gm.user.id = :userId and gm.isAdmin = true))))))
+              and (:cursorTime is null
+                   or m.startTime < :cursorTime
+                   or (m.startTime = :cursorTime and m.id < :cursorId))
+            order by m.startTime desc, m.id desc
+            """)
+    List<MeetingEntity> searchVisible(@Param("userId") Long userId,
+                                      @Param("pattern") String pattern,
+                                      @Param("cursorTime") OffsetDateTime cursorTime,
+                                      @Param("cursorId") Long cursorId,
+                                      Pageable pageable);
 }

@@ -1,6 +1,7 @@
 package com.meetingplanner.domains.meeting.service;
 
 import com.meetingplanner.common.api.CursorCodec;
+import com.meetingplanner.common.api.SearchQuery;
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteBatchResponse;
 import com.meetingplanner.common.api.dto.InviteCheckResponse;
@@ -288,6 +289,21 @@ public class MeetingServiceImpl implements MeetingService {
         CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
         List<MeetingEntity> rows = meetingRepository.listMine(
                 userId, groupId,
+                decoded == null ? null : decoded.time(),
+                decoded == null ? null : decoded.id(),
+                PageRequest.of(0, limit + 1));
+        return toPage(rows, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CursorPage<MeetingSummaryResponse> search(long viewerId, String query, String cursor, int size) {
+        SearchQuery search = SearchQuery.parse(query);
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        List<MeetingEntity> rows = meetingRepository.searchVisible(
+                viewerId,
+                search.pattern(),
                 decoded == null ? null : decoded.time(),
                 decoded == null ? null : decoded.id(),
                 PageRequest.of(0, limit + 1));

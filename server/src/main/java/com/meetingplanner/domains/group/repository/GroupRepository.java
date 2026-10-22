@@ -36,4 +36,17 @@ public interface GroupRepository extends JpaRepository<GroupEntity, Long> {
     boolean existsByGroupName(String groupName);
 
     Optional<GroupEntity> findByOwnerIdAndId(Long ownerId, Long id);
+
+    @Query("""
+            select g from GroupEntity g
+            where lower(g.groupName) like :pattern escape '!'
+              and (:cursorValue is null
+                   or lower(g.groupName) > :cursorValue
+                   or (lower(g.groupName) = :cursorValue and g.id > :cursorId))
+            order by lower(g.groupName) asc, g.id asc
+            """)
+    List<GroupEntity> search(@Param("pattern") String pattern,
+                             @Param("cursorValue") String cursorValue,
+                             @Param("cursorId") Long cursorId,
+                             Pageable pageable);
 }

@@ -1,6 +1,8 @@
 package com.meetingplanner.domains.group.service;
 
 import com.meetingplanner.common.api.CursorCodec;
+import com.meetingplanner.common.api.SearchCursorCodec;
+import com.meetingplanner.common.api.SearchQuery;
 import com.meetingplanner.common.api.dto.*;
 import com.meetingplanner.common.api.exceptions.EmailNotVerifiedException;
 import com.meetingplanner.common.api.exceptions.ForbiddenException;
@@ -94,7 +96,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPage<GroupResponse> listMine(long userId, String cursor, int size) {
+    public CursorPage<GroupSummaryResponse> listMine(long userId, String cursor, int size) {
         int limit = CursorCodec.clampSize(size);
         CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
         List<GroupEntity> rows = groupRepository.listMine(
@@ -102,13 +104,45 @@ public class GroupServiceImpl implements GroupService {
                 decoded == null ? null : decoded.id(),
                 PageRequest.of(0, limit + 1));
 
-        boolean hasMore = rows.size() > limit;
-        List<GroupEntity> page = hasMore ? rows.subList(0, limit) : rows;
-        List<GroupResponse> items = page.stream().map(group -> toGroupResponse(group, true)).toList();
+        return toPage(userId, rows, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CursorPage<GroupSummaryResponse> search(long viewerId, String query, String cursor, int size) {
+        SearchQuery search = SearchQuery.parse(query);
+        int limit = CursorCodec.clampSize(size);
+        SearchCursorCodec.Cursor decoded = SearchCursorCodec.decode(cursor);
+        List<GroupEntity> rows = groupRepository.search(
+                search.pattern(),
+                decoded == null ? null : decoded.value(),
+                decoded == null ? null : decoded.id(),
+                PageRequest.of(0, limit + 1));
+
+        return toPage(viewerId, rows, limit);
+    }
+
+    private CursorPage<GroupSummaryResponse> toPage(long viewerId, List<GroupEntity> rows, int size) {
+        boolean hasMore = rows.size() > size;
+        List<GroupEntity> page = hasMore ? rows.subList(0, size) : rows;
+        Set<Long> viewerGroupIds = groupMemberRepository.findGroupIdsByUserId(viewerId);
+        List<GroupSummaryResponse> items = page.stream()
+                .map(group -> toGroupSummary(group, viewerGroupIds))
+                .toList();
         String nextCursor = hasMore && !page.isEmpty()
-                ? CursorCodec.encodeId(page.getLast().getId())
+                ? SearchCursorCodec.encode(page.getLast().getGroupName().toLowerCase(Locale.ROOT), page.getLast().getId())
                 : null;
         return new CursorPage<>(items, nextCursor);
+    }
+
+    private GroupSummaryResponse toGroupSummary(GroupEntity group, Set<Long> viewerGroupIds) {
+        return new GroupSummaryResponse(
+                group.getId(),
+                group.getGroupName(),
+                group.getOwner().getId(),
+                group.isPrivate(),
+                (int) groupMemberRepository.countByGroupId(group.getId()),
+                viewerGroupIds.contains(group.getId()));
     }
 
     private GroupResponse toGroupResponse(GroupEntity group, boolean includeMembers) {

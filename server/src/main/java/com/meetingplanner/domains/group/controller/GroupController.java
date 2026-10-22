@@ -38,7 +38,7 @@ public class GroupController {
     }
 
     @GetMapping
-    public CursorPage<GroupResponse> listMine(@AuthenticationPrincipal Jwt jwt,
+    public CursorPage<GroupSummaryResponse> listMine(@AuthenticationPrincipal Jwt jwt,
                                               @RequestParam(required = false) String cursor,
                                               @RequestParam(defaultValue = "20") int size) {
         return groupService.listMine(CurrentUser.from(jwt).id(), cursor, size);

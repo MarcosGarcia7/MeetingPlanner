@@ -25,6 +25,8 @@ public interface MeetingService {
 
     CursorPage<MeetingSummaryResponse> listMine(long userId, Long groupId, String cursor, int size);
 
+    CursorPage<MeetingSummaryResponse> search(long viewerId, String query, String cursor, int size);
+
     CursorPage<MeetingSummaryResponse> listCreated(long userId, String cursor, int size);
 
     CursorPage<MeetingSummaryResponse> listForGroup(long userId, long groupId, String cursor, int size);

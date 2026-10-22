@@ -1,8 +1,10 @@
 package com.meetingplanner.domains.group.service;
 
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.GroupCreateRequest;
 import com.meetingplanner.common.api.dto.GroupInviteBatchRequest;
 import com.meetingplanner.common.api.dto.GroupResponse;
+import com.meetingplanner.common.api.dto.GroupSummaryResponse;
 import com.meetingplanner.common.api.dto.InviteBatchResponse;
 import com.meetingplanner.common.api.dto.MemberUsernameRequest;
 import com.meetingplanner.common.api.exceptions.GroupNameTakenException;
@@ -24,12 +26,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -104,6 +109,28 @@ class GroupServiceImplTest {
                 .thenReturn(Optional.of(actorMember));
         when(authorization.isAdminOrOwner(actorMember, group)).thenReturn(true);
         return group;
+    }
+
+    @Test
+    void searchMapsGroupSummaryWithViewerMembership() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        when(groupRepository.search("%tea%", null, null, PageRequest.of(0, 21)))
+                .thenReturn(List.of(group));
+        when(groupMemberRepository.findGroupIdsByUserId(9L)).thenReturn(Set.of(1L));
+        when(groupMemberRepository.countByGroupId(1L)).thenReturn(3L);
+
+        CursorPage<GroupSummaryResponse> page = service.search(9L, " TEA ", null, 20);
+
+        assertEquals(1, page.items().size());
+        GroupSummaryResponse result = page.items().getFirst();
+        assertEquals(1L, result.id());
+        assertEquals("Team", result.groupName());
+        assertEquals(1L, result.ownerId());
+        assertEquals(3, result.memberCount());
+        assertTrue(result.viewerIsMember());
+        assertNull(page.nextCursor());
     }
 
     @Test

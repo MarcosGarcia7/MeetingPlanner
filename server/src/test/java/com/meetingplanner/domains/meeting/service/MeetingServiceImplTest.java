@@ -1,7 +1,9 @@
 package com.meetingplanner.domains.meeting.service;
 
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteBatchResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
+import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteRequest;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
 import com.meetingplanner.common.api.model.InviteStatus;
@@ -22,14 +24,17 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -102,6 +107,25 @@ class MeetingServiceImplTest {
             meeting.addParticipant(participant);
         }
         return meeting;
+    }
+
+    @Test
+    void searchUsesVisibleMatchesAndSummaryMapping() {
+        UserEntity creator = user(1L, "alice");
+        MeetingEntity meeting = meeting(10L, creator, creator);
+        when(meetingRepository.searchVisible(1L, "%test%", null, null, PageRequest.of(0, 21)))
+                .thenReturn(List.of(meeting));
+        when(meetingParticipantRepository.countByMeetingIds(List.of(10L))).thenReturn(List.of());
+
+        CursorPage<MeetingSummaryResponse> page = service.search(1L, " TEST ", null, 20);
+
+        assertEquals(1, page.items().size());
+        MeetingSummaryResponse result = page.items().getFirst();
+        assertEquals(10L, result.id());
+        assertEquals("Test meeting", result.title());
+        assertEquals(1L, result.creatorId());
+        assertEquals(0, result.participantCount());
+        assertNull(page.nextCursor());
     }
 
     @Test
