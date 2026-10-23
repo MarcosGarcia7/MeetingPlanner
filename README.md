@@ -92,4 +92,4 @@ points at the local stack.
 - Keep `seed-dev.sql` out of `db/migration` — it is a manual, development-only script.
 - `node_modules/` is gitignored by design and not needed locally: `docker compose up --build`
   installs dependencies inside the BFF image from the tracked `bff/package-lock.json`. Only run
-  `pnpm install` if you want to run the BFF outside Docker.
+  `npm install` (from `bff/`) if you want to run the BFF outside Docker.
