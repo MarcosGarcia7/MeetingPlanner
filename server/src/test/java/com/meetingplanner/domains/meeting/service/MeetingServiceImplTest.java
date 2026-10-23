@@ -7,6 +7,7 @@ import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteRequest;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.repository.GroupRepository;
 import com.meetingplanner.domains.group.service.GroupAuthorizationService;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
@@ -48,6 +49,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 @ExtendWith(MockitoExtension.class)
 class MeetingServiceImplTest {
@@ -74,6 +76,8 @@ class MeetingServiceImplTest {
     private MeetingConflictService conflictService;
     @Mock
     private MeetingTimeChangeService timeChangeService;
+    @Mock
+    private BlockService blockService;
 
     @InjectMocks
     private MeetingServiceImpl service;
@@ -295,6 +299,26 @@ class MeetingServiceImplTest {
         assertEquals(InviteStatus.PENDING, existing.getStatus());
         assertTrue(existing.getTimeSent().isAfter(staleSentAt));
         verify(notificationService).queueEmailToForUser(eq(bob), eq("bob@example.com"), eq("MEETING_INVITE"), anyMap(), eq("meeting_invites"));
+    }
+
+    @Test
+    void blockedRecipientIsRejected() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = verifiedUser(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot invite this user"))
+                .when(blockService).assertNotBlocked(1L, 2L, "You cannot invite this user");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.inviteBatch(1L, 10L, meetingBatch("bob")));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verify(meetingInviteRepository, never()).save(any(MeetingInviteEntity.class));
     }
 
     @Test

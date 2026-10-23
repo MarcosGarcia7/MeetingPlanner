@@ -30,13 +30,16 @@ public class FriendshipService {
     private final FriendshipRepository friendshipRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final BlockService blockService;
 
     public FriendshipService(FriendshipRepository friendshipRepository,
                              UserRepository userRepository,
-                             NotificationService notificationService) {
+                             NotificationService notificationService,
+                             BlockService blockService) {
         this.friendshipRepository = friendshipRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.blockService = blockService;
     }
 
     @Value("${app.base-url:https://meetingplanner.example.com}")
@@ -137,6 +140,9 @@ public class FriendshipService {
 
         Pair pair = pair(blockerId, targetUserId);
         FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendId(pair.a, pair.b).orElse(null);
+        if (friendship != null && friendship.getStatus() == FriendshipStatus.BLOCKED) {
+            return;
+        }
         if (friendship == null) {
             friendship = new FriendshipEntity();
             friendship.setUser(userRepository.getReferenceById(pair.a));
@@ -146,6 +152,25 @@ public class FriendshipService {
         friendship.setStatus(FriendshipStatus.BLOCKED);
         friendship.setRespondedAt(OffsetDateTime.now());
         friendshipRepository.save(friendship);
+
+        blockService.invalidatePendingBetween(blockerId, targetUserId);
+    }
+
+    @Transactional
+    public void unblock(long callerId, String targetUsername) {
+        UserEntity target = userRepository.findByUsername(targetUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Pair pair = pair(callerId, target.getId());
+        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendId(pair.a, pair.b)
+                .filter(f -> f.getStatus() == FriendshipStatus.BLOCKED)
+                .orElseThrow(() -> new ResourceNotFoundException("Blocked user not found"));
+
+        if (!friendship.getRequester().getId().equals(callerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the blocker can unblock this user");
+        }
+
+        friendshipRepository.delete(friendship);
     }
 
     @Transactional(readOnly = true)

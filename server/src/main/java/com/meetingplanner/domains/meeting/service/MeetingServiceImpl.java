@@ -20,6 +20,7 @@ import com.meetingplanner.common.api.exceptions.ForbiddenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.common.security.InviteTokens;
+import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.repository.GroupRepository;
 import com.meetingplanner.domains.group.service.GroupAuthorizationService;
@@ -65,6 +66,7 @@ public class MeetingServiceImpl implements MeetingService {
     private final NotificationService notificationService;
     private final MeetingConflictService conflictService;
     private final MeetingTimeChangeService timeChangeService;
+    private final BlockService blockService;
 
     @Value("${app.base-url:https://meetingplanner.example.com}")
     private String appBaseUrl;
@@ -82,7 +84,8 @@ public class MeetingServiceImpl implements MeetingService {
                               UserProfileAuthorizationService userProfileAuthorization,
                               NotificationService notificationService,
                               MeetingConflictService conflictService,
-                              MeetingTimeChangeService timeChangeService) {
+                              MeetingTimeChangeService timeChangeService,
+                              BlockService blockService) {
         this.authorization = authorization;
         this.groupAuthorization = groupAuthorization;
         this.groupRepository = groupRepository;
@@ -94,6 +97,7 @@ public class MeetingServiceImpl implements MeetingService {
         this.notificationService = notificationService;
         this.conflictService = conflictService;
         this.timeChangeService = timeChangeService;
+        this.blockService = blockService;
     }
 
     @Override
@@ -557,6 +561,10 @@ public class MeetingServiceImpl implements MeetingService {
             if (recipient != null && recipient.getId().equals(sender.getId())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot invite yourself");
             }
+        }
+
+        if (recipient != null) {
+            blockService.assertNotBlocked(sender.getId(), recipient.getId(), "You cannot invite this user");
         }
 
         MeetingInviteEntity invite = meetingInviteRepository

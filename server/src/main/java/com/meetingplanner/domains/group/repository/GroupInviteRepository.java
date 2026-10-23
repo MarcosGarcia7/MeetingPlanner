@@ -31,6 +31,11 @@ public interface GroupInviteRepository extends JpaRepository<GroupInviteEntity, 
     @Query("""
             select gi from GroupInviteEntity gi
             where (gi.recipient.id = :userId or gi.recipientEmail = :email)
+              and not exists (
+                  select 1 from FriendshipEntity f
+                  where f.status = 'BLOCKED'
+                    and ((f.user.id = :userId and f.friend.id = gi.sender.id)
+                         or (f.friend.id = :userId and f.user.id = gi.sender.id)))
               and (:cursorTime is null
                    or gi.timeSent < :cursorTime
                    or (gi.timeSent = :cursorTime
@@ -59,4 +64,14 @@ public interface GroupInviteRepository extends JpaRepository<GroupInviteEntity, 
     Optional<GroupInviteEntity> findByTokenHash(String tokenHash);
 
     Optional<GroupInviteEntity> findByGroupIdAndRecipientEmail(Long groupId, String recipientEmail);
+
+    @Query("""
+            select gi from GroupInviteEntity gi
+            where gi.status = :status
+              and ((gi.sender.id = :a and gi.recipient.id = :b)
+                   or (gi.sender.id = :b and gi.recipient.id = :a))
+            """)
+    List<GroupInviteEntity> findBetween(@Param("a") Long a,
+                                        @Param("b") Long b,
+                                        @Param("status") InviteStatus status);
 }

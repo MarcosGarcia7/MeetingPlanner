@@ -10,6 +10,7 @@ import com.meetingplanner.common.api.exceptions.GroupNameTakenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.common.security.InviteTokens;
+import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
@@ -40,6 +41,7 @@ public class GroupServiceImpl implements GroupService {
     private final GroupInviteRepository groupInviteRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final BlockService blockService;
 
     @Value("${app.base-url:https://meetingplanner.example.com}")
     private String appBaseUrl;
@@ -49,13 +51,15 @@ public class GroupServiceImpl implements GroupService {
                             GroupRepository groupRepository,
                             GroupInviteRepository groupInviteRepository,
                             UserRepository userRepository,
-                            NotificationService notificationService) {
+                            NotificationService notificationService,
+                            BlockService blockService) {
         this.authorization = authorization;
         this.groupMemberRepository = groupMemberRepository;
         this.groupRepository = groupRepository;
         this.groupInviteRepository = groupInviteRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.blockService = blockService;
     }
 
     @Override
@@ -278,6 +282,7 @@ public class GroupServiceImpl implements GroupService {
         if (recipient.getId().equals(sender.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot invite yourself");
         }
+        blockService.assertNotBlocked(sender.getId(), recipient.getId(), "You cannot invite this user");
         if (groupMemberRepository.existsByGroupIdAndUserId(group.getId(), recipient.getId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User is already a member of this group");
         }

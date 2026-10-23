@@ -5,6 +5,7 @@ import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.JoinRequestResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.RequestStatus;
+import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupJoinRequestEntity;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
@@ -56,6 +57,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     private final MeetingAuthorizationService meetingAuthorization;
     private final MeetingConflictService conflictService;
     private final NotificationService notificationService;
+    private final BlockService blockService;
 
     @Value("${app.base-url:https://meetingplanner.example.com}")
     private String appBaseUrl;
@@ -70,7 +72,8 @@ public class JoinRequestServiceImpl implements JoinRequestService {
                                   GroupAuthorizationService groupAuthorization,
                                   MeetingAuthorizationService meetingAuthorization,
                                   MeetingConflictService conflictService,
-                                  NotificationService notificationService) {
+                                  NotificationService notificationService,
+                                  BlockService blockService) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.groupJoinRequestRepository = groupJoinRequestRepository;
@@ -82,6 +85,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         this.meetingAuthorization = meetingAuthorization;
         this.conflictService = conflictService;
         this.notificationService = notificationService;
+        this.blockService = blockService;
     }
 
     @Override
@@ -125,6 +129,9 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         }
         if (meetingAuthorization.isParticipantOrCreator(userId, meeting)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "You are already a participant of this meeting");
+        }
+        if (blockService.isBlocked(userId, meeting.getCreator().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot request to join this meeting");
         }
         if (meetingJoinRequestRepository.existsByMeetingIdAndRequesterIdAndStatus(
                 meetingId, userId, RequestStatus.PENDING)) {
@@ -220,7 +227,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         int limit = CursorCodec.clampSize(size);
         CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
         List<MeetingJoinRequestEntity> rows = meetingJoinRequestRepository.listForMeeting(
-                meetingId,
+                meetingId, actorId,
                 decoded == null ? null : decoded.time(),
                 decoded == null ? null : decoded.id(),
                 PageRequest.of(0, limit + 1));
@@ -281,6 +288,9 @@ public class JoinRequestServiceImpl implements JoinRequestService {
             throw new ResourceNotFoundException("Request not found");
         }
         requirePending(request);
+        if (blockService.isBlocked(meeting.getCreator().getId(), request.getRequester().getId())) {
+            throw new ResourceNotFoundException("Request not found");
+        }
         boolean conflicts = !conflictService.findScheduleConflicts(
                 request.getRequester().getId(), meeting.getStartTime(), meeting.getEndTime(), meeting.getId()).isEmpty();
         if (conflicts) {

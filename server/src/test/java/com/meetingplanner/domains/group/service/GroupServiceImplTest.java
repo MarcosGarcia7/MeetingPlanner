@@ -10,6 +10,7 @@ import com.meetingplanner.common.api.dto.MemberUsernameRequest;
 import com.meetingplanner.common.api.exceptions.GroupNameTakenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
@@ -50,6 +51,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 @ExtendWith(MockitoExtension.class)
 class GroupServiceImplTest {
@@ -66,6 +68,8 @@ class GroupServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private BlockService blockService;
 
     @InjectMocks
     private GroupServiceImpl service;
@@ -214,6 +218,22 @@ class GroupServiceImplTest {
 
         assertEquals(1, response.failed().size());
         assertEquals("You cannot invite yourself", response.failed().getFirst().reason());
+    }
+
+    @Test
+    void blockedRecipientIsRejected() {
+        UserEntity actor = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        prepareAdmin(1L, actor);
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot invite this user"))
+                .when(blockService).assertNotBlocked(1L, 2L, "You cannot invite this user");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.inviteBatch(1L, 1L, batch("bob")));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verify(groupInviteRepository, never()).save(any(GroupInviteEntity.class));
     }
 
     @Test

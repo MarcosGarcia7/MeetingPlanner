@@ -86,4 +86,10 @@ public class FriendshipController {
         friendshipService.block(CurrentUser.from(jwt).id(), targetId);
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping("/blocked/{username}")
+    public ResponseEntity<Void> unblock(@AuthenticationPrincipal Jwt jwt, @PathVariable String username) {
+        friendshipService.unblock(CurrentUser.from(jwt).id(), username);
+        return ResponseEntity.noContent().build();
+    }
 }

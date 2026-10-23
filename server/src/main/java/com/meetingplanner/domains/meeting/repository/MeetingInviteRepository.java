@@ -18,6 +18,11 @@ public interface MeetingInviteRepository extends JpaRepository<MeetingInviteEnti
     @Query("""
             select mi from MeetingInviteEntity mi
             where (mi.recipient.id = :userId or mi.recipientEmail = :email)
+              and not exists (
+                  select 1 from FriendshipEntity f
+                  where f.status = 'BLOCKED'
+                    and ((f.user.id = :userId and f.friend.id = mi.sender.id)
+                         or (f.friend.id = :userId and f.user.id = mi.sender.id)))
               and (:cursorTime is null
                    or mi.timeSent < :cursorTime
                    or (mi.timeSent = :cursorTime
@@ -46,4 +51,14 @@ public interface MeetingInviteRepository extends JpaRepository<MeetingInviteEnti
     Optional<MeetingInviteEntity> findByTokenHash(String tokenHash);
 
     Optional<MeetingInviteEntity> findByMeetingIdAndRecipientEmail(Long meetingId, String recipientEmail);
+
+    @Query("""
+            select mi from MeetingInviteEntity mi
+            where mi.status = :status
+              and ((mi.sender.id = :a and mi.recipient.id = :b)
+                   or (mi.sender.id = :b and mi.recipient.id = :a))
+            """)
+    List<MeetingInviteEntity> findBetween(@Param("a") Long a,
+                                          @Param("b") Long b,
+                                          @Param("status") InviteStatus status);
 }

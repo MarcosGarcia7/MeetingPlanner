@@ -7,6 +7,7 @@ import com.meetingplanner.common.api.exceptions.InvalidTokenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.common.security.InviteTokens;
+import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
@@ -46,6 +47,7 @@ public class InviteServiceImpl implements InviteService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final MeetingConflictService conflictService;
+    private final BlockService blockService;
 
     @Value("${app.base-url:https://meetingplanner.example.com}")
     private String appBaseUrl;
@@ -57,7 +59,8 @@ public class InviteServiceImpl implements InviteService {
                              MeetingParticipantRepository meetingParticipantRepository,
                              UserRepository userRepository,
                              NotificationService notificationService,
-                             MeetingConflictService conflictService) {
+                             MeetingConflictService conflictService,
+                             BlockService blockService) {
         this.groupInviteRepository = groupInviteRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.meetingInviteRepository = meetingInviteRepository;
@@ -66,6 +69,7 @@ public class InviteServiceImpl implements InviteService {
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.conflictService = conflictService;
+        this.blockService = blockService;
     }
 
     @Override
@@ -119,6 +123,7 @@ public class InviteServiceImpl implements InviteService {
         if (invite.getRecipient() == null || !invite.getRecipient().getId().equals(userId)) {
             throw new ResourceNotFoundException("Invite not found");
         }
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         acceptGroup(invite);
         return toGroupResponse(invite);
     }
@@ -131,6 +136,7 @@ public class InviteServiceImpl implements InviteService {
         if (invite.getRecipient() == null || !invite.getRecipient().getId().equals(userId)) {
             throw new ResourceNotFoundException("Invite not found");
         }
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         respondPendingOnly(invite, InviteStatus.DECLINED, "Invite has already been responded to");
         return toGroupResponse(invite);
     }
@@ -143,6 +149,7 @@ public class InviteServiceImpl implements InviteService {
         if (invite.getRecipient() == null || !invite.getRecipient().getId().equals(userId)) {
             throw new ResourceNotFoundException("Invite not found");
         }
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         respondPendingOnly(invite, InviteStatus.ACCEPTED, "Invite has already been responded to");
         if (invite.getRecipient() != null) {
             assertNoScheduleConflict(invite.getRecipient(), invite.getMeeting());
@@ -160,6 +167,7 @@ public class InviteServiceImpl implements InviteService {
         if (invite.getRecipient() == null || !invite.getRecipient().getId().equals(userId)) {
             throw new ResourceNotFoundException("Invite not found");
         }
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         respondPendingOnly(invite, InviteStatus.DECLINED, "Invite has already been responded to");
         return toMeetingResponse(invite);
     }
@@ -167,19 +175,24 @@ public class InviteServiceImpl implements InviteService {
     @Override
     @Transactional(readOnly = true)
     public InviteResponse viewGroupInvite(String token) {
-        return toGroupResponse(groupByToken(token));
+        GroupInviteEntity invite = groupByToken(token);
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
+        return toGroupResponse(invite);
     }
 
     @Override
     @Transactional(readOnly = true)
     public InviteResponse viewMeetingInvite(String token) {
-        return toMeetingResponse(meetingByToken(token));
+        MeetingInviteEntity invite = meetingByToken(token);
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
+        return toMeetingResponse(invite);
     }
 
     @Override
     @Transactional
     public InviteResponse acceptGroupInviteByToken(String token) {
         GroupInviteEntity invite = groupByToken(token);
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         acceptGroup(invite);
         return toGroupResponse(invite);
     }
@@ -188,6 +201,7 @@ public class InviteServiceImpl implements InviteService {
     @Transactional
     public InviteResponse declineGroupInviteByToken(String token) {
         GroupInviteEntity invite = groupByToken(token);
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         respondPendingOnly(invite, InviteStatus.DECLINED, "Invite has already been responded to");
         return toGroupResponse(invite);
     }
@@ -196,6 +210,7 @@ public class InviteServiceImpl implements InviteService {
     @Transactional
     public InviteResponse acceptMeetingInviteByToken(String token) {
         MeetingInviteEntity invite = meetingByToken(token);
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         respondPendingOnly(invite, InviteStatus.ACCEPTED, "Invite has already been responded to");
         if (invite.getRecipient() != null) {
             assertNoScheduleConflict(invite.getRecipient(), invite.getMeeting());
@@ -211,6 +226,7 @@ public class InviteServiceImpl implements InviteService {
     @Transactional
     public InviteResponse declineMeetingInviteByToken(String token) {
         MeetingInviteEntity invite = meetingByToken(token);
+        assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         respondPendingOnly(invite, InviteStatus.DECLINED, "Invite has already been responded to");
         return toMeetingResponse(invite);
     }
@@ -232,6 +248,15 @@ public class InviteServiceImpl implements InviteService {
         invite.setRespondedAt(OffsetDateTime.now());
         meetingInviteRepository.save(invite);
         return toMeetingResponse(invite);
+    }
+
+    private void assertNotBlockedForPending(UserEntity sender, UserEntity recipient, InviteStatus status) {
+        if (status == InviteStatus.PENDING
+                && sender != null
+                && recipient != null
+                && blockService.isBlocked(sender.getId(), recipient.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invite is no longer available");
+        }
     }
 
     private GroupInviteEntity groupByToken(String token) {

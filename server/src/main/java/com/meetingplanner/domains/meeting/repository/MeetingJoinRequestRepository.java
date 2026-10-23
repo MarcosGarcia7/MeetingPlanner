@@ -18,12 +18,18 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
     @Query("""
             select r from MeetingJoinRequestEntity r
             where r.meeting.id = :meetingId
+              and not exists (
+                  select 1 from FriendshipEntity f
+                  where f.status = 'BLOCKED'
+                    and ((f.user.id = :viewerId and f.friend.id = r.requester.id)
+                         or (f.friend.id = :viewerId and f.user.id = r.requester.id)))
               and (:cursorTime is null
                    or r.timeSent < :cursorTime
                    or (r.timeSent = :cursorTime and r.id < :cursorId))
             order by r.timeSent desc, r.id desc
             """)
     List<MeetingJoinRequestEntity> listForMeeting(@Param("meetingId") Long meetingId,
+                                                  @Param("viewerId") Long viewerId,
                                                   @Param("cursorTime") OffsetDateTime cursorTime,
                                                   @Param("cursorId") Long cursorId,
                                                   Pageable pageable);
@@ -31,6 +37,11 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
     @Query("""
             select r from MeetingJoinRequestEntity r
             where r.requester.id = :requesterId
+              and not exists (
+                  select 1 from FriendshipEntity f
+                  where f.status = 'BLOCKED'
+                    and ((f.user.id = :requesterId and f.friend.id = r.meeting.creator.id)
+                         or (f.friend.id = :requesterId and f.user.id = r.meeting.creator.id)))
               and (:cursorTime is null
                    or r.timeSent < :cursorTime
                    or (r.timeSent = :cursorTime
@@ -48,4 +59,14 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
     boolean existsByMeetingIdAndRequesterIdAndStatus(Long meetingId, Long requesterId, RequestStatus status);
 
     Optional<MeetingJoinRequestEntity> findByIdAndRequesterId(Long id, Long requesterId);
+
+    @Query("""
+            select r from MeetingJoinRequestEntity r
+            where r.status = :status
+              and ((r.requester.id = :a and r.meeting.creator.id = :b)
+                   or (r.requester.id = :b and r.meeting.creator.id = :a))
+            """)
+    List<MeetingJoinRequestEntity> findBetweenRequesterAndCreator(@Param("a") Long a,
+                                                                  @Param("b") Long b,
+                                                                  @Param("status") RequestStatus status);
 }
