@@ -24,6 +24,12 @@ public interface GroupService {
 
     void removeMember(long actorUserId, long groupId, long targetUserId);
 
+    void banMember(long actorUserId, long groupId, long targetUserId);
+
+    void unbanMember(long actorUserId, long groupId, long targetUserId);
+
+    CursorPage<GroupBanResponse> listBans(long actorUserId, long groupId, String cursor, int size);
+
     void promoteOrDemoteMember(long actorUserId, long groupId, long targetUserId);
 
     void transferOwnership(long actorUserId, long groupId, long targetUserId);

@@ -13,6 +13,8 @@ import com.meetingplanner.domains.group.model.GroupInviteEntity;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
 import com.meetingplanner.domains.group.repository.GroupInviteRepository;
 import com.meetingplanner.domains.group.repository.GroupMemberRepository;
+import com.meetingplanner.domains.group.repository.GroupRepository;
+import com.meetingplanner.domains.group.service.GroupAuthorizationService;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
 import com.meetingplanner.domains.meeting.model.MeetingInviteEntity;
 import com.meetingplanner.domains.meeting.model.MeetingParticipantEntity;
@@ -24,6 +26,7 @@ import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -41,6 +44,7 @@ public class InviteServiceImpl implements InviteService {
 
     private final GroupInviteRepository groupInviteRepository;
     private final GroupMemberRepository groupMemberRepository;
+    private final GroupRepository groupRepository;
     private final MeetingInviteRepository meetingInviteRepository;
     private final MeetingRepository meetingRepository;
     private final MeetingParticipantRepository meetingParticipantRepository;
@@ -48,21 +52,25 @@ public class InviteServiceImpl implements InviteService {
     private final NotificationService notificationService;
     private final MeetingConflictService conflictService;
     private final BlockService blockService;
+    private final GroupAuthorizationService groupAuthorization;
 
     @Value("${app.base-url:https://meetingplanner.example.com}")
     private String appBaseUrl;
 
     public InviteServiceImpl(GroupInviteRepository groupInviteRepository,
                              GroupMemberRepository groupMemberRepository,
+                             GroupRepository groupRepository,
                              MeetingInviteRepository meetingInviteRepository,
                              MeetingRepository meetingRepository,
                              MeetingParticipantRepository meetingParticipantRepository,
                              UserRepository userRepository,
                              NotificationService notificationService,
                              MeetingConflictService conflictService,
-                             BlockService blockService) {
+                             BlockService blockService,
+                             GroupAuthorizationService groupAuthorization) {
         this.groupInviteRepository = groupInviteRepository;
         this.groupMemberRepository = groupMemberRepository;
+        this.groupRepository = groupRepository;
         this.meetingInviteRepository = meetingInviteRepository;
         this.meetingRepository = meetingRepository;
         this.meetingParticipantRepository = meetingParticipantRepository;
@@ -70,6 +78,7 @@ public class InviteServiceImpl implements InviteService {
         this.notificationService = notificationService;
         this.conflictService = conflictService;
         this.blockService = blockService;
+        this.groupAuthorization = groupAuthorization;
     }
 
     @Override
@@ -150,6 +159,8 @@ public class InviteServiceImpl implements InviteService {
             throw new ResourceNotFoundException("Invite not found");
         }
         assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
+        assertNotBannedFromMeetingGroup(invite.getMeeting(), invite.getRecipient());
+        lockMeeting(invite.getMeeting());
         respondPendingOnly(invite, InviteStatus.ACCEPTED, "Invite has already been responded to");
         if (invite.getRecipient() != null) {
             assertNoScheduleConflict(invite.getRecipient(), invite.getMeeting());
@@ -211,6 +222,8 @@ public class InviteServiceImpl implements InviteService {
     public InviteResponse acceptMeetingInviteByToken(String token) {
         MeetingInviteEntity invite = meetingByToken(token);
         assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
+        assertNotBannedFromMeetingGroup(invite.getMeeting(), invite.getRecipient());
+        lockMeeting(invite.getMeeting());
         respondPendingOnly(invite, InviteStatus.ACCEPTED, "Invite has already been responded to");
         if (invite.getRecipient() != null) {
             assertNoScheduleConflict(invite.getRecipient(), invite.getMeeting());
@@ -238,15 +251,13 @@ public class InviteServiceImpl implements InviteService {
         if (invite.getStatus() != InviteStatus.ACCEPTED) {
             throw new InvalidTokenException("Invite has not been accepted");
         }
-        MeetingEntity meeting = invite.getMeeting();
+        MeetingEntity meeting = lockMeeting(invite.getMeeting());
+        transition(invite, InviteStatus.ACCEPTED, InviteStatus.LEFT, "Invite has not been accepted");
         if (invite.getRecipient() != null) {
             meetingParticipantRepository.deleteByMeetingIdAndUserId(meeting.getId(), invite.getRecipient().getId());
         } else {
             removeExternalParticipant(meeting, invite.getRecipientEmail());
         }
-        invite.setStatus(InviteStatus.LEFT);
-        invite.setRespondedAt(OffsetDateTime.now());
-        meetingInviteRepository.save(invite);
         return toMeetingResponse(invite);
     }
 
@@ -272,16 +283,37 @@ public class InviteServiceImpl implements InviteService {
     private void acceptGroup(GroupInviteEntity invite) {
         requirePending(invite, "Invite has already been responded to");
         Long groupId = invite.getGroup().getId();
+        GroupEntity group = groupRepository.findByIdForUpdate(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invite not found"));
         Long recipientId = invite.getRecipient().getId();
+        if (groupAuthorization.isBanned(recipientId, group)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are banned from this group");
+        }
+        transition(invite, InviteStatus.PENDING, InviteStatus.ACCEPTED, "Invite has already been responded to");
         if (!groupMemberRepository.existsByGroupIdAndUserId(groupId, recipientId)) {
             GroupMemberEntity member = new GroupMemberEntity();
-            member.setGroup(invite.getGroup());
+            member.setGroup(group);
             member.setUser(invite.getRecipient());
             groupMemberRepository.save(member);
         }
-        invite.setStatus(InviteStatus.ACCEPTED);
-        invite.setRespondedAt(OffsetDateTime.now());
-        groupInviteRepository.save(invite);
+    }
+
+    private void assertNotBannedFromMeetingGroup(MeetingEntity meeting, UserEntity recipient) {
+        if (recipient == null || meeting.getGroup() == null) {
+            return;
+        }
+        GroupEntity group = groupRepository.findByIdForUpdate(meeting.getGroup().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Invite not found"));
+        if (groupAuthorization.isBanned(recipient.getId(), group)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are banned from this group");
+        }
+    }
+
+    // Taken after any group lock (group -> meeting -> invite). Serializes participant changes with meeting
+    // delete/removeParticipant and keeps externalParticipantNames read-modify-write from losing updates.
+    private MeetingEntity lockMeeting(MeetingEntity meeting) {
+        return meetingRepository.findByIdForUpdate(meeting.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Invite not found"));
     }
 
     private void assertNoScheduleConflict(UserEntity recipient, MeetingEntity meeting) {
@@ -297,7 +329,12 @@ public class InviteServiceImpl implements InviteService {
             MeetingParticipantEntity participant = new MeetingParticipantEntity();
             participant.setMeeting(meeting);
             participant.setUser(user);
-            meetingParticipantRepository.save(participant);
+            try {
+                meetingParticipantRepository.saveAndFlush(participant);
+            } catch (DataIntegrityViolationException e) {
+                // Safety net only; the meeting lock already serializes participant inserts.
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "You are already a participant of this meeting");
+            }
         }
     }
 
@@ -322,16 +359,31 @@ public class InviteServiceImpl implements InviteService {
 
     private void respondPendingOnly(MeetingInviteEntity invite, InviteStatus status, String errorMessage) {
         requirePending(invite, errorMessage);
-        invite.setStatus(status);
-        invite.setRespondedAt(OffsetDateTime.now());
-        meetingInviteRepository.save(invite);
+        transition(invite, InviteStatus.PENDING, status, errorMessage);
     }
 
     private void respondPendingOnly(GroupInviteEntity invite, InviteStatus status, String errorMessage) {
         requirePending(invite, errorMessage);
-        invite.setStatus(status);
-        invite.setRespondedAt(OffsetDateTime.now());
-        groupInviteRepository.save(invite);
+        transition(invite, InviteStatus.PENDING, status, errorMessage);
+    }
+
+    // Conditional UPDATE ... WHERE status = :from so concurrent accept/decline/leave calls can't both win.
+    private void transition(MeetingInviteEntity invite, InviteStatus from, InviteStatus to, String errorMessage) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (meetingInviteRepository.transitionStatus(invite.getId(), from, to, now) == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, errorMessage);
+        }
+        invite.setStatus(to);
+        invite.setRespondedAt(now);
+    }
+
+    private void transition(GroupInviteEntity invite, InviteStatus from, InviteStatus to, String errorMessage) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (groupInviteRepository.transitionStatus(invite.getId(), from, to, now) == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, errorMessage);
+        }
+        invite.setStatus(to);
+        invite.setRespondedAt(now);
     }
 
     private void requirePending(MeetingInviteEntity invite, String errorMessage) {

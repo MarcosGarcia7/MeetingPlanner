@@ -25,6 +25,7 @@ import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -91,8 +92,12 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     @Override
     @Transactional
     public JoinRequestResponse requestGroupJoin(long userId, long groupId) {
-        GroupEntity group = groupRepository.findById(groupId)
+        // Locked so the request serializes with ban/approve on this group.
+        GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+        if (groupAuthorization.isBanned(userId, group)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are banned from this group");
+        }
         if (!group.isPrivate()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This group is open to join");
         }
@@ -100,7 +105,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "You are already a member of this group");
         }
         if (groupJoinRequestRepository.existsByGroupIdAndRequesterIdAndStatus(groupId, userId, RequestStatus.PENDING)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "A join request is already pending");
+            throw alreadyPending();
         }
 
         UserEntity requester = userRepository.findById(userId)
@@ -111,7 +116,11 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         request.setGroup(group);
         request.setStatus(RequestStatus.PENDING);
         request.setTimeSent(OffsetDateTime.now());
-        groupJoinRequestRepository.save(request);
+        try {
+            groupJoinRequestRepository.saveAndFlush(request);
+        } catch (DataIntegrityViolationException e) {
+            throw alreadyPending();
+        }
 
         notifyGroupApprovers(group, requester);
 
@@ -123,9 +132,18 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     public JoinRequestResponse requestMeetingJoin(long userId, long meetingId) {
         MeetingEntity meeting = meetingRepository.findById(meetingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
-        GroupEntity group = meeting.getGroup();
-        if (meeting.isPrivate() || group == null || group.isPrivate()) {
+        if (meeting.getGroup() == null) {
             throw new ResourceNotFoundException("Meeting not found");
+        }
+        // Lock order: group -> meeting.
+        GroupEntity group = groupRepository.findByIdForUpdate(meeting.getGroup().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+        meeting = lockMeeting(meetingId);
+        if (meeting.isPrivate() || group.isPrivate()) {
+            throw new ResourceNotFoundException("Meeting not found");
+        }
+        if (groupAuthorization.isBanned(userId, group)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot request to join this meeting");
         }
         if (meetingAuthorization.isParticipantOrCreator(userId, meeting)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "You are already a participant of this meeting");
@@ -135,7 +153,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         }
         if (meetingJoinRequestRepository.existsByMeetingIdAndRequesterIdAndStatus(
                 meetingId, userId, RequestStatus.PENDING)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "A join request is already pending");
+            throw alreadyPending();
         }
 
         UserEntity requester = userRepository.findById(userId)
@@ -146,7 +164,11 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         request.setMeeting(meeting);
         request.setStatus(RequestStatus.PENDING);
         request.setTimeSent(OffsetDateTime.now());
-        meetingJoinRequestRepository.save(request);
+        try {
+            meetingJoinRequestRepository.saveAndFlush(request);
+        } catch (DataIntegrityViolationException e) {
+            throw alreadyPending();
+        }
 
         notifyMeetingApprovers(meeting, requester);
 
@@ -246,13 +268,17 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     public JoinRequestResponse approveGroup(long actorId, long requestId) {
         GroupJoinRequestEntity request = groupJoinRequestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
-        GroupEntity group = request.getGroup();
+        GroupEntity group = groupRepository.findByIdForUpdate(request.getGroup().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
         if (!groupAuthorization.isAdminOrOwner(actorId, group)) {
             throw new ResourceNotFoundException("Request not found");
         }
         requirePending(request);
-        addGroupMember(group, request.getRequester());
+        if (groupAuthorization.isBanned(request.getRequester().getId(), group)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The requester is banned from this group");
+        }
         respond(request, RequestStatus.APPROVED);
+        addGroupMember(group, request.getRequester());
         notifyRequester(request.getRequester(), CATEGORY_GROUP, "GROUP_JOIN_REQUEST_APPROVED", Map.of(
                 "name", request.getRequester().getUsername(),
                 "group", group.getGroupName(),
@@ -284,10 +310,20 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         MeetingJoinRequestEntity request = meetingJoinRequestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
         MeetingEntity meeting = request.getMeeting();
+        GroupEntity group = meeting.getGroup();
+        if (group != null) {
+            group = groupRepository.findByIdForUpdate(group.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
+        }
+        // Locked after the group so approval serializes with meeting delete/removeParticipant.
+        meeting = lockMeeting(meeting.getId());
         if (!meetingAuthorization.canManage(actorId, meeting)) {
             throw new ResourceNotFoundException("Request not found");
         }
         requirePending(request);
+        if (group != null && groupAuthorization.isBanned(request.getRequester().getId(), group)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The requester is banned from this group");
+        }
         if (blockService.isBlocked(meeting.getCreator().getId(), request.getRequester().getId())) {
             throw new ResourceNotFoundException("Request not found");
         }
@@ -296,8 +332,8 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         if (conflicts) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The requester has a scheduling conflict");
         }
-        addMeetingParticipant(meeting, request.getRequester());
         respond(request, RequestStatus.APPROVED);
+        addMeetingParticipant(meeting, request.getRequester());
         notifyRequester(request.getRequester(), CATEGORY_MEETING, "MEETING_JOIN_REQUEST_APPROVED", Map.of(
                 "name", request.getRequester().getUsername(),
                 "title", meeting.getTitle(),
@@ -343,28 +379,48 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         return toMeetingResponse(request);
     }
 
+    // Conditional UPDATE ... WHERE status = 'PENDING' so concurrent approve/decline/cancel calls can't both win.
     private void respond(GroupJoinRequestEntity request, RequestStatus status) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (groupJoinRequestRepository.transitionStatus(request.getId(), RequestStatus.PENDING, status, now) == 0) {
+            throw alreadyResponded();
+        }
         request.setStatus(status);
-        request.setRespondedAt(OffsetDateTime.now());
-        groupJoinRequestRepository.save(request);
+        request.setRespondedAt(now);
     }
 
     private void respond(MeetingJoinRequestEntity request, RequestStatus status) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (meetingJoinRequestRepository.transitionStatus(request.getId(), RequestStatus.PENDING, status, now) == 0) {
+            throw alreadyResponded();
+        }
         request.setStatus(status);
-        request.setRespondedAt(OffsetDateTime.now());
-        meetingJoinRequestRepository.save(request);
+        request.setRespondedAt(now);
     }
 
     private void requirePending(GroupJoinRequestEntity request) {
         if (request.getStatus() != RequestStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Request has already been responded to");
+            throw alreadyResponded();
         }
     }
 
     private void requirePending(MeetingJoinRequestEntity request) {
         if (request.getStatus() != RequestStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Request has already been responded to");
+            throw alreadyResponded();
         }
+    }
+
+    private static ResponseStatusException alreadyPending() {
+        return new ResponseStatusException(HttpStatus.CONFLICT, "A join request is already pending");
+    }
+
+    private MeetingEntity lockMeeting(long meetingId) {
+        return meetingRepository.findByIdForUpdate(meetingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+    }
+
+    private static ResponseStatusException alreadyResponded() {
+        return new ResponseStatusException(HttpStatus.CONFLICT, "Request has already been responded to");
     }
 
     private void addGroupMember(GroupEntity group, UserEntity user) {
@@ -384,7 +440,12 @@ public class JoinRequestServiceImpl implements JoinRequestService {
             MeetingParticipantEntity participant = new MeetingParticipantEntity();
             participant.setMeeting(meeting);
             participant.setUser(user);
-            meetingParticipantRepository.save(participant);
+            try {
+                meetingParticipantRepository.saveAndFlush(participant);
+            } catch (DataIntegrityViolationException e) {
+                // Safety net only; the meeting lock already serializes participant inserts.
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "The requester is already a participant");
+            }
         }
     }
 

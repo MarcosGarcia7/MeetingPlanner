@@ -35,6 +35,7 @@ import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import com.meetingplanner.domains.user.service.UserProfileAuthorizationService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -174,7 +175,8 @@ public class MeetingServiceImpl implements MeetingService {
     @Override
     @Transactional
     public MeetingResponse update(long userId, long meetingId, MeetingUpdateRequest request) {
-        MeetingEntity meeting = meetingRepository.findById(meetingId)
+        // Locked so updates serialize with time-change proposal creation and voting on this meeting.
+        MeetingEntity meeting = meetingRepository.findByIdForUpdate(meetingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
         if (!authorization.canManage(userId, meeting)) {
             throw new ResourceNotFoundException("Meeting not found");
@@ -246,7 +248,8 @@ public class MeetingServiceImpl implements MeetingService {
     @Override
     @Transactional
     public void delete(long userId, long meetingId) {
-        MeetingEntity meeting = meetingRepository.findById(meetingId)
+        // Locked so delete serializes with invite acceptance and join approval on this meeting.
+        MeetingEntity meeting = meetingRepository.findByIdForUpdate(meetingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
         if (!authorization.canManage(userId, meeting)) {
             throw new ResourceNotFoundException("Meeting not found");
@@ -445,7 +448,7 @@ public class MeetingServiceImpl implements MeetingService {
     @Override
     @Transactional
     public void removeParticipant(long actorUserId, long meetingId, long targetUserId) {
-        MeetingEntity meeting = meetingRepository.findById(meetingId)
+        MeetingEntity meeting = meetingRepository.findByIdForUpdate(meetingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
         if (!authorization.canManage(actorUserId, meeting)) {
             throw new ResourceNotFoundException("Meeting not found");
@@ -456,7 +459,7 @@ public class MeetingServiceImpl implements MeetingService {
     @Override
     @Transactional
     public void leaveMeeting(long userId, long meetingId) {
-        MeetingEntity meeting = meetingRepository.findById(meetingId)
+        MeetingEntity meeting = meetingRepository.findByIdForUpdate(meetingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
         if (meeting.getCreator() != null && meeting.getCreator().getId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The meeting creator cannot leave the meeting");
@@ -475,6 +478,13 @@ public class MeetingServiceImpl implements MeetingService {
         if (!authorization.canManage(actorUserId, meeting)) {
             throw new ResourceNotFoundException("Meeting not found");
         }
+        if (meeting.getGroup() != null) {
+            groupRepository.findByIdForUpdate(meeting.getGroup().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+        }
+        // Lock order: group -> meeting. Serializes concurrent batches inviting the same email.
+        meeting = meetingRepository.findByIdForUpdate(meetingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
         UserEntity sender = userRepository.findById(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -482,17 +492,23 @@ public class MeetingServiceImpl implements MeetingService {
         List<InviteFailure> failed = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
-        for (MeetingInviteRequest recipient : request.recipients()) {
-            String dedupeKey = dedupeKey(recipient);
-            if (dedupeKey != null && !seen.add(dedupeKey)) {
-                failed.add(failure(recipient, "Duplicate recipient in request"));
-                continue;
+        try {
+            for (MeetingInviteRequest recipient : request.recipients()) {
+                String dedupeKey = dedupeKey(recipient);
+                if (dedupeKey != null && !seen.add(dedupeKey)) {
+                    failed.add(failure(recipient, "Duplicate recipient in request"));
+                    continue;
+                }
+                try {
+                    invited.add(inviteOne(meeting, sender, recipient));
+                } catch (ResourceNotFoundException | EmailNotVerifiedException | ResponseStatusException e) {
+                    failed.add(failure(recipient, reasonFor(e)));
+                }
             }
-            try {
-                invited.add(inviteOne(meeting, sender, recipient));
-            } catch (ResourceNotFoundException | EmailNotVerifiedException | ResponseStatusException e) {
-                failed.add(failure(recipient, reasonFor(e)));
-            }
+        } catch (DataIntegrityViolationException e) {
+            // Safety net only (the meeting lock serializes batches). Postgres aborts the transaction on a
+            // constraint violation, so the whole batch fails rather than recording a per-recipient failure.
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "An invite already exists for this email");
         }
 
         if (invited.isEmpty()) {
@@ -565,6 +581,9 @@ public class MeetingServiceImpl implements MeetingService {
 
         if (recipient != null) {
             blockService.assertNotBlocked(sender.getId(), recipient.getId(), "You cannot invite this user");
+            if (meeting.getGroup() != null && groupAuthorization.isBanned(recipient.getId(), meeting.getGroup())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is banned from this group");
+            }
         }
 
         MeetingInviteEntity invite = meetingInviteRepository
@@ -581,7 +600,7 @@ public class MeetingServiceImpl implements MeetingService {
         invite.setStatus(InviteStatus.PENDING);
         invite.setRespondedAt(null);
         invite.setTimeSent(OffsetDateTime.now());
-        meetingInviteRepository.save(invite);
+        meetingInviteRepository.saveAndFlush(invite);
 
         String link = appBaseUrl + "/invites/meeting?token=" + rawToken;
         String details = "Starts: " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getStartTime());

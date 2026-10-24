@@ -2,6 +2,7 @@ package com.meetingplanner.domains.group.service;
 
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
+import com.meetingplanner.domains.group.repository.GroupBanRepository;
 import com.meetingplanner.domains.group.repository.GroupMemberRepository;
 import org.springframework.stereotype.Service;
 
@@ -9,9 +10,12 @@ import org.springframework.stereotype.Service;
 public class GroupAuthorizationService {
 
     private final GroupMemberRepository groupMemberRepository;
+    private final GroupBanRepository groupBanRepository;
 
-    public GroupAuthorizationService(GroupMemberRepository groupMemberRepository) {
+    public GroupAuthorizationService(GroupMemberRepository groupMemberRepository,
+                                     GroupBanRepository groupBanRepository) {
         this.groupMemberRepository = groupMemberRepository;
+        this.groupBanRepository = groupBanRepository;
     }
 
     public boolean isOwner(GroupMemberEntity member, GroupEntity group) {
@@ -38,6 +42,10 @@ public class GroupAuthorizationService {
 
     public boolean isMember(Long userId, GroupEntity group) {
         return groupMemberRepository.existsByGroupIdAndUserId(group.getId(), userId);
+    }
+
+    public boolean isBanned(Long userId, GroupEntity group) {
+        return groupBanRepository.existsByGroupIdAndUserId(group.getId(), userId);
     }
 
 }

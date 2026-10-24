@@ -12,6 +12,7 @@ import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -56,7 +57,7 @@ public class FriendshipService {
         }
 
         Pair pair = pair(requesterId, target.getId());
-        FriendshipEntity existing = friendshipRepository.findByUserIdAndFriendId(pair.a, pair.b).orElse(null);
+        FriendshipEntity existing = friendshipRepository.findByUserIdAndFriendIdForUpdate(pair.a, pair.b).orElse(null);
         if (existing != null) {
             switch (existing.getStatus()) {
                 case BLOCKED -> throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Friendship is blocked");
@@ -87,7 +88,12 @@ public class FriendshipService {
         friendship.setFriend(userRepository.getReferenceById(pair.b));
         friendship.setRequester(requester);
         friendship.setStatus(FriendshipStatus.PENDING);
-        friendshipRepository.save(friendship);
+        try {
+            friendshipRepository.saveAndFlush(friendship);
+        } catch (DataIntegrityViolationException e) {
+            // Both users sent a first request at once; retrying takes the mutual-accept path above.
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Request already sent");
+        }
 
         notifyRequested(target.getId(), requester);
     }
@@ -98,7 +104,7 @@ public class FriendshipService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Pair pair = pair(responderId, other.getId());
-        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendId(pair.a, pair.b)
+        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendIdForUpdate(pair.a, pair.b)
                 .orElseThrow(() -> new ResourceNotFoundException("Friend request not found"));
 
         if (friendship.getStatus() != FriendshipStatus.PENDING) {
@@ -123,7 +129,7 @@ public class FriendshipService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Pair pair = pair(requesterId, other.getId());
-        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendId(pair.a, pair.b)
+        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendIdForUpdate(pair.a, pair.b)
                 .orElseThrow(() -> new ResourceNotFoundException("Friend request not found"));
 
         if (friendship.getStatus() != FriendshipStatus.PENDING
@@ -139,18 +145,21 @@ public class FriendshipService {
         requireUser(targetUserId);
 
         Pair pair = pair(blockerId, targetUserId);
-        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendId(pair.a, pair.b).orElse(null);
-        if (friendship != null && friendship.getStatus() == FriendshipStatus.BLOCKED) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (friendshipRepository.insertBlockedIfAbsent(pair.a, pair.b, blockerId, now) == 1) {
+            blockService.invalidatePendingBetween(blockerId, targetUserId);
             return;
         }
-        if (friendship == null) {
-            friendship = new FriendshipEntity();
-            friendship.setUser(userRepository.getReferenceById(pair.a));
-            friendship.setFriend(userRepository.getReferenceById(pair.b));
+
+        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendIdForUpdate(pair.a, pair.b)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "This friendship changed while blocking; please retry"));
+        if (friendship.getStatus() == FriendshipStatus.BLOCKED) {
+            return;
         }
         friendship.setRequester(userRepository.getReferenceById(blockerId));
         friendship.setStatus(FriendshipStatus.BLOCKED);
-        friendship.setRespondedAt(OffsetDateTime.now());
+        friendship.setRespondedAt(now);
         friendshipRepository.save(friendship);
 
         blockService.invalidatePendingBetween(blockerId, targetUserId);
@@ -162,7 +171,7 @@ public class FriendshipService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Pair pair = pair(callerId, target.getId());
-        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendId(pair.a, pair.b)
+        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendIdForUpdate(pair.a, pair.b)
                 .filter(f -> f.getStatus() == FriendshipStatus.BLOCKED)
                 .orElseThrow(() -> new ResourceNotFoundException("Blocked user not found"));
 

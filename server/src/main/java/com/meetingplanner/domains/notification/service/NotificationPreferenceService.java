@@ -4,8 +4,6 @@ import com.meetingplanner.common.api.dto.NotificationPreferenceUpdateRequest;
 import com.meetingplanner.common.api.dto.NotificationPreferencesResponse;
 import com.meetingplanner.domains.notification.model.NotificationPreferenceEntity;
 import com.meetingplanner.domains.notification.repository.NotificationPreferenceRepository;
-import com.meetingplanner.domains.user.model.UserEntity;
-import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,15 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationPreferenceService {
 
     private final NotificationPreferenceRepository preferenceRepository;
-    private final UserRepository userRepository;
 
-    public NotificationPreferenceService(NotificationPreferenceRepository preferenceRepository,
-                                         UserRepository userRepository) {
+    public NotificationPreferenceService(NotificationPreferenceRepository preferenceRepository) {
         this.preferenceRepository = preferenceRepository;
-        this.userRepository = userRepository;
     }
 
-    @Transactional(readOnly = true)
+    // Not read-only: the first read creates the default row.
+    @Transactional
     public NotificationPreferencesResponse get(long userId) {
         return NotificationPreferencesResponse.from(preferencesFor(userId));
     }
@@ -62,13 +58,6 @@ public class NotificationPreferenceService {
     }
 
     private NotificationPreferenceEntity preferencesFor(long userId) {
-        return preferenceRepository.findByUserId(userId).orElseGet(() -> {
-            UserEntity user = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalStateException("User not found: " + userId));
-            NotificationPreferenceEntity prefs = new NotificationPreferenceEntity();
-            prefs.setUserId(userId);
-            prefs.setUser(user);
-            return preferenceRepository.save(prefs);
-        });
+        return preferenceRepository.findOrCreate(userId);
     }
 }

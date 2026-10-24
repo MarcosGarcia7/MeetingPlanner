@@ -24,13 +24,13 @@ CREATE UNIQUE INDEX ux_users_pending_email ON users (pending_email) WHERE pendin
 
 CREATE TABLE user_availability (
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    sunday INT[][] NOT NULL DEFAULT '{}',
-    monday INT[][] NOT NULL DEFAULT '{}',
-    tuesday INT[][] NOT NULL DEFAULT '{}',
-    wednesday INT[][] NOT NULL DEFAULT '{}',
-    thursday INT[][] NOT NULL DEFAULT '{}',
-    friday INT[][] NOT NULL DEFAULT '{}',
-    saturday INT[][] NOT NULL DEFAULT '{}',
+    sunday JSONB NOT NULL DEFAULT '[]',
+    monday JSONB NOT NULL DEFAULT '[]',
+    tuesday JSONB NOT NULL DEFAULT '[]',
+    wednesday JSONB NOT NULL DEFAULT '[]',
+    thursday JSONB NOT NULL DEFAULT '[]',
+    friday JSONB NOT NULL DEFAULT '[]',
+    saturday JSONB NOT NULL DEFAULT '[]',
     availability_set BOOLEAN NOT NULL DEFAULT FALSE
 );
 
@@ -51,6 +51,17 @@ CREATE TABLE group_members (
     share_schedule BOOLEAN NOT NULL DEFAULT TRUE,
     PRIMARY KEY (group_id, user_id)
 );
+
+CREATE TABLE group_bans (
+    group_id BIGINT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    banned_by_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    banned_by_owner BOOLEAN NOT NULL,
+    banned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (group_id, user_id)
+);
+
+CREATE INDEX ix_group_bans_user ON group_bans(user_id);
 
 CREATE TABLE group_invites (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

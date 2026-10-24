@@ -2,7 +2,6 @@ package com.meetingplanner.domains.meeting.service;
 
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
 import com.meetingplanner.domains.meeting.model.MeetingParticipantEntity;
-import com.meetingplanner.domains.meeting.model.MeetingReminderSentEntity;
 import com.meetingplanner.domains.meeting.repository.MeetingReminderSentRepository;
 import com.meetingplanner.domains.meeting.repository.MeetingRepository;
 import com.meetingplanner.domains.notification.model.NotificationPreferenceEntity;
@@ -60,13 +59,12 @@ public class MeetingReminderWorker {
                     continue;
                 }
 
+                if (reminderSentRepository.claim(meeting.getId(), userId, now) == 0) {
+                    continue;
+                }
+
                 notificationService.push(userId, "MEETING_REMINDER", "meeting_reminders",
                         "MEETING_REMINDER", reminderVars(meeting, user));
-
-                MeetingReminderSentEntity sent = new MeetingReminderSentEntity();
-                sent.setMeeting(meeting);
-                sent.setUser(user);
-                reminderSentRepository.save(sent);
             }
         }
     }

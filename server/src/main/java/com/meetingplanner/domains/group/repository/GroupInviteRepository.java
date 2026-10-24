@@ -4,6 +4,7 @@ import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -74,4 +75,27 @@ public interface GroupInviteRepository extends JpaRepository<GroupInviteEntity, 
     List<GroupInviteEntity> findBetween(@Param("a") Long a,
                                         @Param("b") Long b,
                                         @Param("status") InviteStatus status);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update GroupInviteEntity gi
+            set gi.status = :to, gi.respondedAt = :at
+            where gi.id = :id and gi.status = :from
+            """)
+    int transitionStatus(@Param("id") Long id,
+                         @Param("from") InviteStatus from,
+                         @Param("to") InviteStatus to,
+                         @Param("at") OffsetDateTime at);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update GroupInviteEntity gi
+            set gi.status = com.meetingplanner.common.api.model.InviteStatus.DECLINED, gi.respondedAt = :at
+            where gi.group.id = :groupId
+              and gi.recipient.id = :userId
+              and gi.status = com.meetingplanner.common.api.model.InviteStatus.PENDING
+            """)
+    int declinePendingForRecipientInGroup(@Param("groupId") Long groupId,
+                                          @Param("userId") Long userId,
+                                          @Param("at") OffsetDateTime at);
 }

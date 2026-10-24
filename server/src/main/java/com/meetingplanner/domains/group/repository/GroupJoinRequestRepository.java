@@ -4,6 +4,7 @@ import com.meetingplanner.common.api.model.RequestStatus;
 import com.meetingplanner.domains.group.model.GroupJoinRequestEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -48,4 +49,27 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
     boolean existsByGroupIdAndRequesterIdAndStatus(Long groupId, Long requesterId, RequestStatus status);
 
     Optional<GroupJoinRequestEntity> findByIdAndRequesterId(Long id, Long requesterId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update GroupJoinRequestEntity r
+            set r.status = :to, r.respondedAt = :at
+            where r.id = :id and r.status = :from
+            """)
+    int transitionStatus(@Param("id") Long id,
+                         @Param("from") RequestStatus from,
+                         @Param("to") RequestStatus to,
+                         @Param("at") OffsetDateTime at);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update GroupJoinRequestEntity r
+            set r.status = com.meetingplanner.common.api.model.RequestStatus.CANCELLED, r.respondedAt = :at
+            where r.group.id = :groupId
+              and r.requester.id = :userId
+              and r.status = com.meetingplanner.common.api.model.RequestStatus.PENDING
+            """)
+    int cancelPendingForRequesterInGroup(@Param("groupId") Long groupId,
+                                         @Param("userId") Long userId,
+                                         @Param("at") OffsetDateTime at);
 }

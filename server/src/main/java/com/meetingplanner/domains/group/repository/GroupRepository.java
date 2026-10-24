@@ -35,6 +35,8 @@ public interface GroupRepository extends JpaRepository<GroupEntity, Long> {
 
     boolean existsByGroupName(String groupName);
 
+    boolean existsByGroupNameAndIdNot(String groupName, Long id);
+
     Optional<GroupEntity> findByOwnerIdAndId(Long ownerId, Long id);
 
     @Query("""

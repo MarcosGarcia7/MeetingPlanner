@@ -8,9 +8,9 @@ import jakarta.persistence.*;
 public class NotificationPreferenceEntity {
 
     @Id
-    @Column(name = "user_id")
     private Long userId;
 
+    @MapsId
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
@@ -47,10 +47,6 @@ public class NotificationPreferenceEntity {
 
     public Long getUserId() {
         return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
     }
 
     public UserEntity getUser() {

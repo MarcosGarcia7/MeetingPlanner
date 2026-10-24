@@ -4,6 +4,7 @@ import com.meetingplanner.common.api.model.RequestStatus;
 import com.meetingplanner.domains.meeting.model.MeetingJoinRequestEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -69,4 +70,27 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
     List<MeetingJoinRequestEntity> findBetweenRequesterAndCreator(@Param("a") Long a,
                                                                   @Param("b") Long b,
                                                                   @Param("status") RequestStatus status);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update MeetingJoinRequestEntity r
+            set r.status = :to, r.respondedAt = :at
+            where r.id = :id and r.status = :from
+            """)
+    int transitionStatus(@Param("id") Long id,
+                         @Param("from") RequestStatus from,
+                         @Param("to") RequestStatus to,
+                         @Param("at") OffsetDateTime at);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update MeetingJoinRequestEntity r
+            set r.status = com.meetingplanner.common.api.model.RequestStatus.CANCELLED, r.respondedAt = :at
+            where r.requester.id = :userId
+              and r.status = com.meetingplanner.common.api.model.RequestStatus.PENDING
+              and r.meeting.id in (select m.id from MeetingEntity m where m.group.id = :groupId)
+            """)
+    int cancelPendingForRequesterInGroupMeetings(@Param("groupId") Long groupId,
+                                                 @Param("userId") Long userId,
+                                                 @Param("at") OffsetDateTime at);
 }

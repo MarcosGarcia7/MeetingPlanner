@@ -17,13 +17,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,12 +65,15 @@ class BlockServiceTest {
     }
 
     @Test
-    void invalidatePendingBetweenCancelsInvitesAndJoinRequests() {
+    void invalidatePendingBetweenUsesConditionalTransitions() {
         GroupInviteEntity groupInvite = new GroupInviteEntity();
+        groupInvite.setId(3L);
         groupInvite.setStatus(InviteStatus.PENDING);
         MeetingInviteEntity meetingInvite = new MeetingInviteEntity();
+        meetingInvite.setId(4L);
         meetingInvite.setStatus(InviteStatus.PENDING);
         MeetingJoinRequestEntity joinRequest = new MeetingJoinRequestEntity();
+        joinRequest.setId(5L);
         joinRequest.setStatus(RequestStatus.PENDING);
 
         when(groupInviteRepository.findBetween(1L, 2L, InviteStatus.PENDING))
@@ -79,14 +85,16 @@ class BlockServiceTest {
 
         service.invalidatePendingBetween(1L, 2L);
 
-        assertEquals(InviteStatus.DECLINED, groupInvite.getStatus());
-        assertEquals(InviteStatus.DECLINED, meetingInvite.getStatus());
-        assertEquals(RequestStatus.CANCELLED, joinRequest.getStatus());
-        assertNotNull(groupInvite.getRespondedAt());
-        assertNotNull(meetingInvite.getRespondedAt());
-        assertNotNull(joinRequest.getRespondedAt());
-        verify(groupInviteRepository).saveAll(List.of(groupInvite));
-        verify(meetingInviteRepository).saveAll(List.of(meetingInvite));
-        verify(meetingJoinRequestRepository).saveAll(List.of(joinRequest));
+        verify(groupInviteRepository).transitionStatus(eq(3L), eq(InviteStatus.PENDING),
+                eq(InviteStatus.DECLINED), any(OffsetDateTime.class));
+        verify(meetingInviteRepository).transitionStatus(eq(4L), eq(InviteStatus.PENDING),
+                eq(InviteStatus.DECLINED), any(OffsetDateTime.class));
+        verify(meetingJoinRequestRepository).transitionStatus(eq(5L), eq(RequestStatus.PENDING),
+                eq(RequestStatus.CANCELLED), any(OffsetDateTime.class));
+        // Managed entities are left untouched so a dirty-check flush can't overwrite a concurrent accept.
+        assertEquals(InviteStatus.PENDING, groupInvite.getStatus());
+        verify(groupInviteRepository, never()).saveAll(any());
+        verify(meetingInviteRepository, never()).saveAll(any());
+        verify(meetingJoinRequestRepository, never()).saveAll(any());
     }
 }

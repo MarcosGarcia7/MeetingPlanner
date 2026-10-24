@@ -11,13 +11,18 @@ import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.common.security.InviteTokens;
 import com.meetingplanner.domains.friend.service.BlockService;
+import com.meetingplanner.domains.group.model.GroupBanEntity;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
+import com.meetingplanner.domains.group.repository.GroupBanRepository;
 import com.meetingplanner.domains.group.repository.GroupInviteRepository;
+import com.meetingplanner.domains.group.repository.GroupJoinRequestRepository;
 import com.meetingplanner.domains.group.repository.GroupMemberRepository;
 import com.meetingplanner.domains.group.repository.GroupRepository;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
+import com.meetingplanner.domains.meeting.repository.MeetingInviteRepository;
+import com.meetingplanner.domains.meeting.repository.MeetingJoinRequestRepository;
 import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
@@ -37,8 +42,12 @@ public class GroupServiceImpl implements GroupService {
 
     private final GroupAuthorizationService authorization;
     private final GroupMemberRepository groupMemberRepository;
+    private final GroupBanRepository groupBanRepository;
     private final GroupRepository groupRepository;
     private final GroupInviteRepository groupInviteRepository;
+    private final GroupJoinRequestRepository groupJoinRequestRepository;
+    private final MeetingInviteRepository meetingInviteRepository;
+    private final MeetingJoinRequestRepository meetingJoinRequestRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final BlockService blockService;
@@ -48,15 +57,23 @@ public class GroupServiceImpl implements GroupService {
 
     public GroupServiceImpl(GroupAuthorizationService authorization,
                             GroupMemberRepository groupMemberRepository,
+                            GroupBanRepository groupBanRepository,
                             GroupRepository groupRepository,
                             GroupInviteRepository groupInviteRepository,
+                            GroupJoinRequestRepository groupJoinRequestRepository,
+                            MeetingInviteRepository meetingInviteRepository,
+                            MeetingJoinRequestRepository meetingJoinRequestRepository,
                             UserRepository userRepository,
                             NotificationService notificationService,
                             BlockService blockService) {
         this.authorization = authorization;
         this.groupMemberRepository = groupMemberRepository;
+        this.groupBanRepository = groupBanRepository;
         this.groupRepository = groupRepository;
         this.groupInviteRepository = groupInviteRepository;
+        this.groupJoinRequestRepository = groupJoinRequestRepository;
+        this.meetingInviteRepository = meetingInviteRepository;
+        this.meetingJoinRequestRepository = meetingJoinRequestRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.blockService = blockService;
@@ -167,7 +184,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public GroupResponse update(long userId, long groupId, GroupUpdateRequest request) {
-        GroupEntity group = groupRepository.findById(groupId)
+        GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
 
         GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
@@ -177,8 +194,12 @@ public class GroupServiceImpl implements GroupService {
             throw new ResourceNotFoundException("Group not found");
         }
 
-        if (request.groupName() != null && !Objects.equals(request.groupName(), group.getGroupName())) {
-            group.setGroupName(request.groupName());
+        String groupName = request.groupName() == null ? null : request.groupName().trim();
+        if (groupName != null && !Objects.equals(groupName, group.getGroupName())) {
+            if (groupRepository.existsByGroupNameAndIdNot(groupName, groupId)) {
+                throw new GroupNameTakenException(groupName);
+            }
+            group.setGroupName(groupName);
         }
 
         if (request.isPrivate() != null && !Objects.equals(request.isPrivate(), group.isPrivate())) {
@@ -197,7 +218,12 @@ public class GroupServiceImpl implements GroupService {
             group.setMembersCanCreate(request.membersCanCreate());
         }
 
-        GroupEntity saved = groupRepository.save(group);
+        GroupEntity saved;
+        try {
+            saved = groupRepository.saveAndFlush(group);
+        } catch (DataIntegrityViolationException e) {
+            throw new GroupNameTakenException(group.getGroupName());
+        }
 
         return toGroupResponse(saved, false);
     }
@@ -205,7 +231,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void delete(long userId, long groupId) {
-        GroupEntity group = groupRepository.findById(groupId)
+        GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
 
         GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
@@ -220,8 +246,11 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void join(long userId, long groupId) {
-        GroupEntity group = groupRepository.findById(groupId)
+        GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+        if (authorization.isBanned(userId, group)) {
+            throw new ForbiddenException("You are banned from this group");
+        }
         if (group.isPrivate()) {
             throw new ForbiddenException("This group is invite-only");
         }
@@ -241,7 +270,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public InviteBatchResponse inviteBatch(long actorUserId, long groupId, GroupInviteBatchRequest request) {
-        GroupEntity group = groupRepository.findById(groupId)
+        GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
 
         GroupMemberEntity actorMember = groupMemberRepository.findByGroupIdAndUserId(groupId, actorUserId)
@@ -283,6 +312,9 @@ public class GroupServiceImpl implements GroupService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot invite yourself");
         }
         blockService.assertNotBlocked(sender.getId(), recipient.getId(), "You cannot invite this user");
+        if (authorization.isBanned(recipient.getId(), group)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is banned from this group");
+        }
         if (groupMemberRepository.existsByGroupIdAndUserId(group.getId(), recipient.getId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User is already a member of this group");
         }
@@ -379,6 +411,10 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void removeMember(long actorUserId, long groupId, long targetUserId) {
+        if (actorUserId == targetUserId) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot remove yourself, leave group instead");
+        }
+
         GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
 
@@ -394,6 +430,7 @@ public class GroupServiceImpl implements GroupService {
 
         if (authorization.isOwner(actorMember, group)) {
             groupMemberRepository.delete(member);
+            return;
         }
 
         if (member.isAdmin()) {
@@ -401,6 +438,118 @@ public class GroupServiceImpl implements GroupService {
         }
 
         groupMemberRepository.delete(member);
+    }
+
+    @Override
+    @Transactional
+    public void banMember(long actorUserId, long groupId, long targetUserId) {
+        if (actorUserId == targetUserId) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot ban yourself");
+        }
+
+        GroupEntity group = groupRepository.findByIdForUpdate(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+
+        GroupMemberEntity actorMember = groupMemberRepository.findByGroupIdAndUserId(groupId, actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        if (!authorization.isAdminOrOwner(actorMember, group)) {
+            throw new ResourceNotFoundException("Group not found");
+        }
+
+        GroupMemberEntity member = groupMemberRepository.findByGroupIdAndUserId(groupId, targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        if (authorization.isOwner(member, group)) {
+            throw new ForbiddenException("You cannot ban the group owner");
+        }
+
+        boolean actorIsOwner = authorization.isOwner(actorMember, group);
+        if (member.isAdmin() && !actorIsOwner) {
+            throw new ForbiddenException("Only the group owner can ban an admin");
+        }
+        if (groupBanRepository.existsByGroupIdAndUserId(groupId, targetUserId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "User is already banned");
+        }
+
+        groupMemberRepository.delete(member);
+
+        GroupBanEntity ban = new GroupBanEntity();
+        ban.setGroup(group);
+        ban.setUser(member.getUser());
+        ban.setBannedBy(actorMember.getUser());
+        ban.setBannedByOwner(actorIsOwner);
+        ban.setBannedAt(OffsetDateTime.now());
+        groupBanRepository.save(ban);
+
+        invalidatePendingInGroup(groupId, targetUserId, ban.getBannedAt());
+    }
+
+    private void invalidatePendingInGroup(long groupId, long userId, OffsetDateTime now) {
+        groupInviteRepository.declinePendingForRecipientInGroup(groupId, userId, now);
+        meetingInviteRepository.declinePendingForRecipientInGroupMeetings(groupId, userId, now);
+        groupJoinRequestRepository.cancelPendingForRequesterInGroup(groupId, userId, now);
+        meetingJoinRequestRepository.cancelPendingForRequesterInGroupMeetings(groupId, userId, now);
+    }
+
+    @Override
+    @Transactional
+    public void unbanMember(long actorUserId, long groupId, long targetUserId) {
+        GroupEntity group = groupRepository.findByIdForUpdate(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+
+        GroupMemberEntity actorMember = groupMemberRepository.findByGroupIdAndUserId(groupId, actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group member not found"));
+
+        if (!authorization.isAdminOrOwner(actorMember, group)) {
+            throw new ResourceNotFoundException("Group not found");
+        }
+
+        GroupBanEntity ban = groupBanRepository.findByGroupIdAndUserId(groupId, targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ban not found"));
+
+        if (ban.isBannedByOwner() && !authorization.isOwner(actorMember, group)) {
+            throw new ForbiddenException("Only the group owner can unban this user");
+        }
+
+        groupBanRepository.delete(ban);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CursorPage<GroupBanResponse> listBans(long actorUserId, long groupId, String cursor, int size) {
+        GroupEntity group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
+
+        if (!authorization.isAdminOrOwner(actorUserId, group)) {
+            throw new ResourceNotFoundException("Group not found");
+        }
+
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        List<GroupBanEntity> rows = groupBanRepository.listByGroup(
+                groupId,
+                decoded == null ? null : decoded.time(),
+                decoded == null ? null : decoded.id(),
+                PageRequest.of(0, limit + 1));
+
+        boolean hasMore = rows.size() > limit;
+        List<GroupBanEntity> page = hasMore ? rows.subList(0, limit) : rows;
+        List<GroupBanResponse> items = page.stream().map(GroupServiceImpl::toBanResponse).toList();
+        String nextCursor = hasMore && !page.isEmpty()
+                ? CursorCodec.encode(page.getLast().getBannedAt(), page.getLast().getUser().getId())
+                : null;
+        return new CursorPage<>(items, nextCursor);
+    }
+
+    private static GroupBanResponse toBanResponse(GroupBanEntity ban) {
+        return new GroupBanResponse(
+                ban.getUser().getId(),
+                ban.getUser().getUsername(),
+                ban.getBannedBy().getId(),
+                ban.getBannedBy().getUsername(),
+                ban.isBannedByOwner(),
+                ban.getBannedAt());
     }
 
     @Override

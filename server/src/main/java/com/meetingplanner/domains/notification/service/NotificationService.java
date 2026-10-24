@@ -103,14 +103,7 @@ public class NotificationService {
     }
 
     private NotificationPreferenceEntity preferencesFor(long userId) {
-        return preferenceRepository.findByUserId(userId).orElseGet(() -> {
-            UserEntity user = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalStateException("User not found: " + userId));
-            NotificationPreferenceEntity prefs = new NotificationPreferenceEntity();
-            prefs.setUserId(userId);
-            prefs.setUser(user);
-            return preferenceRepository.save(prefs);
-        });
+        return preferenceRepository.findOrCreate(userId);
     }
 
     private boolean categoryEnabled(NotificationPreferenceEntity prefs, String category) {

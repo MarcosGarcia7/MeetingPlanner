@@ -1,22 +1,30 @@
 package com.meetingplanner.domains.group.service;
 
 import com.meetingplanner.common.api.dto.CursorPage;
+import com.meetingplanner.common.api.dto.GroupBanResponse;
 import com.meetingplanner.common.api.dto.GroupCreateRequest;
 import com.meetingplanner.common.api.dto.GroupInviteBatchRequest;
 import com.meetingplanner.common.api.dto.GroupResponse;
 import com.meetingplanner.common.api.dto.GroupSummaryResponse;
+import com.meetingplanner.common.api.dto.GroupUpdateRequest;
 import com.meetingplanner.common.api.dto.InviteBatchResponse;
 import com.meetingplanner.common.api.dto.MemberUsernameRequest;
+import com.meetingplanner.common.api.exceptions.ForbiddenException;
 import com.meetingplanner.common.api.exceptions.GroupNameTakenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.domains.friend.service.BlockService;
+import com.meetingplanner.domains.group.model.GroupBanEntity;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
+import com.meetingplanner.domains.group.repository.GroupBanRepository;
 import com.meetingplanner.domains.group.repository.GroupInviteRepository;
+import com.meetingplanner.domains.group.repository.GroupJoinRequestRepository;
 import com.meetingplanner.domains.group.repository.GroupMemberRepository;
 import com.meetingplanner.domains.group.repository.GroupRepository;
+import com.meetingplanner.domains.meeting.repository.MeetingInviteRepository;
+import com.meetingplanner.domains.meeting.repository.MeetingJoinRequestRepository;
 import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
@@ -61,9 +69,17 @@ class GroupServiceImplTest {
     @Mock
     private GroupMemberRepository groupMemberRepository;
     @Mock
+    private GroupBanRepository groupBanRepository;
+    @Mock
     private GroupRepository groupRepository;
     @Mock
     private GroupInviteRepository groupInviteRepository;
+    @Mock
+    private GroupJoinRequestRepository groupJoinRequestRepository;
+    @Mock
+    private MeetingInviteRepository meetingInviteRepository;
+    @Mock
+    private MeetingJoinRequestRepository meetingJoinRequestRepository;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -108,7 +124,7 @@ class GroupServiceImplTest {
     private GroupEntity prepareAdmin(long groupId, UserEntity actor) {
         GroupEntity group = group(groupId);
         GroupMemberEntity actorMember = member(group, actor, true);
-        when(groupRepository.findById(groupId)).thenReturn(Optional.of(group));
+        when(groupRepository.findByIdForUpdate(groupId)).thenReturn(Optional.of(group));
         when(groupMemberRepository.findByGroupIdAndUserId(groupId, actor.getId()))
                 .thenReturn(Optional.of(actorMember));
         when(authorization.isAdminOrOwner(actorMember, group)).thenReturn(true);
@@ -142,7 +158,7 @@ class GroupServiceImplTest {
         UserEntity actor = user(9L, "dave", true);
         GroupEntity group = group(1L);
         GroupMemberEntity actorMember = member(group, actor, false);
-        when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
         when(groupMemberRepository.findByGroupIdAndUserId(1L, 9L))
                 .thenReturn(Optional.of(actorMember));
         when(authorization.isAdminOrOwner(actorMember, group)).thenReturn(false);
@@ -426,6 +442,277 @@ class GroupServiceImplTest {
     }
 
     @Test
+    void ownerBansMemberAndRecordsOwnerBan() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        GroupMemberEntity bobMember = member(group, bob, false);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(bobMember));
+        when(authorization.isAdminOrOwner(ownerMember, group)).thenReturn(true);
+        when(authorization.isOwner(bobMember, group)).thenReturn(false);
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+        when(groupBanRepository.existsByGroupIdAndUserId(1L, 2L)).thenReturn(false);
+        when(groupBanRepository.save(any(GroupBanEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.banMember(1L, 1L, 2L);
+
+        verify(groupMemberRepository).delete(bobMember);
+        ArgumentCaptor<GroupBanEntity> captor = ArgumentCaptor.forClass(GroupBanEntity.class);
+        verify(groupBanRepository).save(captor.capture());
+        GroupBanEntity ban = captor.getValue();
+        assertEquals(group, ban.getGroup());
+        assertEquals(bob, ban.getUser());
+        assertEquals(owner, ban.getBannedBy());
+        assertTrue(ban.isBannedByOwner());
+        verify(groupInviteRepository).declinePendingForRecipientInGroup(eq(1L), eq(2L), any(OffsetDateTime.class));
+        verify(meetingInviteRepository).declinePendingForRecipientInGroupMeetings(eq(1L), eq(2L), any(OffsetDateTime.class));
+        verify(groupJoinRequestRepository).cancelPendingForRequesterInGroup(eq(1L), eq(2L), any(OffsetDateTime.class));
+        verify(meetingJoinRequestRepository).cancelPendingForRequesterInGroupMeetings(eq(1L), eq(2L), any(OffsetDateTime.class));
+    }
+
+    @Test
+    void adminBansNonAdminMember() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity admin = user(2L, "bob", true);
+        UserEntity carol = user(3L, "carol", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity adminMember = member(group, admin, true);
+        GroupMemberEntity carolMember = member(group, carol, false);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(adminMember));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 3L)).thenReturn(Optional.of(carolMember));
+        when(authorization.isAdminOrOwner(adminMember, group)).thenReturn(true);
+        when(authorization.isOwner(carolMember, group)).thenReturn(false);
+        when(authorization.isOwner(adminMember, group)).thenReturn(false);
+        when(groupBanRepository.existsByGroupIdAndUserId(1L, 3L)).thenReturn(false);
+        when(groupBanRepository.save(any(GroupBanEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.banMember(2L, 1L, 3L);
+
+        verify(groupMemberRepository).delete(carolMember);
+        ArgumentCaptor<GroupBanEntity> captor = ArgumentCaptor.forClass(GroupBanEntity.class);
+        verify(groupBanRepository).save(captor.capture());
+        GroupBanEntity ban = captor.getValue();
+        assertEquals(admin, ban.getBannedBy());
+        assertFalse(ban.isBannedByOwner());
+    }
+
+    @Test
+    void adminCannotBanAnotherAdmin() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity admin = user(2L, "bob", true);
+        UserEntity otherAdmin = user(3L, "carol", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity adminMember = member(group, admin, true);
+        GroupMemberEntity otherAdminMember = member(group, otherAdmin, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(adminMember));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 3L)).thenReturn(Optional.of(otherAdminMember));
+        when(authorization.isAdminOrOwner(adminMember, group)).thenReturn(true);
+        when(authorization.isOwner(otherAdminMember, group)).thenReturn(false);
+        when(authorization.isOwner(adminMember, group)).thenReturn(false);
+
+        ForbiddenException exception = assertThrows(ForbiddenException.class,
+                () -> service.banMember(2L, 1L, 3L));
+
+        assertEquals("Only the group owner can ban an admin", exception.getMessage());
+        verify(groupMemberRepository, never()).delete(any(GroupMemberEntity.class));
+        verify(groupBanRepository, never()).save(any(GroupBanEntity.class));
+        verifyNoInteractions(groupInviteRepository, meetingInviteRepository,
+                groupJoinRequestRepository, meetingJoinRequestRepository);
+    }
+
+    @Test
+    void ownerCannotBeBanned() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity admin = user(2L, "bob", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity adminMember = member(group, admin, true);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(adminMember));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(authorization.isAdminOrOwner(adminMember, group)).thenReturn(true);
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+
+        ForbiddenException exception = assertThrows(ForbiddenException.class,
+                () -> service.banMember(2L, 1L, 1L));
+
+        assertEquals("You cannot ban the group owner", exception.getMessage());
+        verify(groupMemberRepository, never()).delete(any(GroupMemberEntity.class));
+    }
+
+    @Test
+    void ownerCanUnbanOwnerIssuedBan() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        GroupBanEntity ban = new GroupBanEntity();
+        ban.setGroup(group);
+        ban.setUser(bob);
+        ban.setBannedBy(owner);
+        ban.setBannedByOwner(true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(authorization.isAdminOrOwner(ownerMember, group)).thenReturn(true);
+        when(groupBanRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(ban));
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+
+        service.unbanMember(1L, 1L, 2L);
+
+        verify(groupBanRepository).delete(ban);
+    }
+
+    @Test
+    void adminCannotUnbanOwnerIssuedBan() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity admin = user(2L, "bob", true);
+        UserEntity carol = user(3L, "carol", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity adminMember = member(group, admin, true);
+        GroupBanEntity ban = new GroupBanEntity();
+        ban.setGroup(group);
+        ban.setUser(carol);
+        ban.setBannedBy(owner);
+        ban.setBannedByOwner(true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(adminMember));
+        when(authorization.isAdminOrOwner(adminMember, group)).thenReturn(true);
+        when(groupBanRepository.findByGroupIdAndUserId(1L, 3L)).thenReturn(Optional.of(ban));
+        when(authorization.isOwner(adminMember, group)).thenReturn(false);
+
+        ForbiddenException exception = assertThrows(ForbiddenException.class,
+                () -> service.unbanMember(2L, 1L, 3L));
+
+        assertEquals("Only the group owner can unban this user", exception.getMessage());
+        verify(groupBanRepository, never()).delete(any(GroupBanEntity.class));
+    }
+
+    @Test
+    void adminCanUnbanAdminIssuedBan() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity admin = user(2L, "bob", true);
+        UserEntity carol = user(3L, "carol", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity adminMember = member(group, admin, true);
+        GroupBanEntity ban = new GroupBanEntity();
+        ban.setGroup(group);
+        ban.setUser(carol);
+        ban.setBannedBy(admin);
+        ban.setBannedByOwner(false);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(adminMember));
+        when(authorization.isAdminOrOwner(adminMember, group)).thenReturn(true);
+        when(groupBanRepository.findByGroupIdAndUserId(1L, 3L)).thenReturn(Optional.of(ban));
+
+        service.unbanMember(2L, 1L, 3L);
+
+        verify(groupBanRepository).delete(ban);
+    }
+
+    @Test
+    void bannedUserCannotJoinOpenGroup() {
+        GroupEntity group = group(1L);
+        group.setPrivate(false);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(authorization.isBanned(2L, group)).thenReturn(true);
+
+        ForbiddenException exception = assertThrows(ForbiddenException.class,
+                () -> service.join(2L, 1L));
+
+        assertEquals("You are banned from this group", exception.getMessage());
+        verify(groupMemberRepository, never()).save(any(GroupMemberEntity.class));
+    }
+
+    @Test
+    void inviteToBannedUserIsRejected() {
+        UserEntity actor = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        UserEntity carol = user(3L, "carol", true);
+        GroupEntity group = prepareAdmin(1L, actor);
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(userRepository.findByUsername("carol")).thenReturn(Optional.of(carol));
+        when(authorization.isBanned(2L, group)).thenReturn(true);
+        when(authorization.isBanned(3L, group)).thenReturn(false);
+        when(groupMemberRepository.existsByGroupIdAndUserId(1L, 3L)).thenReturn(false);
+        when(groupInviteRepository.findByGroupIdAndRecipientEmail(1L, "carol@example.com"))
+                .thenReturn(Optional.empty());
+        when(groupInviteRepository.save(any(GroupInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        InviteBatchResponse response = service.inviteBatch(1L, 1L, batch("bob", "carol"));
+
+        assertEquals(1, response.failed().size());
+        assertEquals("bob", response.failed().getFirst().username());
+        assertEquals("User is banned from this group", response.failed().getFirst().reason());
+        assertEquals(1, response.invited().size());
+        assertEquals(3L, response.invited().getFirst().recipientId());
+    }
+
+    @Test
+    void listBansMapsBanDetails() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        UserEntity admin = user(3L, "carol", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        OffsetDateTime bannedAt = OffsetDateTime.now().minusDays(1);
+        GroupBanEntity ban = new GroupBanEntity();
+        ban.setGroup(group);
+        ban.setUser(bob);
+        ban.setBannedBy(admin);
+        ban.setBannedByOwner(false);
+        ban.setBannedAt(bannedAt);
+        when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+        when(authorization.isAdminOrOwner(3L, group)).thenReturn(true);
+        when(groupBanRepository.listByGroup(1L, null, null, PageRequest.of(0, 21)))
+                .thenReturn(List.of(ban));
+
+        CursorPage<GroupBanResponse> page = service.listBans(3L, 1L, null, 20);
+
+        assertEquals(1, page.items().size());
+        GroupBanResponse response = page.items().getFirst();
+        assertEquals(2L, response.userId());
+        assertEquals("bob", response.username());
+        assertEquals(3L, response.bannedById());
+        assertEquals("carol", response.bannedByUsername());
+        assertFalse(response.bannedByOwner());
+        assertEquals(bannedAt, response.bannedAt());
+        assertNull(page.nextCursor());
+    }
+
+    @Test
+    void ownerCanRemoveAdminMember() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity admin = user(2L, "bob", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        GroupMemberEntity adminMember = member(group, admin, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(adminMember));
+        when(authorization.isAdminOrOwner(ownerMember, group)).thenReturn(true);
+        when(authorization.isOwner(adminMember, group)).thenReturn(false);
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+
+        service.removeMember(1L, 1L, 2L);
+
+        verify(groupMemberRepository).delete(adminMember);
+    }
+
+    @Test
     void memberLeaveRemovesMembership() {
         UserEntity owner = user(1L, "alice", true);
         UserEntity bob = user(2L, "bob", true);
@@ -562,5 +849,100 @@ class GroupServiceImplTest {
                 () -> service.transferOwnership(1L, 1L, 9L));
 
         verify(groupRepository, never()).save(any(GroupEntity.class));
+    }
+
+    @Test
+    void updateLocksGroupAndTrimsNewName() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(authorization.isAdminOrOwner(ownerMember, group)).thenReturn(true);
+        when(groupRepository.existsByGroupNameAndIdNot("Renamed", 1L)).thenReturn(false);
+        when(groupRepository.saveAndFlush(group)).thenReturn(group);
+
+        GroupResponse response = service.update(1L, 1L, new GroupUpdateRequest("  Renamed  ", null, null, null, null));
+
+        assertEquals("Renamed", response.groupName());
+        verify(groupRepository, never()).findById(any());
+    }
+
+    @Test
+    void updateToTakenNameIsRejected() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(authorization.isAdminOrOwner(ownerMember, group)).thenReturn(true);
+        when(groupRepository.existsByGroupNameAndIdNot("Other", 1L)).thenReturn(true);
+
+        assertThrows(GroupNameTakenException.class,
+                () -> service.update(1L, 1L, new GroupUpdateRequest("Other", null, null, null, null)));
+        verify(groupRepository, never()).saveAndFlush(any());
+        assertEquals("Team", group.getGroupName());
+    }
+
+    @Test
+    void updateNameRaceIsMappedToConflict() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(authorization.isAdminOrOwner(ownerMember, group)).thenReturn(true);
+        when(groupRepository.existsByGroupNameAndIdNot("Other", 1L)).thenReturn(false);
+        when(groupRepository.saveAndFlush(group)).thenThrow(new DataIntegrityViolationException("groups_group_name_key"));
+
+        assertThrows(GroupNameTakenException.class,
+                () -> service.update(1L, 1L, new GroupUpdateRequest("Other", null, null, null, null)));
+    }
+
+    @Test
+    void nonAdminCannotUpdateGroup() {
+        UserEntity member = user(2L, "bob", true);
+        GroupEntity group = group(1L);
+        GroupMemberEntity plainMember = member(group, member, false);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(plainMember));
+        when(authorization.isAdminOrOwner(plainMember, group)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.update(2L, 1L, new GroupUpdateRequest("Other", null, null, null, null)));
+        verify(groupRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void ownerDeleteLocksGroup() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(owner);
+        GroupMemberEntity ownerMember = member(group, owner, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
+        when(authorization.isOwner(ownerMember, group)).thenReturn(true);
+
+        service.delete(1L, 1L);
+
+        verify(groupRepository).delete(group);
+        verify(groupRepository, never()).findById(any());
+    }
+
+    @Test
+    void formerOwnerCannotDeleteAfterTransfer() {
+        UserEntity formerOwner = user(1L, "alice", true);
+        GroupEntity group = group(1L);
+        group.setOwner(user(2L, "bob", true));
+        GroupMemberEntity formerOwnerMember = member(group, formerOwner, false);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(formerOwnerMember));
+        when(authorization.isOwner(formerOwnerMember, group)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.delete(1L, 1L));
+        verify(groupRepository, never()).delete(any());
     }
 }

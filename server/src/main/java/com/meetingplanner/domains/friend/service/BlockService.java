@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 
 @Service
 public class BlockService {
@@ -63,26 +62,18 @@ public class BlockService {
 
         OffsetDateTime now = OffsetDateTime.now();
 
-        List<GroupInviteEntity> groupInvites = groupInviteRepository.findBetween(a, b, InviteStatus.PENDING);
-        for (GroupInviteEntity invite : groupInvites) {
-            invite.setStatus(InviteStatus.DECLINED);
-            invite.setRespondedAt(now);
+        // Conditional per-row transitions instead of entity saves, so an invite or request accepted
+        // concurrently is left alone rather than overwritten back to DECLINED/CANCELLED.
+        for (GroupInviteEntity invite : groupInviteRepository.findBetween(a, b, InviteStatus.PENDING)) {
+            groupInviteRepository.transitionStatus(invite.getId(), InviteStatus.PENDING, InviteStatus.DECLINED, now);
         }
-        groupInviteRepository.saveAll(groupInvites);
-
-        List<MeetingInviteEntity> meetingInvites = meetingInviteRepository.findBetween(a, b, InviteStatus.PENDING);
-        for (MeetingInviteEntity invite : meetingInvites) {
-            invite.setStatus(InviteStatus.DECLINED);
-            invite.setRespondedAt(now);
+        for (MeetingInviteEntity invite : meetingInviteRepository.findBetween(a, b, InviteStatus.PENDING)) {
+            meetingInviteRepository.transitionStatus(invite.getId(), InviteStatus.PENDING, InviteStatus.DECLINED, now);
         }
-        meetingInviteRepository.saveAll(meetingInvites);
-
-        List<MeetingJoinRequestEntity> joinRequests =
-                meetingJoinRequestRepository.findBetweenRequesterAndCreator(a, b, RequestStatus.PENDING);
-        for (MeetingJoinRequestEntity request : joinRequests) {
-            request.setStatus(RequestStatus.CANCELLED);
-            request.setRespondedAt(now);
+        for (MeetingJoinRequestEntity request :
+                meetingJoinRequestRepository.findBetweenRequesterAndCreator(a, b, RequestStatus.PENDING)) {
+            meetingJoinRequestRepository.transitionStatus(
+                    request.getId(), RequestStatus.PENDING, RequestStatus.CANCELLED, now);
         }
-        meetingJoinRequestRepository.saveAll(joinRequests);
     }
 }

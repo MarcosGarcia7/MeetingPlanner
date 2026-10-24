@@ -17,6 +17,7 @@ import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -99,7 +100,11 @@ public class MeetingTimeChangeService {
         proposal.setProposedEndTime(end);
         proposal.setStatus(ProposalStatus.PENDING);
         proposal.setTimeSent(OffsetDateTime.now());
-        proposalRepository.save(proposal);
+        try {
+            proposalRepository.saveAndFlush(proposal);
+        } catch (DataIntegrityViolationException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A time change is already pending for this meeting");
+        }
 
         for (UserEntity participant : recipientsOf(meeting).values()) {
             if (participant.getId().equals(actorUserId)) {
@@ -131,6 +136,7 @@ public class MeetingTimeChangeService {
 
     @Transactional
     public TimeChangeProposalResponse vote(long userId, long meetingId, long proposalId, boolean approve) {
+        lockMeeting(meetingId);
         MeetingTimeChangeProposalEntity proposal = proposalRepository.findByIdAndMeetingId(proposalId, meetingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Proposal not found"));
         if (proposal.getStatus() != ProposalStatus.PENDING) {
@@ -158,6 +164,7 @@ public class MeetingTimeChangeService {
 
     @Transactional
     public TimeChangeProposalResponse cancel(long userId, long meetingId, long proposalId) {
+        lockMeeting(meetingId);
         MeetingTimeChangeProposalEntity proposal = proposalRepository.findByIdAndMeetingId(proposalId, meetingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Proposal not found"));
         if (proposal.getStatus() != ProposalStatus.PENDING) {
@@ -175,10 +182,19 @@ public class MeetingTimeChangeService {
         OffsetDateTime cutoff = OffsetDateTime.now().minusHours(deadlineHours);
         List<MeetingTimeChangeProposalEntity> stale =
                 proposalRepository.findByStatusAndTimeSentBefore(ProposalStatus.PENDING, cutoff);
+        int expired = 0;
         for (MeetingTimeChangeProposalEntity proposal : stale) {
-            resolve(proposal, ProposalStatus.EXPIRED, proposal.getMeeting());
+            // No meeting lock here; the conditional transition skips proposals a concurrent vote/cancel resolved.
+            if (tryResolve(proposal, ProposalStatus.EXPIRED, proposal.getMeeting())) {
+                expired++;
+            }
         }
-        return stale.size();
+        return expired;
+    }
+
+    private void lockMeeting(long meetingId) {
+        meetingRepository.findByIdForUpdate(meetingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proposal not found"));
     }
 
     private void applyTimes(MeetingEntity meeting, MeetingTimeChangeProposalEntity proposal) {
@@ -188,9 +204,18 @@ public class MeetingTimeChangeService {
     }
 
     private void resolve(MeetingTimeChangeProposalEntity proposal, ProposalStatus status, MeetingEntity meeting) {
+        if (!tryResolve(proposal, status, meeting)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This proposal has already been resolved");
+        }
+    }
+
+    private boolean tryResolve(MeetingTimeChangeProposalEntity proposal, ProposalStatus status, MeetingEntity meeting) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (proposalRepository.transitionStatus(proposal.getId(), ProposalStatus.PENDING, status, now) == 0) {
+            return false;
+        }
         proposal.setStatus(status);
-        proposal.setResolvedAt(OffsetDateTime.now());
-        proposalRepository.save(proposal);
+        proposal.setResolvedAt(now);
 
         String type = switch (status) {
             case APPROVED -> "MEETING_TIME_CHANGE_APPROVED";
@@ -205,6 +230,7 @@ public class MeetingTimeChangeService {
             perUser.put("name", displayName(recipient));
             notificationService.push(recipient.getId(), type, CATEGORY, type, perUser);
         }
+        return true;
     }
 
     private TimeChangeProposalResponse toResponse(MeetingTimeChangeProposalEntity proposal, long viewerId) {

@@ -2,8 +2,10 @@ package com.meetingplanner.domains.meeting.repository;
 
 
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +17,10 @@ import java.util.Optional;
 
 @Repository
 public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from MeetingEntity m where m.id = :id")
+    Optional<MeetingEntity> findByIdForUpdate(@Param("id") Long id);
 
     List<MeetingEntity> findByStartTimeBetween(OffsetDateTime from, OffsetDateTime to);
 

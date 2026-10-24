@@ -1,5 +1,6 @@
 package com.meetingplanner.domains.friend.service;
 
+import com.meetingplanner.common.api.dto.MemberUsernameRequest;
 import com.meetingplanner.domains.friend.model.FriendshipEntity;
 import com.meetingplanner.domains.friend.model.FriendshipStatus;
 import com.meetingplanner.domains.friend.repository.FriendshipRepository;
@@ -11,15 +12,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -64,7 +68,8 @@ class FriendshipServiceTest {
         FriendshipEntity existing = friendship(alice, bob, bob, FriendshipStatus.BLOCKED);
         when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
         when(userRepository.findById(2L)).thenReturn(Optional.of(bob));
-        when(friendshipRepository.findByUserIdAndFriendId(1L, 2L)).thenReturn(Optional.of(existing));
+        when(friendshipRepository.insertBlockedIfAbsent(eq(1L), eq(2L), eq(1L), any(OffsetDateTime.class))).thenReturn(0);
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.of(existing));
 
         service.block(1L, 2L);
 
@@ -81,7 +86,8 @@ class FriendshipServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
         when(userRepository.findById(2L)).thenReturn(Optional.of(bob));
         when(userRepository.getReferenceById(1L)).thenReturn(alice);
-        when(friendshipRepository.findByUserIdAndFriendId(1L, 2L)).thenReturn(Optional.of(existing));
+        when(friendshipRepository.insertBlockedIfAbsent(eq(1L), eq(2L), eq(1L), any(OffsetDateTime.class))).thenReturn(0);
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.of(existing));
 
         service.block(1L, 2L);
 
@@ -97,7 +103,7 @@ class FriendshipServiceTest {
         UserEntity bob = user(2L, "bob");
         FriendshipEntity existing = friendship(alice, bob, bob, FriendshipStatus.BLOCKED);
         when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
-        when(friendshipRepository.findByUserIdAndFriendId(1L, 2L)).thenReturn(Optional.of(existing));
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.of(existing));
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
                 () -> service.unblock(1L, "bob"));
@@ -112,10 +118,86 @@ class FriendshipServiceTest {
         UserEntity bob = user(2L, "bob");
         FriendshipEntity existing = friendship(alice, bob, alice, FriendshipStatus.BLOCKED);
         when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
-        when(friendshipRepository.findByUserIdAndFriendId(1L, 2L)).thenReturn(Optional.of(existing));
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.of(existing));
 
         service.unblock(1L, "bob");
 
         verify(friendshipRepository).delete(existing);
+    }
+
+    @Test
+    void blockWithoutExistingRowInsertsAtomicallyAndInvalidates() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "alice")));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user(2L, "bob")));
+        when(friendshipRepository.insertBlockedIfAbsent(eq(1L), eq(2L), eq(2L), any(OffsetDateTime.class))).thenReturn(1);
+
+        service.block(2L, 1L);
+
+        verify(friendshipRepository, never()).findByUserIdAndFriendIdForUpdate(any(), any());
+        verify(friendshipRepository, never()).save(any());
+        verify(blockService).invalidatePendingBetween(2L, 1L);
+    }
+
+    @Test
+    void blockWhenRowVanishesAfterInsertConflictIsRetryableConflict() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "alice")));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user(2L, "bob")));
+        when(friendshipRepository.insertBlockedIfAbsent(eq(1L), eq(2L), eq(1L), any(OffsetDateTime.class))).thenReturn(0);
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.empty());
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.block(1L, 2L));
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        verifyNoInteractions(blockService);
+    }
+
+    @Test
+    void concurrentFirstFriendRequestsMapInsertRaceToConflict() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.empty());
+        when(userRepository.getReferenceById(1L)).thenReturn(alice);
+        when(userRepository.getReferenceById(2L)).thenReturn(bob);
+        when(friendshipRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("friendships_pkey"));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.sendRequest(1L, new MemberUsernameRequest("bob")));
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void mutualRequestAcceptsLockedPendingRow() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        FriendshipEntity pending = friendship(alice, bob, bob, FriendshipStatus.PENDING);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.of(pending));
+
+        service.sendRequest(1L, new MemberUsernameRequest("bob"));
+
+        assertEquals(FriendshipStatus.ACCEPTED, pending.getStatus());
+        verify(friendshipRepository).save(pending);
+        verify(friendshipRepository, never()).findByUserIdAndFriendId(any(), any());
+    }
+
+    @Test
+    void respondToAlreadyResolvedRequestIsConflict() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        FriendshipEntity accepted = friendship(alice, bob, bob, FriendshipStatus.ACCEPTED);
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.of(accepted));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.respond(1L, "bob", false));
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        assertEquals(FriendshipStatus.ACCEPTED, accepted.getStatus());
     }
 }

@@ -6,8 +6,10 @@ import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteRequest;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
+import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.domains.friend.service.BlockService;
+import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.repository.GroupRepository;
 import com.meetingplanner.domains.group.service.GroupAuthorizationService;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
@@ -25,6 +27,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -140,7 +143,7 @@ class MeetingServiceImplTest {
         MeetingEntity meeting = meeting(10L, creator, creator, bob, carol);
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
-        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(meetingRepository.save(meeting)).thenReturn(meeting);
 
         service.update(1L, 10L, new MeetingUpdateRequest(null, null, "Room 2", null, null));
@@ -159,7 +162,7 @@ class MeetingServiceImplTest {
         MeetingEntity meeting = meeting(10L, creator, creator, bob);
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
-        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(meetingRepository.save(meeting)).thenReturn(meeting);
 
         service.update(1L, 10L, new MeetingUpdateRequest(null, null, null, null, null));
@@ -176,7 +179,7 @@ class MeetingServiceImplTest {
         OffsetDateTime newStart = originalStart.plusDays(1);
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
-        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(timeChangeService.hasPendingProposal(10L)).thenReturn(false);
 
         service.update(1L, 10L, new MeetingUpdateRequest(newStart, null, null, null, null));
@@ -192,7 +195,7 @@ class MeetingServiceImplTest {
         OffsetDateTime newStart = meeting.getStartTime().plusDays(1);
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
-        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(meetingRepository.save(meeting)).thenReturn(meeting);
 
         service.update(1L, 10L, new MeetingUpdateRequest(newStart, null, null, null, null));
@@ -209,7 +212,7 @@ class MeetingServiceImplTest {
         OffsetDateTime newStart = meeting.getStartTime().plusDays(1);
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
-        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(timeChangeService.hasPendingProposal(10L)).thenReturn(true);
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
@@ -225,7 +228,7 @@ class MeetingServiceImplTest {
         MeetingEntity meeting = meeting(10L, creator, creator, bob);
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
-        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
 
         service.delete(1L, 10L);
 
@@ -243,6 +246,7 @@ class MeetingServiceImplTest {
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
         when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
 
@@ -261,11 +265,12 @@ class MeetingServiceImplTest {
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
         when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
         when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "bob@example.com"))
                 .thenReturn(Optional.empty());
-        when(meetingInviteRepository.save(any(MeetingInviteEntity.class)))
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
                 .thenThrow(new IllegalStateException("db down"));
 
         assertThrows(IllegalStateException.class,
@@ -280,6 +285,7 @@ class MeetingServiceImplTest {
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
         when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
 
@@ -290,7 +296,7 @@ class MeetingServiceImplTest {
         existing.setTimeSent(staleSentAt);
         when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "bob@example.com"))
                 .thenReturn(Optional.of(existing));
-        when(meetingInviteRepository.save(any(MeetingInviteEntity.class)))
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
         InviteBatchResponse response = service.inviteBatch(1L, 10L, meetingBatch("bob"));
@@ -302,6 +308,31 @@ class MeetingServiceImplTest {
     }
 
     @Test
+    void bannedRecipientOfGroupMeetingIsRejected() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = verifiedUser(2L, "bob");
+        GroupEntity group = new GroupEntity();
+        group.setId(4L);
+        MeetingEntity meeting = meeting(10L, alice);
+        meeting.setGroup(group);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(groupRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(group));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(groupAuthorization.isBanned(2L, group)).thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.inviteBatch(1L, 10L, meetingBatch("bob")));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verify(meetingInviteRepository, never()).save(any(MeetingInviteEntity.class));
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
     void blockedRecipientIsRejected() {
         UserEntity alice = user(1L, "alice");
         UserEntity bob = verifiedUser(2L, "bob");
@@ -309,6 +340,7 @@ class MeetingServiceImplTest {
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
         when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
         doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot invite this user"))
@@ -329,17 +361,96 @@ class MeetingServiceImplTest {
 
         when(authorization.canManage(1L, meeting)).thenReturn(true);
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
         when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
         when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
         when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "bob@example.com"))
                 .thenReturn(Optional.empty());
-        when(meetingInviteRepository.save(any(MeetingInviteEntity.class)))
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
         InviteBatchResponse response = service.inviteBatch(1L, 10L, meetingBatch("alice", "bob"));
 
         assertEquals(1, response.failed().size());
         assertEquals("You cannot invite yourself", response.failed().getFirst().reason());
+    }
+
+    @Test
+    void inviteBatchLocksGroupBeforeMeeting() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = verifiedUser(2L, "bob");
+        GroupEntity group = new GroupEntity();
+        group.setId(4L);
+        MeetingEntity meeting = meeting(10L, alice);
+        meeting.setGroup(group);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(groupRepository.findByIdForUpdate(4L)).thenReturn(Optional.of(group));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "bob@example.com"))
+                .thenReturn(Optional.empty());
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        service.inviteBatch(1L, 10L, meetingBatch("bob"));
+
+        InOrder order = inOrder(groupRepository, meetingRepository, meetingInviteRepository);
+        order.verify(groupRepository).findByIdForUpdate(4L);
+        order.verify(meetingRepository).findByIdForUpdate(10L);
+        order.verify(meetingInviteRepository).saveAndFlush(any(MeetingInviteEntity.class));
+    }
+
+    @Test
+    void inviteBatchMapsDuplicateInviteConstraintToConflict() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = verifiedUser(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "bob@example.com"))
+                .thenReturn(Optional.empty());
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
+                .thenThrow(new DataIntegrityViolationException("ux_meeting_invites_email"));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.inviteBatch(1L, 10L, meetingBatch("bob")));
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void removeParticipantLocksMeeting() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice, alice, bob);
+
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+
+        service.removeParticipant(1L, 10L, 2L);
+
+        verify(meetingRepository, never()).findById(anyLong());
+        verify(meetingParticipantRepository).deleteByMeetingIdAndUserId(10L, 2L);
+    }
+
+    @Test
+    void removeParticipantByNonManagerIsNotFound() {
+        UserEntity alice = user(1L, "alice");
+        MeetingEntity meeting = meeting(10L, alice, alice);
+
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(authorization.canManage(3L, meeting)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.removeParticipant(3L, 10L, 1L));
+        verify(meetingParticipantRepository, never()).deleteByMeetingIdAndUserId(anyLong(), anyLong());
     }
 }

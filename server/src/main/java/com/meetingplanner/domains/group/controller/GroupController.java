@@ -102,6 +102,27 @@ public class GroupController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{groupId}/bans/{userId}")
+    public ResponseEntity<Void> banMember(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
+                                          @PathVariable long userId) {
+        groupService.banMember(CurrentUser.from(jwt).id(), groupId, userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{groupId}/bans/{userId}")
+    public ResponseEntity<Void> unbanMember(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
+                                            @PathVariable long userId) {
+        groupService.unbanMember(CurrentUser.from(jwt).id(), groupId, userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{groupId}/bans")
+    public CursorPage<GroupBanResponse> listBans(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
+                                                 @RequestParam(required = false) String cursor,
+                                                 @RequestParam(defaultValue = "20") int size) {
+        return groupService.listBans(CurrentUser.from(jwt).id(), groupId, cursor, size);
+    }
+
     @PatchMapping("/{groupId}/members/{userId}")
     public ResponseEntity<Void> promoteOrDemoteMember(@AuthenticationPrincipal Jwt jwt, @PathVariable long groupId,
                                               @PathVariable long userId) {

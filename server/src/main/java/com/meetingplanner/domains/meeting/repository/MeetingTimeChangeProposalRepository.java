@@ -3,6 +3,9 @@ package com.meetingplanner.domains.meeting.repository;
 import com.meetingplanner.common.api.model.ProposalStatus;
 import com.meetingplanner.domains.meeting.model.MeetingTimeChangeProposalEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
@@ -17,4 +20,15 @@ public interface MeetingTimeChangeProposalRepository extends JpaRepository<Meeti
     Optional<MeetingTimeChangeProposalEntity> findByIdAndMeetingId(Long id, Long meetingId);
 
     List<MeetingTimeChangeProposalEntity> findByStatusAndTimeSentBefore(ProposalStatus status, OffsetDateTime cutoff);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update MeetingTimeChangeProposalEntity p
+            set p.status = :to, p.resolvedAt = :at
+            where p.id = :id and p.status = :from
+            """)
+    int transitionStatus(@Param("id") Long id,
+                         @Param("from") ProposalStatus from,
+                         @Param("to") ProposalStatus to,
+                         @Param("at") OffsetDateTime at);
 }

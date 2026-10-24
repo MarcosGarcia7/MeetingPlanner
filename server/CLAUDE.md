@@ -13,6 +13,7 @@ mvn test -Dtest=GroupServiceImplTest       # one class
 mvn test -Dtest=GroupServiceImplTest#create*  # matching methods
 mvn spring-boot:run                        # needs Postgres + Redis + env (see server/.env.example)
 mvn -q -B package -DskipTests              # what the Dockerfile does
+mvn verify -Pit                            # unit tests + Testcontainers *IT tests (needs Docker)
 ```
 
 ## Package layout
@@ -55,7 +56,8 @@ mvn -q -B package -DskipTests              # what the Dockerfile does
   outbox: rows in `email_outbox` are drained by `MailDeliveryWorker`; templates are in
   `EmailTemplateRegistry`. Never send mail synchronously from a request.
 - Background jobs are `@Scheduled` `*Worker` components in the owning domain's `service` package, with
-  intervals configurable via `app.*` properties in `application.properties`.
+  intervals configurable via `app.*` properties in `application.properties`. Scheduling is enabled by
+  `config/scheduling/SchedulingConfig` and can be turned off with `app.scheduling.enabled=false`.
 
 ## Database
 
@@ -81,6 +83,10 @@ mvn -q -B package -DskipTests              # what the Dockerfile does
 
 - Plain JUnit 5 + Mockito unit tests (`@ExtendWith(MockitoExtension.class)`, `@Mock` repositories,
   `@InjectMocks` service). No Spring context or database is spun up — keep it that way unless asked.
+- Exception: opt-in PostgreSQL concurrency tests in `src/test/java/com/meetingplanner/it/*IT.java`
+  (Testcontainers, extend `AbstractPostgresIT`). They run only with `mvn verify -Pit` and need Docker;
+  plain `mvn test` skips them. Use them for locking/constraint behavior that mocks can't show.
+- Lock order for concurrent mutations: group → meeting → request/invite/proposal → user/friendship.
 - Tests mirror the main package path (`domains/group/service/GroupServiceImplTest`).
 - When changing a service, add/adjust tests for the forbidden, not-found, and blocked paths, not just
   the happy path.
