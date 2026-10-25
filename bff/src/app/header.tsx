@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { getSession } from '@/lib/session';
+import {getSession} from '@/lib/session';
 import LogoutButton from './logout-button';
 import styles from './header.module.css';
 
@@ -22,7 +22,7 @@ export default async function Header() {
       <h1 className={styles.h1}>Meeting Planner</h1>
       <nav className={styles.nav}>
         {session ? (
-          <LogoutButton />
+          <LogoutButton/>
         ) : (
           <>
             <Link className={styles.buttonSecondary} href='/login'>

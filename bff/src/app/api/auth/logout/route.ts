@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server';
-import { API_BASE_URL, getClientIp } from '@/lib/api-client';
-import { destroySession, getSession } from '@/lib/session';
-import type { LogoutRequest } from '@/lib/types/auth';
+import {NextResponse} from 'next/server';
+import {API_BASE_URL, getClientIp} from '@/lib/api-client';
+import {destroySession, getSession} from '@/lib/session';
+import type {LogoutRequest} from '@/lib/types/auth';
 
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await getSession();
 
   if (session?.refreshToken) {
-    const headers = new Headers({ 'Content-Type': 'application/json' });
+    const headers = new Headers({'Content-Type': 'application/json'});
     const clientIp = getClientIp(request.headers);
     if (clientIp) {
       headers.set('X-Forwarded-For', clientIp);
@@ -28,5 +28,5 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   await destroySession();
-  return new NextResponse(null, { status: 204 });
+  return new NextResponse(null, {status: 204});
 }

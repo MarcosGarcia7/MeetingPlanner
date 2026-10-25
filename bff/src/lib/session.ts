@@ -1,6 +1,6 @@
 import 'server-only';
-import { cookies } from 'next/headers';
-import { getRedis } from './redis';
+import {cookies} from 'next/headers';
+import {getRedis} from './redis';
 
 const SESSION_PREFIX = 'sess:';
 const SESSION_TTL_SECONDS = Number(process.env.SESSION_TTL ?? 1800);

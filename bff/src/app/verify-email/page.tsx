@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import {Suspense} from 'react';
 import Image from 'next/image';
 import styles from '@/app/components/auth/auth.module.css';
 import VerifyEmailContent from '../components/verify-email/verify-email-content';
@@ -20,7 +20,7 @@ export default function VerifyEmailPage() {
           Confirm this link belongs to you by verifying your email address.
         </p>
         <Suspense fallback={<p className={styles.subtitle}>Verifying...</p>}>
-          <VerifyEmailContent />
+          <VerifyEmailContent/>
         </Suspense>
       </div>
     </main>

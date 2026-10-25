@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { getSession } from '@/lib/session';
+import {NextResponse} from 'next/server';
+import type {NextRequest} from 'next/server';
+import {getSession} from '@/lib/session';
 
 const protectedRoutes = ['/dashboard'];
 
 const authRoutes = ['/login', '/signup'];
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const {pathname} = request.nextUrl;
   const hasSession = (await getSession()) !== null;
 
   const isProtectedRoute = protectedRoutes.some(

@@ -1,18 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { useRouter } from 'next/navigation';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import {useMemo, useState} from 'react';
+import {useForm} from 'react-hook-form';
+import {useRouter} from 'next/navigation';
+import {zodResolver} from '@hookform/resolvers/zod';
+import {z} from 'zod';
 import styles from './signup-form.module.css';
 import Image from "next/image";
-import { readApiError } from '@/lib/api-error';
-import type { AccountCreatedResponse, CreateAccountRequest } from '@/lib/types/auth';
+import {readApiError} from '@/lib/api-error';
+import type {AccountCreatedResponse, CreateAccountRequest} from '@/lib/types/auth';
 
 const credentialsSchema = z.object({
   email: z
-    .email({ message: 'Invalid email address' })
+    .email({message: 'Invalid email address'})
     .trim()
     .toLowerCase()
     .max(254, 'Email cannot exceed 254 characters'),
@@ -38,7 +38,21 @@ const credentialsSchema = z.object({
       (password) => new TextEncoder().encode(password).length <= 72,
       'Password is too long; accented letters and emoji count as more than one character'
     ),
-});
+  confirm: z
+    .string()
+    .min(12, 'Password must be at least 12 characters')
+    .max(72, 'Password cannot exceed 72 characters')
+    // bcrypt's limit is 72 bytes, so accented letters and emoji count for more than one.
+    .refine(
+      (password) => new TextEncoder().encode(password).length <= 72,
+      'Password is too long; accented letters and emoji count as more than one character'
+    ),
+}).refine(
+  (data) => data.password === data.confirm,
+  {
+    message: 'Passwords do not match',
+    path: ['confirm'],
+  });
 
 const profileSchema = z.object({
   firstName: z.string().trim().max(50, 'First name cannot exceed 50 characters').optional(),
@@ -76,7 +90,7 @@ export default function SignupForm() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: {errors, isSubmitting},
   } = useForm<CreateFormData>({
     resolver: zodResolver(fullFormSchema),
     defaultValues: {
@@ -110,7 +124,7 @@ export default function SignupForm() {
     try {
       const response = await fetch('/api/auth/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
 
@@ -132,12 +146,12 @@ export default function SignupForm() {
   return (
     <div>
       <Image
-          className={styles.logo}
-          src='/logo-mp.svg'
-          alt='Meeting Planner logo'
-          width={64}
-          height={64}
-          priority
+        className={styles.logo}
+        src='/logo-mp.svg'
+        alt='Meeting Planner logo'
+        width={64}
+        height={64}
+        priority
       />
       <h1 className={styles.title}>Create your account</h1>
       <form onSubmit={handleSubmit(onSubmit)} className={styles.form}>

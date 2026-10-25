@@ -1,4 +1,4 @@
-import type { UserProfileResponse } from './user';
+import type {UserProfileResponse} from './user';
 
 // Mirrors server common/api/dto/CreateAccountRequest.
 export interface CreateAccountRequest {

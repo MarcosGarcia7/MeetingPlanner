@@ -1,6 +1,6 @@
 import 'server-only';
-import { getSession, getSessionId, destroySession, updateSession, type SessionData } from './session';
-import type { RefreshRequest, TokenResponse } from './types/auth';
+import {getSession, getSessionId, destroySession, updateSession, type SessionData} from './session';
+import type {RefreshRequest, TokenResponse} from './types/auth';
 
 export const API_BASE_URL =
   process.env.API_INTERNAL_URL ?? 'http://localhost:8080';
@@ -17,7 +17,8 @@ export class ApiError extends Error {
   }
 }
 
-export class AuthError extends Error {}
+export class AuthError extends Error {
+}
 
 export function getClientIp(headers: Headers): string | undefined {
   const forwarded = headers.get('x-forwarded-for');
@@ -30,8 +31,8 @@ export function getClientIp(headers: Headers): string | undefined {
 async function refreshAccessToken(session: SessionData): Promise<TokenResponse> {
   const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken: session.refreshToken } satisfies RefreshRequest),
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({refreshToken: session.refreshToken} satisfies RefreshRequest),
   });
 
   if (!res.ok) {

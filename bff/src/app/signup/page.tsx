@@ -6,7 +6,7 @@ export default function SignupPage() {
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <SignupForm />
+        <SignupForm/>
       </div>
     </main>
   );

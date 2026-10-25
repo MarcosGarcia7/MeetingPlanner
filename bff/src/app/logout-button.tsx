@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import {useRouter} from 'next/navigation';
+import {useState} from 'react';
 import styles from './header.module.css';
 
 export default function LogoutButton() {
@@ -12,7 +12,7 @@ export default function LogoutButton() {
     if (pending) return;
     setPending(true);
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch('/api/auth/logout', {method: 'POST'});
     } finally {
       setPending(false);
       router.push('/');

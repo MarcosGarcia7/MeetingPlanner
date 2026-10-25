@@ -1,5 +1,5 @@
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
+import type {Metadata} from 'next';
+import {Geist, Geist_Mono, Instrument_Serif} from 'next/font/google';
 import Header from './header';
 import './globals.css';
 
@@ -23,17 +23,17 @@ export const metadata: Metadata = {
   title: 'Meeting Planner',
   description: 'Plan and manage meetings with your team.',
   icons: {
-    icon: [{ url: '/logo-mp.svg', type: 'image/svg+xml', sizes: 'any' }],
+    icon: [{url: '/logo-mp.svg', type: 'image/svg+xml', sizes: 'any'}],
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<'/'>) {
+export default function RootLayout({children}: LayoutProps<'/'>) {
   return (
     <html lang='en' className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
-      <body>
-        <Header />
-        {children}
-      </body>
+    <body>
+    <Header/>
+    {children}
+    </body>
     </html>
   );
 }

@@ -3,11 +3,11 @@ import Link from 'next/link';
 import styles from '@/app/components/auth/auth.module.css';
 
 export default async function VerificationSentPage({
-  searchParams,
-}: {
+                                                     searchParams,
+                                                   }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { email } = await searchParams;
+  const {email} = await searchParams;
   const emailValue = typeof email === 'string' ? email : null;
 
   return (
@@ -37,7 +37,7 @@ export default async function VerificationSentPage({
         <Link
           className={styles.submit}
           href='/login'
-          style={{ textAlign: 'center', display: 'block', marginTop: 16 }}
+          style={{textAlign: 'center', display: 'block', marginTop: 16}}
         >
           Go to login
         </Link>

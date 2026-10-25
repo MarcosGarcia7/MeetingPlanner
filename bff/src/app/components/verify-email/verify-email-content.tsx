@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import {useSearchParams} from 'next/navigation';
 import styles from '@/app/components/auth/login/login-form.module.css';
-import { readApiError } from '@/lib/api-error';
-import type { VerifyEmailRequest } from '@/lib/types/auth';
+import {readApiError} from '@/lib/api-error';
+import type {VerifyEmailRequest} from '@/lib/types/auth';
 
 type Status =
   | { kind: 'loading' }
@@ -15,22 +15,22 @@ type Status =
 export default function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
-  const [status, setStatus] = useState<Status>({ kind: 'loading' });
+  const [status, setStatus] = useState<Status>({kind: 'loading'});
 
   useEffect(() => {
     if (!token) return;
 
     let cancelled = false;
-    const body: VerifyEmailRequest = { token };
+    const body: VerifyEmailRequest = {token};
     fetch('/api/auth/verify-email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body),
     })
       .then(async (response) => {
         if (cancelled) return;
         if (response.ok) {
-          setStatus({ kind: 'success' });
+          setStatus({kind: 'success'});
           return;
         }
         const err = await readApiError(response);

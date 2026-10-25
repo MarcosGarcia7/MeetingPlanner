@@ -1,7 +1,7 @@
 import 'server-only';
-import { cache } from 'react';
-import { redirect } from 'next/navigation';
-import { getSession } from './session';
+import {cache} from 'react';
+import {redirect} from 'next/navigation';
+import {getSession} from './session';
 
 export interface SessionUser {
   userId: number;
@@ -14,5 +14,5 @@ export const verifySession = cache(async (): Promise<SessionUser> => {
   if (!session) {
     redirect('/login');
   }
-  return { userId: session.userId, username: session.username };
+  return {userId: session.userId, username: session.username};
 });
