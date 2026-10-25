@@ -2,57 +2,71 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import styles from './login-form.module.css';
+import { readApiError } from '@/lib/api-error';
+import type { LoginRequest, VerifyEmailResendRequest } from '@/lib/types/auth';
+
+const loginSchema = z.object({
+  identifier: z.string().trim().min(1, 'Enter your email or username'),
+  password: z
+    .string()
+    .min(1, 'Enter your password')
+    .max(128, 'Password cannot exceed 128 characters'),
+});
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginForm() {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [unverified, setUnverified] = useState(false);
   const [resendSent, setResendSent] = useState(false);
   const [resendPending, setResendPending] = useState(false);
-  const [pending, setPending] = useState(false);
 
-  async function handleSubmit(e: React.SubmitEvent) {
-    e.preventDefault();
-    if (pending) return;
+  const {
+    register,
+    handleSubmit,
+    control,
+    getValues,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { identifier: '', password: '' },
+  });
 
-    setPending(true);
+  const onSubmit = async (data: LoginFormData) => {
     setError(null);
     setUnverified(false);
     setResendSent(false);
 
-    try {
-      const body = new FormData();
-      body.set('identifier', identifier);
-      body.set('password', password);
+    const body: LoginRequest = { identifier: data.identifier, password: data.password };
 
+    try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        body,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as
-          | { error?: string; message?: string }
-          | null;
-
-        if (data?.error === 'email_not_verified') {
+        const err = await readApiError(response);
+        if (err?.error === 'email_not_verified') {
           setUnverified(true);
         } else {
-          setError(data?.message ?? 'Login failed. Please try again.');
+          setError(err?.message ?? 'Login failed. Please try again.');
         }
         return;
       }
 
       router.push('/dashboard');
       router.refresh();
-    } finally {
-      setPending(false);
+    } catch {
+      setError('Something went wrong. Please try again.');
     }
-  }
+  };
 
   async function handleResend() {
     if (resendPending) return;
@@ -60,28 +74,30 @@ export default function LoginForm() {
     setResendPending(true);
     setError(null);
 
+    const body: VerifyEmailResendRequest = { email: getValues('identifier').trim() };
+
     try {
       const response = await fetch('/api/auth/verify-email/resend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: identifier }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as
-          | { message?: string }
-          | null;
-        setError(data?.message ?? 'Failed to resend the verification email.');
+        const err = await readApiError(response);
+        setError(err?.message ?? 'Failed to resend the verification email.');
         return;
       }
 
       setResendSent(true);
+    } catch {
+      setError('Something went wrong. Please try again.');
     } finally {
       setResendPending(false);
     }
   }
 
-  const isEmail = identifier.includes('@');
+  const isEmail = useWatch({ control, name: 'identifier' }).includes('@');
 
   return (
       <div>
@@ -94,28 +110,34 @@ export default function LoginForm() {
             priority
         />
         <h1 className={styles.title}>Login</h1>
-    <form className={styles.form} onSubmit={handleSubmit}>
+    <form className={styles.form} onSubmit={handleSubmit(onSubmit)}>
       <label className={styles.field}>
         <span className={styles.label}>Email or username</span>
         <input
           className={styles.input}
           autoComplete='username'
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          required
+          {...register('identifier')}
         />
       </label>
+      {errors.identifier && (
+        <p className={styles.error} role='alert'>
+          {errors.identifier.message}
+        </p>
+      )}
       <label className={styles.field}>
         <span className={styles.label}>Password</span>
         <input
           className={styles.input}
           type='password'
           autoComplete='current-password'
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
+          {...register('password')}
         />
       </label>
+      {errors.password && (
+        <p className={styles.error} role='alert'>
+          {errors.password.message}
+        </p>
+      )}
 
       {error && (
         <p className={styles.error} role='alert'>
@@ -145,8 +167,8 @@ export default function LoginForm() {
         </div>
       )}
 
-      <button className={styles.submit} type='submit' disabled={pending}>
-        {pending ? 'Logging in...' : 'log in'}
+      <button className={styles.submit} type='submit' disabled={isSubmitting}>
+        {isSubmitting ? 'Logging in...' : 'Log in'}
       </button>
     </form>
       </div>

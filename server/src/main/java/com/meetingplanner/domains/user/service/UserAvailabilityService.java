@@ -10,7 +10,7 @@ import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
+import java.util.List;
 
 
 @Service
@@ -103,20 +103,10 @@ public class UserAvailabilityService {
         );
     }
 
-    private int[][] toPrimitive(Integer[][] source) {
-        if (source == null) return new int[0][];
-
-        return Arrays.stream(source)
-                .map(pair -> {
-                    if (pair == null) return new int[2];
-
-                    int[] primitivePair = new int[2];
-
-                    primitivePair[0] = (pair.length > 0 && pair[0] != null) ? pair[0] : 0;
-                    primitivePair[1] = (pair.length > 1 && pair[1] != null) ? pair[1] : 0;
-
-                    return primitivePair;
-                })
+    // The request is @Valid, so every window is exactly two non-null minutes.
+    private int[][] toPrimitive(List<List<Integer>> source) {
+        return source.stream()
+                .map(window -> new int[]{window.get(0), window.get(1)})
                 .toArray(int[][]::new);
     }
 }

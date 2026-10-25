@@ -1,15 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import styles from './signup-form.module.css';
 import Image from "next/image";
+import { readApiError } from '@/lib/api-error';
+import type { AccountCreatedResponse, CreateAccountRequest } from '@/lib/types/auth';
 
 const credentialsSchema = z.object({
-  email: z.email({ message: 'Invalid email address' }).trim().toLowerCase(),
+  email: z
+    .email({ message: 'Invalid email address' })
+    .trim()
+    .toLowerCase()
+    .max(254, 'Email cannot exceed 254 characters'),
   username: z
     .union([
       z.literal(''),
@@ -26,13 +32,19 @@ const credentialsSchema = z.object({
   password: z
     .string()
     .min(12, 'Password must be at least 12 characters')
-    .max(72, 'Password cannot exceed 72 characters'),
+    .max(72, 'Password cannot exceed 72 characters')
+    // bcrypt's limit is 72 bytes, so accented letters and emoji count for more than one.
+    .refine(
+      (password) => new TextEncoder().encode(password).length <= 72,
+      'Password is too long; accented letters and emoji count as more than one character'
+    ),
 });
 
 const profileSchema = z.object({
   firstName: z.string().trim().max(50, 'First name cannot exceed 50 characters').optional(),
   lastName: z.string().trim().max(50, 'Last name cannot exceed 50 characters').optional(),
   isPrivate: z.boolean(),
+  timezone: z.string().min(1, 'Select a timezone'),
 });
 
 const fullFormSchema = z.object({
@@ -41,10 +53,25 @@ const fullFormSchema = z.object({
 });
 type CreateFormData = z.infer<typeof fullFormSchema>;
 
+function detectTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
 export default function SignupForm() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [error, setError] = useState<string | null>(null);
+  const [detectedTimezone] = useState(detectTimezone);
+
+  // Only rendered in step 2, which never server-renders, so browser and server ICU can't mismatch.
+  const timezones = useMemo(() => {
+    const zones = Intl.supportedValuesOf('timeZone');
+    return zones.includes(detectedTimezone) ? zones : [detectedTimezone, ...zones];
+  }, [detectedTimezone]);
 
   const {
     register,
@@ -59,6 +86,7 @@ export default function SignupForm() {
       firstName: '',
       lastName: '',
       isPrivate: false,
+      timezone: detectedTimezone,
     },
   });
 
@@ -68,31 +96,31 @@ export default function SignupForm() {
       return;
     }
 
+    setError(null);
+    const body: CreateAccountRequest = {
+      email: data.email,
+      password: data.password,
+      username: data.username || undefined,
+      firstName: data.firstName || undefined,
+      lastName: data.lastName || undefined,
+      isPrivate: data.isPrivate,
+      timezone: data.timezone,
+    };
+
     try {
-      const body = new FormData();
-
-      Object.entries(data).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          body.append(key, String(value));
-        }
-      });
-
       const response = await fetch('/api/auth/create', {
         method: 'POST',
-        body,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as
-          | { message?: string }
-          | null;
-        setError(data?.message ?? 'Sign up failed. Please try again.');
+        const err = await readApiError(response);
+        setError(err?.message ?? 'Sign up failed. Please try again.');
         return;
       }
 
-      const result = (await response.json().catch(() => null)) as
-        | { email?: string }
-        | null;
+      const result = (await response.json().catch(() => null)) as AccountCreatedResponse | null;
       router.push(
         `/verify-email/sent?email=${encodeURIComponent(result?.email ?? data.email)}`
       );
@@ -195,6 +223,22 @@ export default function SignupForm() {
             {errors.lastName && (
               <p className={styles.error} role='alert'>
                 {errors.lastName.message}
+              </p>
+            )}
+
+            <label className={styles.field}>
+              <span className={styles.label}>Timezone *</span>
+              <select {...register('timezone')} className={styles.input}>
+                {timezones.map((zone) => (
+                  <option key={zone} value={zone}>
+                    {zone.replaceAll('_', ' ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {errors.timezone && (
+              <p className={styles.error} role='alert'>
+                {errors.timezone.message}
               </p>
             )}
 

@@ -1,4 +1,6 @@
+import 'server-only';
 import { getSession, getSessionId, destroySession, updateSession, type SessionData } from './session';
+import type { RefreshRequest, TokenResponse } from './types/auth';
 
 export const API_BASE_URL =
   process.env.API_INTERNAL_URL ?? 'http://localhost:8080';
@@ -6,7 +8,10 @@ export const API_BASE_URL =
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
-    message: string
+    message: string,
+    // The API's parsed error body ({ error, message, ... }), or null if it wasn't JSON.
+    public readonly body: unknown = null,
+    public readonly retryAfter?: string
   ) {
     super(message);
   }
@@ -26,7 +31,7 @@ async function refreshAccessToken(session: SessionData): Promise<TokenResponse> 
   const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken: session.refreshToken }),
+    body: JSON.stringify({ refreshToken: session.refreshToken } satisfies RefreshRequest),
   });
 
   if (!res.ok) {
@@ -36,77 +41,82 @@ async function refreshAccessToken(session: SessionData): Promise<TokenResponse> 
   return (await res.json()) as TokenResponse;
 }
 
-interface TokenResponse {
-  accessToken: string;
-  refreshToken: string;
-}
-
-function addAuthHeader(headers: Headers, session: SessionData | null): void {
+function buildHeaders(init: RequestInit, session: SessionData | null, clientIp?: string): Headers {
+  const headers = new Headers(init.headers);
   if (session) {
     headers.set('Authorization', `Bearer ${session.accessToken}`);
   }
-}
-
-async function requestWithAuth<T>(
-  path: string,
-  init: RequestInit = {},
-  clientIp?: string
-): Promise<T> {
-  let session = await getSession();
-  const headers = new Headers(init.headers);
-  addAuthHeader(headers, session);
   if (clientIp) {
     headers.set('X-Forwarded-For', clientIp);
   }
+  return headers;
+}
 
-  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+// Sends an authenticated request and returns the API's response as-is (including error statuses).
+// Refreshes once on 401; throws AuthError and destroys the session if the refresh fails.
+export async function authFetchRaw(
+  path: string,
+  init: RequestInit = {},
+  clientIp?: string
+): Promise<Response> {
+  const session = await getSession();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: buildHeaders(init, session, clientIp),
+  });
 
-  if (res.ok) {
-    if (res.status === 204) {
-      return undefined as T;
-    }
-    return (await res.json()) as T;
+  if (res.status !== 401 || !session) {
+    return res;
   }
 
-  if (res.status === 401 && session) {
+  let tokenResponse: TokenResponse;
+  try {
+    tokenResponse = await refreshAccessToken(session);
+  } catch (err) {
+    if (err instanceof AuthError) {
+      await destroySession();
+      throw new AuthError('Session expired. Please log in again.');
+    }
+    throw err;
+  }
+
+  const refreshed = {
+    ...session,
+    accessToken: tokenResponse.accessToken,
+    refreshToken: tokenResponse.refreshToken,
+  };
+  const sessionId = await getSessionId();
+  if (sessionId) {
+    await updateSession(sessionId, refreshed);
+  }
+
+  return fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: buildHeaders(init, refreshed, clientIp),
+  });
+}
+
+// Parses a successful API response as T (undefined for 204); throws ApiError otherwise.
+async function parseResponse<T>(res: Response, path: string): Promise<T> {
+  if (!res.ok) {
+    let body: unknown = null;
     try {
-      const tokenResponse = await refreshAccessToken(session);
-      const sessionId = await getSessionId();
-      if (sessionId) {
-        await updateSession(sessionId, {
-          ...session,
-          accessToken: tokenResponse.accessToken,
-          refreshToken: tokenResponse.refreshToken,
-        });
-      }
-      session = { ...session, accessToken: tokenResponse.accessToken, refreshToken: tokenResponse.refreshToken };
-
-      const retryHeaders = new Headers(init.headers);
-      addAuthHeader(retryHeaders, session);
-      if (clientIp) {
-        retryHeaders.set('X-Forwarded-For', clientIp);
-      }
-
-      const retryRes = await fetch(`${API_BASE_URL}${path}`, { ...init, headers: retryHeaders });
-
-      if (!retryRes.ok) {
-        throw new ApiError(retryRes.status, `API ${path} failed with ${retryRes.status}`);
-      }
-
-      if (retryRes.status === 204) {
-        return undefined as T;
-      }
-      return (await retryRes.json()) as T;
-    } catch (err) {
-      if (err instanceof AuthError) {
-        await destroySession();
-        throw new AuthError('Session expired. Please log in again.');
-      }
-      throw err;
+      body = await res.json();
+    } catch {
+      // ignore body parse errors
     }
+    throw new ApiError(
+      res.status,
+      `API ${path} failed with ${res.status}`,
+      body,
+      res.headers.get('retry-after') ?? undefined
+    );
   }
 
-  throw new ApiError(res.status, `API ${path} failed with ${res.status}`);
+  if (res.status === 204) {
+    return undefined as T;
+  }
+  return (await res.json()) as T;
 }
 
 export async function authFetch<T>(
@@ -114,5 +124,19 @@ export async function authFetch<T>(
   init?: RequestInit,
   clientIp?: string
 ): Promise<T> {
-  return requestWithAuth<T>(path, init, clientIp);
+  const res = await authFetchRaw(path, init, clientIp);
+  return parseResponse<T>(res, path);
+}
+
+// Unauthenticated counterpart of authFetch, for auth endpoints called before a session exists.
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  clientIp?: string
+): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: buildHeaders(init, null, clientIp),
+  });
+  return parseResponse<T>(res, path);
 }

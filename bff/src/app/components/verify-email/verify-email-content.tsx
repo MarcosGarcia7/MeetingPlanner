@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import styles from '@/app/components/auth/login/login-form.module.css';
+import { readApiError } from '@/lib/api-error';
+import type { VerifyEmailRequest } from '@/lib/types/auth';
 
 type Status =
   | { kind: 'loading' }
@@ -19,10 +21,11 @@ export default function VerifyEmailContent() {
     if (!token) return;
 
     let cancelled = false;
+    const body: VerifyEmailRequest = { token };
     fetch('/api/auth/verify-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify(body),
     })
       .then(async (response) => {
         if (cancelled) return;
@@ -30,12 +33,10 @@ export default function VerifyEmailContent() {
           setStatus({ kind: 'success' });
           return;
         }
-        const data = (await response.json().catch(() => null)) as
-          | { message?: string }
-          | null;
+        const err = await readApiError(response);
         setStatus({
           kind: 'error',
-          message: data?.message ?? 'Verification failed. The link may be invalid or expired.',
+          message: err?.message ?? 'Verification failed. The link may be invalid or expired.',
         });
       })
       .catch(() => {

@@ -26,12 +26,72 @@ npx tsc --noEmit     # typecheck; there is no test suite yet
 - `src/app/api/**/route.ts` — BFF route handlers the browser calls; each one forwards to the Spring API.
 - `src/app/components/<area>/` — components, each with a co-located `*.module.css`.
 - `src/lib/session.ts` — Redis session (`sess:<uuid>`, cookie `mp_session`, httpOnly, sliding TTL).
-- `src/lib/api-client.ts` — `authFetch<T>(path, init, clientIp)`: attaches the bearer token, refreshes
-  once on 401, persists rotated tokens, and destroys the session if refresh fails (`AuthError`).
-  Throws `ApiError(status, …)` on other failures.
+- `src/lib/api-client.ts` — `authFetchRaw(path, init, clientIp)`: attaches the bearer token, refreshes
+  once on 401, persists rotated tokens, and destroys the session if refresh fails (`AuthError`);
+  returns the API `Response` as-is. `authFetch<T>` wraps it, parses JSON, and throws
+  `ApiError(status, message, body, retryAfter)` carrying the API's error body. `apiFetch<T>` is the
+  same without a session, for auth endpoints called before one exists (login).
+- `src/lib/route-handler.ts` — `forward`, `withErrors`, `errorResponse` (see Route handlers below).
+- `src/lib/api-error.ts` — `readApiError(response)`: client-side reader for a failed `/api` response's
+  `{ error, message }` body (or null). Use it instead of inline `response.json()` casts.
+- `src/lib/types/` — TS mirrors of server DTOs (see Types below). No `server-only`, so client
+  components can import them.
 - `src/lib/dal.ts` — `verifySession()`; call it at the top of server components that need the user.
+  It returns only `{ userId, username }` — keep tokens out of anything a page can pass to a client
+  component. `session.ts`, `api-client.ts`, and `dal.ts` import `server-only`.
 - `src/proxy.ts` — Next 16's replacement for `middleware.ts`: redirects unauthenticated users away
   from `/dashboard` and signed-in users away from `/login`, `/signup`, `/`.
+
+## Route handlers
+
+- **Mirror the API path.** API `/api/groups/{groupId}/members/{userId}` →
+  `src/app/api/groups/[groupId]/members/[userId]/route.ts`, one export per method the API supports
+  there, same param names. Type the context with the global `RouteContext<'/api/groups/[groupId]'>`
+  and `await ctx.params`; `encodeURIComponent` every param when building the API path.
+- **Pass-through is the default**: `return forward(request, '/api/...')`. It keeps method, query
+  string, JSON body, and client IP, and returns the API's status (200/201/204) and body untouched.
+  No BFF-side validation or casting — the API validates.
+  ```ts
+  export async function PATCH(request: Request, ctx: RouteContext<'/api/groups/[groupId]'>) {
+    const { groupId } = await ctx.params;
+    return forward(request, `/api/groups/${encodeURIComponent(groupId)}`);
+  }
+  ```
+- **Custom handlers** only when the BFF adds something (transforming, aggregating calls, touching
+  the session): `export const GET = withErrors(async (request) => { ... authFetch<T>(...) ... })`.
+- Errors are mapped once in `errorResponse`: `ApiError` → its status + the API's body (+
+  `Retry-After`); `AuthError` → `401 { error: 'unauthenticated' }`; anything else →
+  `500 { error: 'internal_error' }`. UI code branches on `error` codes, never message text.
+- Unauthenticated auth endpoints that don't touch the session (`auth/create`, `auth/verify-email`,
+  `auth/verify-email/resend`) are plain `forward`s too — with no session it sends no bearer.
+- Exceptions to mirroring/forwarding: `auth/login` (picks the email/username endpoint, creates the
+  session via `apiFetch`), `auth/logout` (revokes, destroys the session), and BFF-computed resources
+  like `avatar/me`.
+- Server components call `authFetch` directly rather than going through their own `/api` routes.
+- Every route takes and returns JSON; never `formData`.
+
+## Types
+
+- Every DTO the BFF sends or receives — requests and responses — has a type in
+  `src/lib/types/<domain>.ts` (domain = server domain: `auth`, `user`, `group`, `meeting`, …), named
+  **exactly** as the Java record (`CreateAccountRequest`, `UserProfileResponse`) with a
+  `// Mirrors server common/api/dto/X.` comment. Add them when a route gets wired, not ahead of time.
+  Update the type together with the server DTO when a contract changes.
+- Nullability: in responses, Java reference fields are `T | null`. In requests, fields without
+  `@NotBlank`/`@NotNull` are `field?: T | null`; required and primitive fields are plain `T`.
+- Shared shapes live in `types/api.ts`: `ApiErrorBody` (`{ error, message }`), `CursorPage<T>`.
+- Shapes the BFF defines itself (e.g. `LoginRequest { identifier, password }`) go in the same domain
+  file with a `// BFF-only:` comment.
+- Type JSON bodies with the DTO (`const body: CreateAccountRequest = { … }` or `satisfies`) and
+  responses via `authFetch<T>` / `apiFetch<T>`. No inline `as { message?: string }` casts.
+
+## Forms
+
+- `react-hook-form` + `zod`. The zod schema describes the *form* (it may mirror server constraints
+  for instant feedback; the API stays the authority). On submit, map form data to the request DTO
+  explicitly — `''` → `undefined` for optional fields — and POST it as JSON.
+- On failure, `readApiError(response)`, branch on `error` codes, display `message`; also `catch`
+  network errors.
 
 ## Rules
 

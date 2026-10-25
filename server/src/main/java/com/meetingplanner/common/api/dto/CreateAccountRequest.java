@@ -1,9 +1,12 @@
 package com.meetingplanner.common.api.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+
+import java.nio.charset.StandardCharsets;
 
 public record CreateAccountRequest(
         @NotBlank(message = "email is required")
@@ -23,4 +26,10 @@ public record CreateAccountRequest(
         boolean isPrivate,
         @Size(max = 64, message = "timezone must be at most 64 characters")
         String timezone
-) {}
+) {
+    // bcrypt only accepts 72 bytes; @Size counts characters, so multibyte passwords can exceed it.
+    @AssertTrue(message = "password must be at most 72 bytes")
+    public boolean isPasswordWithinBcryptLimit() {
+        return password == null || password.getBytes(StandardCharsets.UTF_8).length <= 72;
+    }
+}

@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getClientIp } from '@/lib/api-client';
+import { API_BASE_URL, getClientIp } from '@/lib/api-client';
 import { destroySession, getSession } from '@/lib/session';
-
-const API_BASE_URL =
-  process.env.API_INTERNAL_URL ?? 'http://localhost:8080';
+import type { LogoutRequest } from '@/lib/types/auth';
 
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await getSession();
@@ -19,7 +17,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       await fetch(`${API_BASE_URL}/api/auth/logout`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ refreshToken: session.refreshToken, allSessions: false }),
+        body: JSON.stringify({
+          refreshToken: session.refreshToken,
+          allSessions: false,
+        } satisfies LogoutRequest),
       });
     } catch {
       // best-effort revocation; local session is cleared regardless

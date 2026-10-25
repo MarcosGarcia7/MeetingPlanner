@@ -1,52 +1,35 @@
-import { NextResponse } from 'next/server';
-import { getClientIp } from '@/lib/api-client';
+import { apiFetch, getClientIp } from '@/lib/api-client';
+import { withErrors } from '@/lib/route-handler';
 import { createSession } from '@/lib/session';
+import type {
+  LoginEmailRequest,
+  LoginRequest,
+  LoginResponse,
+  LoginUsernameRequest,
+  TokenResponse,
+} from '@/lib/types/auth';
 
-const API_BASE_URL =
-  process.env.API_INTERNAL_URL ?? 'http://localhost:8080';
+export const POST = withErrors(async (request: Request): Promise<Response> => {
+  const { identifier = '', password = '' } = (await request
+    .json()
+    .catch(() => ({}))) as Partial<LoginRequest>;
 
-export async function POST(request: Request): Promise<NextResponse> {
-  const headers = new Headers({ 'Content-Type': 'application/json' });
-  const clientIp = getClientIp(request.headers);
-  if (clientIp) {
-    headers.set('X-Forwarded-For', clientIp);
-  }
-
-  const formData = await request.formData();
-  const identifier = String(formData.get('identifier') ?? '');
-  const password = String(formData.get('password') ?? '');
-
-  if (!identifier || !password) {
-    return NextResponse.json(
-      { error: 'validation_failed', message: 'email or username and password are required' },
-      { status: 400 }
-    );
-  }
-
+  // A missing identifier goes to the username endpoint, whose validation rejects it.
   const isEmail = identifier.includes('@');
-  const endpoint = isEmail ? '/api/auth/login/email' : '/api/auth/login/username';
-  const body = isEmail ? { email: identifier } : { username: identifier };
+  const [endpoint, body] = isEmail
+    ? ['/api/auth/login/email', { email: identifier, password } satisfies LoginEmailRequest]
+    : ['/api/auth/login/username', { username: identifier, password } satisfies LoginUsernameRequest];
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ ...body, password }),
-  });
+  const tokenResponse = await apiFetch<TokenResponse>(
+    endpoint,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    getClientIp(request.headers)
+  );
 
-  if (!response.ok) {
-    let responseBody: unknown = null;
-    try {
-      responseBody = await response.json();
-    } catch {
-      // ignore body parse errors
-    }
-    return NextResponse.json(
-      responseBody ?? { error: 'login_failed', message: 'Login failed' },
-      { status: response.status }
-    );
-  }
-
-  const tokenResponse = await response.json();
   await createSession({
     userId: tokenResponse.user.id,
     username: tokenResponse.user.username,
@@ -54,5 +37,5 @@ export async function POST(request: Request): Promise<NextResponse> {
     refreshToken: tokenResponse.refreshToken,
   });
 
-  return NextResponse.json({ user: tokenResponse.user });
-}
+  return Response.json({ user: tokenResponse.user } satisfies LoginResponse);
+});

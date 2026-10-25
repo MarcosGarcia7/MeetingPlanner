@@ -12,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,7 +93,7 @@ class UserAvailabilityServiceTest {
         when(availabilityRepository.save(any(UserAvailabilityEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var response = service.updateAvailability(2L,
-                new UserAvailabilityUpdateRequest(null, new Integer[][]{{9, 17}}, null, null, null, null, null, true));
+                new UserAvailabilityUpdateRequest(null, List.of(List.of(9, 17)), null, null, null, null, null, true));
 
         assertNotNull(response);
         assertTrue(av.isAvailabilitySet());

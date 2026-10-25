@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 
 public record MeetingInviteRequest(
         @Size(max = 20) String username,
-        @Email @Size(max = 255) String email
+        @Email @Size(max = 254) String email
 ) {
     public boolean hasUsername() {
         return username != null && !username.isBlank();

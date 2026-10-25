@@ -1,11 +1,18 @@
+import 'server-only';
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
-import { getSession, type SessionData } from './session';
+import { getSession } from './session';
 
-export const verifySession = cache(async (): Promise<SessionData> => {
+export interface SessionUser {
+  userId: number;
+  username: string;
+}
+
+// Returns only the user's identity so tokens can't be passed to client components by accident.
+export const verifySession = cache(async (): Promise<SessionUser> => {
   const session = await getSession();
   if (!session) {
     redirect('/login');
   }
-  return session;
+  return { userId: session.userId, username: session.username };
 });
