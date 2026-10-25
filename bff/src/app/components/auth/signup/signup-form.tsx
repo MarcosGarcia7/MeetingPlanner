@@ -38,21 +38,8 @@ const credentialsSchema = z.object({
       (password) => new TextEncoder().encode(password).length <= 72,
       'Password is too long; accented letters and emoji count as more than one character'
     ),
-  confirm: z
-    .string()
-    .min(12, 'Password must be at least 12 characters')
-    .max(72, 'Password cannot exceed 72 characters')
-    // bcrypt's limit is 72 bytes, so accented letters and emoji count for more than one.
-    .refine(
-      (password) => new TextEncoder().encode(password).length <= 72,
-      'Password is too long; accented letters and emoji count as more than one character'
-    ),
-}).refine(
-  (data) => data.password === data.confirm,
-  {
-    message: 'Passwords do not match',
-    path: ['confirm'],
-  });
+  confirm: z.string().min(1, 'Confirm your password'),
+});
 
 const profileSchema = z.object({
   firstName: z.string().trim().max(50, 'First name cannot exceed 50 characters').optional(),
@@ -64,6 +51,12 @@ const profileSchema = z.object({
 const fullFormSchema = z.object({
   ...credentialsSchema.shape,
   ...profileSchema.shape,
+}).refine((data) => data.password === data.confirm, {
+  message: 'Passwords do not match',
+  path: ['confirm'],
+  // Run even when other fields (e.g. email) are invalid, so every step-1 error shows at once.
+  when: (payload) =>
+    credentialsSchema.pick({password: true, confirm: true}).safeParse(payload.value).success,
 });
 type CreateFormData = z.infer<typeof fullFormSchema>;
 
@@ -97,6 +90,7 @@ export default function SignupForm() {
       email: '',
       username: '',
       password: '',
+      confirm: '',
       firstName: '',
       lastName: '',
       isPrivate: false,
@@ -200,6 +194,21 @@ export default function SignupForm() {
             {errors.password && (
               <p className={styles.error} role='alert'>
                 {errors.password.message}
+              </p>
+            )}
+
+            <label className={styles.field}>
+              <span className={styles.label}>Confirm Password *</span>
+              <input
+                type='password'
+                autoComplete='new-password'
+                {...register('confirm')}
+                className={styles.input}
+              />
+            </label>
+            {errors.confirm && (
+              <p className={styles.error} role='alert'>
+                {errors.confirm.message}
               </p>
             )}
 
