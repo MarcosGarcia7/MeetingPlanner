@@ -25,7 +25,9 @@ npx tsc --noEmit     # typecheck; there is no test suite yet
   profile, schedule, settings) with a shared `layout.tsx` + `SideNav`.
 - `src/app/api/**/route.ts` — BFF route handlers the browser calls; each one forwards to the Spring API.
 - `src/app/components/<area>/` — components, each with a co-located `*.module.css`.
-- `src/lib/session.ts` — Redis session (`sess:<uuid>`, cookie `mp_session`, httpOnly, sliding TTL).
+- `src/lib/session.ts` — Redis session (`sess:<uuid>`, cookie `mp_session`, httpOnly). Idle TTL
+  (`SESSION_TTL`) slides on every page and `/api` request: `proxy.ts` extends the Redis key and
+  re-sets the cookie (except on `auth/login`/`auth/logout`). The refresh token's lifetime caps it.
 - `src/lib/api-client.ts` — `authFetchRaw(path, init, clientIp)`: attaches the bearer token, refreshes
   once on 401, persists rotated tokens, and destroys the session if refresh fails (`AuthError`);
   returns the API `Response` as-is. `authFetch<T>` wraps it, parses JSON, and throws

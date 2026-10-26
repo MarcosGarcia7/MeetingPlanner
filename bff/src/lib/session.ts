@@ -11,6 +11,14 @@ const COOKIE_SECURE =
 
 export const SESSION_COOKIE = 'mp_session';
 
+export const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: COOKIE_SECURE,
+  sameSite: 'lax',
+  path: '/',
+  maxAge: SESSION_TTL_SECONDS,
+} as const;
+
 export interface SessionData {
   userId: number;
   username: string;
@@ -28,13 +36,7 @@ export async function createSession(data: SessionData): Promise<string> {
   );
 
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, sessionId, {
-    httpOnly: true,
-    secure: COOKIE_SECURE,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: SESSION_TTL_SECONDS,
-  });
+  cookieStore.set(SESSION_COOKIE, sessionId, SESSION_COOKIE_OPTIONS);
 
   return sessionId;
 }
@@ -66,12 +68,11 @@ export async function destroySession(): Promise<void> {
   cookieStore.delete(SESSION_COOKIE);
 }
 
-export async function refreshSessionTtl(): Promise<void> {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!sessionId) return;
-
-  await getRedis().expire(`${SESSION_PREFIX}${sessionId}`, SESSION_TTL_SECONDS);
+// Extends the Redis TTL only; the caller re-sets the cookie (proxy does it on its response). Returns
+// false if the session no longer exists, so an expired session is never revived.
+export async function refreshSessionTtl(sessionId: string): Promise<boolean> {
+  const updated = await getRedis().expire(`${SESSION_PREFIX}${sessionId}`, SESSION_TTL_SECONDS);
+  return updated === 1;
 }
 
 export async function updateSession(sessionId: string, data: SessionData): Promise<void> {

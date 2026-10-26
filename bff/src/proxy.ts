@@ -1,14 +1,32 @@
 import {NextResponse} from 'next/server';
 import type {NextRequest} from 'next/server';
-import {getSession} from '@/lib/session';
+import {refreshSessionTtl, SESSION_COOKIE, SESSION_COOKIE_OPTIONS} from '@/lib/session';
 
 const protectedRoutes = ['/dashboard'];
 
 const authRoutes = ['/login', '/signup'];
 
+const sessionLifecycleRoutes = ['/api/auth/login', '/api/auth/logout'];
+
 export async function proxy(request: NextRequest) {
   const {pathname} = request.nextUrl;
-  const hasSession = (await getSession()) !== null;
+  if (sessionLifecycleRoutes.includes(pathname)) {
+    return NextResponse.next();
+  }
+
+  // Every request with a live session counts as activity and slides its idle TTL.
+  const sessionId = request.cookies.get(SESSION_COOKIE)?.value;
+  const hasSession = sessionId ? await refreshSessionTtl(sessionId) : false;
+
+  const response = route(request, hasSession);
+  if (sessionId && hasSession) {
+    response.cookies.set(SESSION_COOKIE, sessionId, SESSION_COOKIE_OPTIONS);
+  }
+  return response;
+}
+
+function route(request: NextRequest, hasSession: boolean): NextResponse {
+  const {pathname} = request.nextUrl;
 
   const isProtectedRoute = protectedRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
@@ -18,31 +36,29 @@ export async function proxy(request: NextRequest) {
   );
 
   if (isProtectedRoute && !hasSession) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.search = '';
-    return NextResponse.redirect(url);
+    return redirectTo(request, '/login');
   }
 
   if (isAuthRoute && hasSession) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    url.search = '';
-    return NextResponse.redirect(url);
+    return redirectTo(request, '/dashboard');
   }
 
   if (pathname === '/' && hasSession) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    url.search = '';
-    return NextResponse.redirect(url);
+    return redirectTo(request, '/dashboard');
   }
 
   return NextResponse.next();
 }
 
+function redirectTo(request: NextRequest, pathname: string): NextResponse {
+  const url = request.nextUrl.clone();
+  url.pathname = pathname;
+  url.search = '';
+  return NextResponse.redirect(url);
+}
+
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };
