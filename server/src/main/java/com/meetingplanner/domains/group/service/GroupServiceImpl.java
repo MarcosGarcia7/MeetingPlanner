@@ -359,6 +359,8 @@ public class GroupServiceImpl implements GroupService {
                 invite.getRecipient() == null ? null : invite.getRecipient().getId(),
                 invite.getRecipientEmail(),
                 invite.getGroup() == null ? null : invite.getGroup().getId(),
+                invite.getGroup() == null ? null : invite.getGroup().getGroupName(),
+                null,
                 null,
                 List.of());
     }

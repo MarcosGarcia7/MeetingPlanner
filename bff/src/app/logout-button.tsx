@@ -1,11 +1,9 @@
 'use client';
 
-import {useRouter} from 'next/navigation';
 import {useState} from 'react';
 import styles from './header.module.css';
 
 export default function LogoutButton() {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function handleLogout() {
@@ -14,9 +12,10 @@ export default function LogoutButton() {
     try {
       await fetch('/api/auth/logout', {method: 'POST'});
     } finally {
-      setPending(false);
-      router.push('/');
-      router.refresh();
+      // Full page load, not a client-side navigation: drops the router cache, loaded images, and
+      // React state from this account so none of it can show up for the next one.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- reload is the point
+      window.location.assign('/');
     }
   }
 

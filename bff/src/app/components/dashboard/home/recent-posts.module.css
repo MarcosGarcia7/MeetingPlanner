@@ -1,0 +1,17 @@
+.author {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.body {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}

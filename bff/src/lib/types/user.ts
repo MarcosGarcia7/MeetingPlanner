@@ -6,7 +6,7 @@ export interface UserProfileResponse {
   firstName: string | null;
   lastName: string | null;
   avatarColor: string;
-  timezone: string;
+  timezone: string | null;
   isPrivate: boolean;
   friendsCanViewSchedule: boolean;
   emailVerified: boolean;

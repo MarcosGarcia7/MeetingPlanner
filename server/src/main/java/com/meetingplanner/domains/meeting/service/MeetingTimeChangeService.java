@@ -18,6 +18,7 @@ import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +43,7 @@ import java.util.Optional;
 public class MeetingTimeChangeService {
 
     private static final String CATEGORY = "meeting_updates";
+    private static final int AWAITING_VOTE_LIMIT = 20;
 
     private final MeetingRepository meetingRepository;
     private final MeetingTimeChangeProposalRepository proposalRepository;
@@ -233,6 +235,14 @@ public class MeetingTimeChangeService {
         return true;
     }
 
+    /** Pending proposals the user still has to vote on, oldest first. */
+    @Transactional(readOnly = true)
+    public List<TimeChangeProposalResponse> listAwaitingVote(long userId) {
+        return proposalRepository.findAwaitingVote(userId, PageRequest.of(0, AWAITING_VOTE_LIMIT)).stream()
+                .map(proposal -> toResponse(proposal, userId))
+                .toList();
+    }
+
     private TimeChangeProposalResponse toResponse(MeetingTimeChangeProposalEntity proposal, long viewerId) {
         MeetingEntity meeting = proposal.getMeeting();
         VoteStatus myVote = voteRepository.findByProposalIdAndUserId(proposal.getId(), viewerId)
@@ -246,6 +256,7 @@ public class MeetingTimeChangeService {
         return new TimeChangeProposalResponse(
                 proposal.getId(),
                 meeting.getId(),
+                meeting.getTitle(),
                 proposal.getProposedBy() == null ? null : proposal.getProposedBy().getId(),
                 proposal.getProposedBy() == null ? null : proposal.getProposedBy().getUsername(),
                 proposal.getProposedStartTime(),

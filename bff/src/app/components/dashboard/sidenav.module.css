@@ -14,7 +14,7 @@
 }
 
 .currentNavLink {
-  background-color: var(--surface);
+  background-color: var(--nav-current);
   color: var(--text-primary);
   transition: color 0.2s ease-in-out, transform 0.1s ease;
 }
@@ -26,6 +26,10 @@
 
 .navLink:active {
   transform: scale(0.98);
+}
+
+.navBadge {
+  margin-left: auto;
 }
 
 .linkIcon {

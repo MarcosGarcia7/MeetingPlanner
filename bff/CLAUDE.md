@@ -126,6 +126,8 @@ npx tsc --noEmit     # typecheck; there is no test suite yet
 - Mark interactive components `'use client'`; keep pages as server components where possible.
 - Import with the `@/` alias (`@/lib/...`, `@/app/components/...`).
 - Security headers/CSP are set in `next.config.ts`; images must be self-hosted or `data:`/`blob:`.
-- Some dashboard components still render placeholder data (e.g. `upcoming-meetings.tsx`); when wiring
-  them up, add a BFF route under `src/app/api/` rather than fetching from the client to the API.
+- When wiring dashboard components to data, server components call `authFetch` directly; client
+  components need a BFF route under `src/app/api/` rather than fetching from the client to the API.
+- Dates on dashboard pages are formatted in the profile timezone (`'UTC'` when unset) via
+  `components/dashboard/home/format.ts`, so server and client render identical text.
 - Server endpoints available to wire up are listed in `../API_ENDPOINTS.md`.

@@ -83,7 +83,7 @@ public class InviteServiceImpl implements InviteService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPage<InviteResponse> listMine(long userId, String cursor, int size) {
+    public CursorPage<InviteResponse> listMine(long userId, InviteStatus status, String cursor, int size) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -94,10 +94,10 @@ public class InviteServiceImpl implements InviteService {
         Long cursorId = decoded == null ? null : decoded.id();
 
         List<GroupInviteEntity> groupInvites = groupInviteRepository.listForRecipient(
-                userId, user.getEmail(), "GROUP", cursorTime, cursorKind, cursorId,
+                userId, user.getEmail(), status, "GROUP", cursorTime, cursorKind, cursorId,
                 PageRequest.of(0, limit + 1));
         List<MeetingInviteEntity> meetingInvites = meetingInviteRepository.listForRecipient(
-                userId, user.getEmail(), "MEETING", cursorTime, cursorKind, cursorId,
+                userId, user.getEmail(), status, "MEETING", cursorTime, cursorKind, cursorId,
                 PageRequest.of(0, limit + 1));
 
         List<FeedEntry> entries = new ArrayList<>();
@@ -431,6 +431,8 @@ public class InviteServiceImpl implements InviteService {
                 invite.getRecipient() == null ? null : invite.getRecipient().getId(),
                 invite.getRecipientEmail(),
                 group == null ? null : group.getId(),
+                group == null ? null : group.getGroupName(),
+                null,
                 null,
                 List.of());
     }
@@ -446,7 +448,9 @@ public class InviteServiceImpl implements InviteService {
                 invite.getRecipient() == null ? null : invite.getRecipient().getId(),
                 invite.getRecipientEmail(),
                 null,
+                null,
                 invite.getMeeting() == null ? null : invite.getMeeting().getId(),
+                invite.getMeeting() == null ? null : invite.getMeeting().getTitle(),
                 List.of());
     }
 }

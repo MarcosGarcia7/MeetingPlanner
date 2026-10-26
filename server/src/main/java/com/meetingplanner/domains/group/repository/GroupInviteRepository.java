@@ -19,7 +19,7 @@ public interface GroupInviteRepository extends JpaRepository<GroupInviteEntity, 
     @Query("""
             select gi from GroupInviteEntity gi
             where gi.group.id = :groupId
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or gi.timeSent < :cursorTime
                    or (gi.timeSent = :cursorTime and gi.id < :cursorId))
             order by gi.timeSent desc, gi.id desc
@@ -32,12 +32,13 @@ public interface GroupInviteRepository extends JpaRepository<GroupInviteEntity, 
     @Query("""
             select gi from GroupInviteEntity gi
             where (gi.recipient.id = :userId or gi.recipientEmail = :email)
+              and (:status is null or gi.status = :status)
               and not exists (
                   select 1 from FriendshipEntity f
                   where f.status = 'BLOCKED'
                     and ((f.user.id = :userId and f.friend.id = gi.sender.id)
                          or (f.friend.id = :userId and f.user.id = gi.sender.id)))
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or gi.timeSent < :cursorTime
                    or (gi.timeSent = :cursorTime
                        and (:cursorKind > :sourceKind
@@ -46,6 +47,7 @@ public interface GroupInviteRepository extends JpaRepository<GroupInviteEntity, 
             """)
     List<GroupInviteEntity> listForRecipient(@Param("userId") Long userId,
                                              @Param("email") String email,
+                                             @Param("status") InviteStatus status,
                                              @Param("sourceKind") String sourceKind,
                                              @Param("cursorTime") OffsetDateTime cursorTime,
                                              @Param("cursorKind") String cursorKind,

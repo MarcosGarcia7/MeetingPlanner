@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 public record MeetingSummaryResponse(
         Long id,
         Long groupId,
+        String groupName,
         Long creatorId,
         OffsetDateTime startTime,
         OffsetDateTime endTime,

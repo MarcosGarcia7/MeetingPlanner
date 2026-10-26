@@ -17,7 +17,7 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     @Query("""
             select n from NotificationEntity n
             where n.user.id = :userId
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or n.createdAt < :cursorTime
                    or (n.createdAt = :cursorTime and n.id < :cursorId))
             order by n.createdAt desc, n.id desc

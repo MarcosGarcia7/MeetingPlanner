@@ -97,6 +97,25 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
+    public CursorPage<PostResponse> listRecent(long userId, String cursor, int size) {
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        List<GroupPostEntity> rows = postRepository.listRecentForMember(
+                userId,
+                decoded == null ? null : decoded.time(),
+                decoded == null ? null : decoded.id(),
+                PageRequest.of(0, limit + 1));
+
+        boolean hasMore = rows.size() > limit;
+        List<GroupPostEntity> page = hasMore ? rows.subList(0, limit) : rows;
+        List<PostResponse> items = page.stream().map(PostResponse::from).toList();
+        String nextCursor = hasMore && !page.isEmpty()
+                ? CursorCodec.encode(page.getLast().getCreatedAt(), page.getLast().getId())
+                : null;
+        return new CursorPage<>(items, nextCursor);
+    }
+
+    @Transactional(readOnly = true)
     public CursorPage<PostCommentResponse> listComments(long userId, long groupId, long postId, String cursor, int size) {
         GroupEntity group = requireGroup(groupId);
         requireMember(group, userId);

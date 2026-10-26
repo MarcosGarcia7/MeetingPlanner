@@ -315,4 +315,31 @@ class MeetingTimeChangeServiceTest {
         assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
         verifyNoInteractions(voteRepository, notificationService);
     }
+
+    @Test
+    void listAwaitingVoteMapsPendingProposalsWithMeetingTitle() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice, alice, bob);
+        MeetingTimeChangeProposalEntity proposal = proposal(20L, meeting, alice,
+                OffsetDateTime.parse("2026-10-21T10:00:00Z"));
+        when(proposalRepository.findAwaitingVote(eq(2L), any())).thenReturn(List.of(proposal));
+        when(voteRepository.findByProposalIdAndUserId(20L, 2L)).thenReturn(Optional.of(vote(proposal, bob)));
+
+        List<TimeChangeProposalResponse> result = service.listAwaitingVote(2L);
+
+        assertEquals(1, result.size());
+        assertEquals(20L, result.getFirst().id());
+        assertEquals("Test meeting", result.getFirst().meetingTitle());
+        assertEquals("alice", result.getFirst().proposedByUsername());
+        assertEquals(VoteStatus.PENDING, result.getFirst().myVote());
+    }
+
+    @Test
+    void listAwaitingVoteIsEmptyWhenNothingPending() {
+        when(proposalRepository.findAwaitingVote(eq(2L), any())).thenReturn(List.of());
+
+        assertEquals(List.of(), service.listAwaitingVote(2L));
+        verifyNoInteractions(conflictService);
+    }
 }

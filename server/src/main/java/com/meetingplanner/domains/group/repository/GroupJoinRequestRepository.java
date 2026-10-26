@@ -19,7 +19,7 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
     @Query("""
             select r from GroupJoinRequestEntity r
             where r.group.id = :groupId
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or r.timeSent < :cursorTime
                    or (r.timeSent = :cursorTime and r.id < :cursorId))
             order by r.timeSent desc, r.id desc
@@ -32,7 +32,7 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
     @Query("""
             select r from GroupJoinRequestEntity r
             where r.requester.id = :requesterId
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or r.timeSent < :cursorTime
                    or (r.timeSent = :cursorTime
                        and (:cursorKind > :sourceKind

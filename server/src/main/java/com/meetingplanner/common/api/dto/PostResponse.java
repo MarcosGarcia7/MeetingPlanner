@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 public record PostResponse(
         Long id,
         Long groupId,
+        String groupName,
         Long authorId,
         String authorUsername,
         String body,
@@ -18,6 +19,7 @@ public record PostResponse(
         return new PostResponse(
                 post.getId(),
                 post.getGroup().getId(),
+                post.getGroup().getGroupName(),
                 post.getAuthor().getId(),
                 post.getAuthor().getUsername(),
                 post.getBody(),

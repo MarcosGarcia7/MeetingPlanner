@@ -1,32 +1,50 @@
-'use client';
+import Link from 'next/link';
+import type {MeetingSummaryResponse} from '@/lib/types/meeting';
+import {formatMeetingTime} from './format';
+import styles from './home.module.css';
+import meetingStyles from './upcoming-meetings.module.css';
 
-import Table, {type Column} from '@/app/components/common/table';
-
-interface Meeting {
-  id: number;
-  name: string;
-  creator: string;
+interface UpcomingMeetingsProps {
+  meetings: MeetingSummaryResponse[] | null;
+  timeZone?: string;
 }
 
-export default function UpcomingMeetings() {
-
-  const meetings: Meeting[] = [
-    {id: 1, name: 'meeting', creator: 'me'},
-    {id: 2, name: 'meeting', creator: 'me'},
-    {id: 3, name: 'meeting', creator: 'me'},
-    {id: 4, name: 'meeting', creator: 'me'},
-    {id: 5, name: 'meeting', creator: 'me'},
-    {id: 6, name: 'meeting', creator: 'me'},
-  ];
-
+export default function UpcomingMeetings({meetings, timeZone}: UpcomingMeetingsProps) {
   return (
-    <Table<Meeting>
-      title='Upcoming Meetings'
-      columns={[
-        {key: 'name', header: 'Name', type: 'string'},
-        {key: 'creator', header: 'Creator', type: 'string'},
-      ]}
-      data={meetings}
-    />
-  )
+    <section className={styles.card}>
+      <div className={styles.cardHeader}>
+        <h2 className={styles.cardTitle}>Upcoming meetings</h2>
+      </div>
+      {meetings === null ? (
+        <p className={styles.error}>Couldn’t load your meetings.</p>
+      ) : meetings.length === 0 ? (
+        <p className={styles.empty}>
+          Nothing scheduled. <Link href='/dashboard/schedule' className={styles.cardLink}>Plan one</Link>
+        </p>
+      ) : (
+        <ul className={styles.cardList}>
+          {meetings.map((meeting) => {
+            const {day, time} = formatMeetingTime(meeting.startTime, meeting.endTime, timeZone);
+            const details = [
+              meeting.groupName,
+              meeting.location,
+              `${meeting.participantCount} ${meeting.participantCount === 1 ? 'person' : 'people'}`,
+            ].filter(Boolean).join(' · ');
+            return (
+              <li key={meeting.id}>
+                <Link href={`/dashboard/schedule?meeting=${meeting.id}`} className={styles.itemCard}>
+                  <time dateTime={meeting.startTime} className={meetingStyles.date}>{day}</time>
+                  <div className={styles.itemBody}>
+                    <span className={styles.itemTitle}>{meeting.title}</span>
+                    <span className={styles.meta}>{time}</span>
+                    <span className={styles.meta}>{details}</span>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
 }

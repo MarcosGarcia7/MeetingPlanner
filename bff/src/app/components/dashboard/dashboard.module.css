@@ -18,3 +18,18 @@
   min-height: 0;
   overflow-y: auto;
 }
+
+/* Count pill, e.g. unread notifications on the Inbox link. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+}

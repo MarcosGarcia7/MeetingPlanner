@@ -436,6 +436,7 @@ public class MeetingServiceImpl implements MeetingService {
         return new MeetingSummaryResponse(
                 m.getId(),
                 m.getGroup() == null ? null : m.getGroup().getId(),
+                m.getGroup() == null ? null : m.getGroup().getGroupName(),
                 m.getCreator().getId(),
                 m.getStartTime(),
                 m.getEndTime(),
@@ -681,7 +682,9 @@ public class MeetingServiceImpl implements MeetingService {
                 invite.getRecipient() == null ? null : invite.getRecipient().getId(),
                 invite.getRecipientEmail(),
                 null,
+                null,
                 invite.getMeeting() == null ? null : invite.getMeeting().getId(),
+                invite.getMeeting() == null ? null : invite.getMeeting().getTitle(),
                 warnings);
     }
 }

@@ -14,8 +14,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/api/meetings/{meetingId}/time-change")
+@RequestMapping("/api/meetings")
 public class MeetingTimeChangeController {
 
     private final MeetingTimeChangeService timeChangeService;
@@ -24,12 +26,17 @@ public class MeetingTimeChangeController {
         this.timeChangeService = timeChangeService;
     }
 
-    @GetMapping
+    @GetMapping("/time-changes/pending")
+    public List<TimeChangeProposalResponse> listAwaitingVote(@AuthenticationPrincipal Jwt jwt) {
+        return timeChangeService.listAwaitingVote(CurrentUser.from(jwt).id());
+    }
+
+    @GetMapping("/{meetingId}/time-change")
     public TimeChangeProposalResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId) {
         return timeChangeService.getProposal(CurrentUser.from(jwt).id(), meetingId);
     }
 
-    @PostMapping("/{proposalId}/vote")
+    @PostMapping("/{meetingId}/time-change/{proposalId}/vote")
     public TimeChangeProposalResponse vote(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId,
                                            @PathVariable long proposalId,
                                            @Valid @RequestBody TimeChangeVoteRequest request) {
@@ -37,7 +44,7 @@ public class MeetingTimeChangeController {
                 Boolean.TRUE.equals(request.approve()));
     }
 
-    @PostMapping("/{proposalId}/cancel")
+    @PostMapping("/{meetingId}/time-change/{proposalId}/cancel")
     public TimeChangeProposalResponse cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId,
                                              @PathVariable long proposalId) {
         return timeChangeService.cancel(CurrentUser.from(jwt).id(), meetingId, proposalId);

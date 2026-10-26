@@ -18,9 +18,17 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     boolean existsByEmail(String email);
     Long findIdByUsername(String username);
 
+    // Hides the viewer, unverified accounts, and anyone in a BLOCKED pair with the viewer (either direction).
     @Query("""
             select u from UserEntity u
-            where (lower(u.username) like :pattern escape '!'
+            where u.id <> :viewerId
+              and u.emailVerifiedAt is not null
+              and not exists (
+                   select 1 from FriendshipEntity f
+                   where f.status = 'BLOCKED'
+                     and ((f.user.id = :viewerId and f.friend.id = u.id)
+                          or (f.user.id = u.id and f.friend.id = :viewerId)))
+              and (lower(u.username) like :pattern escape '!'
                    or lower(coalesce(u.firstName, '')) like :pattern escape '!'
                    or lower(coalesce(u.lastName, '')) like :pattern escape '!'
                    or lower(concat(coalesce(u.firstName, ''), ' ', coalesce(u.lastName, ''))) like :pattern escape '!')
@@ -29,7 +37,8 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
                    or (lower(u.username) = :cursorValue and u.id > :cursorId))
             order by lower(u.username) asc, u.id asc
             """)
-    List<UserEntity> search(@Param("pattern") String pattern,
+    List<UserEntity> search(@Param("viewerId") Long viewerId,
+                            @Param("pattern") String pattern,
                             @Param("cursorValue") String cursorValue,
                             @Param("cursorId") Long cursorId,
                             Pageable pageable);

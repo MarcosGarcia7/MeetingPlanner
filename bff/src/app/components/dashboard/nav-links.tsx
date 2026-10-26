@@ -13,6 +13,7 @@ import {
   UserIcon
 } from '@heroicons/react/24/solid';
 import {usePathname} from 'next/navigation';
+import CountBadge from '@/app/components/dashboard/count-badge';
 import styles from './sidenav.module.css';
 import clsx from 'clsx';
 
@@ -59,7 +60,7 @@ const links = [
   }
 ]
 
-export default function NavLinks() {
+export default function NavLinks({unread}: { unread: number }) {
   const pathname = usePathname();
 
   return (
@@ -77,6 +78,11 @@ export default function NavLinks() {
             >
               <LinkIcon className={styles.linkIcon}/>
               <p className={styles.name}>{link.name}</p>
+              {link.href === '/dashboard/inbox' && (
+                <span className={styles.navBadge}>
+                  <CountBadge count={unread} label='unread notifications'/>
+                </span>
+              )}
             </Link>
           );
         }

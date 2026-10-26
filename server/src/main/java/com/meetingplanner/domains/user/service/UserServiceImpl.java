@@ -10,6 +10,9 @@ import com.meetingplanner.common.api.dto.UserProfileUpdateRequest;
 import com.meetingplanner.common.api.dto.UserSearchResult;
 import com.meetingplanner.common.api.exceptions.EmailTakenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
+import com.meetingplanner.common.api.model.UserRelationship;
+import com.meetingplanner.domains.friend.model.FriendshipEntity;
+import com.meetingplanner.domains.friend.repository.FriendshipRepository;
 import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.AccountTokenType;
 import com.meetingplanner.domains.user.model.UserEntity;
@@ -20,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -28,15 +32,18 @@ import java.util.Map;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final FriendshipRepository friendshipRepository;
     private final AccountTokenService accountTokenService;
     private final NotificationService notificationService;
     private final JtiStorageService jtiStorageService;
 
     public UserServiceImpl(UserRepository userRepository,
+                           FriendshipRepository friendshipRepository,
                            AccountTokenService accountTokenService,
                            NotificationService notificationService,
                            JtiStorageService jtiStorageService) {
         this.userRepository = userRepository;
+        this.friendshipRepository = friendshipRepository;
         this.accountTokenService = accountTokenService;
         this.notificationService = notificationService;
         this.jtiStorageService = jtiStorageService;
@@ -93,11 +100,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPage<UserSearchResult> search(String query, String cursor, int size) {
+    public CursorPage<UserSearchResult> search(long userId, String query, String cursor, int size) {
         SearchQuery search = SearchQuery.parse(query);
         int limit = CursorCodec.clampSize(size);
         SearchCursorCodec.Cursor decoded = SearchCursorCodec.decode(cursor);
         List<UserEntity> rows = userRepository.search(
+                userId,
                 search.pattern(),
                 decoded == null ? null : decoded.value(),
                 decoded == null ? null : decoded.id(),
@@ -105,7 +113,10 @@ public class UserServiceImpl implements UserService {
 
         boolean hasMore = rows.size() > limit;
         List<UserEntity> page = hasMore ? rows.subList(0, limit) : rows;
-        List<UserSearchResult> items = page.stream().map(UserServiceImpl::toSearchResult).toList();
+        Map<Long, UserRelationship> relationships = relationshipsWith(userId, page);
+        List<UserSearchResult> items = page.stream()
+                .map(user -> toSearchResult(user, relationships.getOrDefault(user.getId(), UserRelationship.NONE)))
+                .toList();
         String nextCursor = hasMore && !page.isEmpty()
                 ? SearchCursorCodec.encode(page.getLast().getUsername().toLowerCase(Locale.ROOT), page.getLast().getId())
                 : null;
@@ -160,13 +171,37 @@ public class UserServiceImpl implements UserService {
         return user.getUsername();
     }
 
-    private static UserSearchResult toSearchResult(UserEntity user) {
+    private Map<Long, UserRelationship> relationshipsWith(long userId, List<UserEntity> users) {
+        if (users.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = users.stream().map(UserEntity::getId).toList();
+        Map<Long, UserRelationship> relationships = new HashMap<>();
+        for (FriendshipEntity friendship : friendshipRepository.findBetweenUserAnd(userId, ids)) {
+            long otherId = friendship.getUser().getId() == userId
+                    ? friendship.getFriend().getId()
+                    : friendship.getUser().getId();
+            // DECLINED maps to NONE: either side may send a fresh request.
+            UserRelationship relationship = switch (friendship.getStatus()) {
+                case ACCEPTED -> UserRelationship.FRIENDS;
+                case PENDING -> friendship.getRequester().getId() == userId
+                        ? UserRelationship.REQUEST_SENT
+                        : UserRelationship.REQUEST_RECEIVED;
+                case DECLINED, BLOCKED -> UserRelationship.NONE;
+            };
+            relationships.put(otherId, relationship);
+        }
+        return relationships;
+    }
+
+    private static UserSearchResult toSearchResult(UserEntity user, UserRelationship relationship) {
         return new UserSearchResult(
                 user.getId(),
                 user.getUsername(),
                 user.getFirstName(),
                 user.getLastName(),
-                user.getAvatarColor());
+                user.getAvatarColor(),
+                relationship);
     }
 
     private UserProfileResponse toProfile(UserEntity user, boolean includeEmail) {

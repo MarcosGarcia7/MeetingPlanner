@@ -13,7 +13,9 @@ public record InviteResponse(
         Long recipientId,
         String recipientEmail,
         Long groupId,
+        String groupName,
         Long meetingId,
+        String meetingTitle,
         List<String> warnings
 ) {
 }

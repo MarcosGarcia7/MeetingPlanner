@@ -30,10 +30,11 @@ public class SearchController {
     }
 
     @GetMapping("/users")
-    public CursorPage<UserSearchResult> users(@RequestParam String q,
+    public CursorPage<UserSearchResult> users(@AuthenticationPrincipal Jwt jwt,
+                                              @RequestParam String q,
                                               @RequestParam(required = false) String cursor,
                                               @RequestParam(defaultValue = "20") int size) {
-        return userService.search(q, cursor, size);
+        return userService.search(CurrentUser.from(jwt).id(), q, cursor, size);
     }
 
     @GetMapping("/groups")

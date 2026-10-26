@@ -24,7 +24,7 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
                   where f.status = 'BLOCKED'
                     and ((f.user.id = :viewerId and f.friend.id = r.requester.id)
                          or (f.friend.id = :viewerId and f.user.id = r.requester.id)))
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or r.timeSent < :cursorTime
                    or (r.timeSent = :cursorTime and r.id < :cursorId))
             order by r.timeSent desc, r.id desc
@@ -43,7 +43,7 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
                   where f.status = 'BLOCKED'
                     and ((f.user.id = :requesterId and f.friend.id = r.meeting.creator.id)
                          or (f.friend.id = :requesterId and f.user.id = r.meeting.creator.id)))
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or r.timeSent < :cursorTime
                    or (r.timeSent = :cursorTime
                        and (:cursorKind > :sourceKind

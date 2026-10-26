@@ -33,7 +33,7 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
             join m.participants p
             where p.user.id = :userId
               and (:groupId is null or m.group.id = :groupId)
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or m.startTime < :cursorTime
                    or (m.startTime = :cursorTime and m.id < :cursorId))
             order by m.startTime desc, m.id desc
@@ -47,7 +47,7 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
     @Query("""
             select m from MeetingEntity m
             where m.creator.id = :userId
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or m.startTime < :cursorTime
                    or (m.startTime = :cursorTime and m.id < :cursorId))
             order by m.startTime desc, m.id desc
@@ -65,7 +65,7 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
                    or m.creator.id = :userId
                    or exists (select 1 from MeetingParticipantEntity p
                               where p.meeting = m and p.user.id = :userId))
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or m.startTime < :cursorTime
                    or (m.startTime = :cursorTime and m.id < :cursorId))
             order by m.startTime desc, m.id desc
@@ -82,7 +82,7 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
             join m.participants p
             where p.user.id = :userId
               and (:publicOnly = false or m.isPrivate = false)
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or m.startTime < :cursorTime
                    or (m.startTime = :cursorTime and m.id < :cursorId))
             order by m.startTime desc, m.id desc
@@ -146,7 +146,7 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
                                 and (g.owner.id = :userId
                                      or exists (select 1 from GroupMemberEntity gm
                                                 where gm.group = g and gm.user.id = :userId and gm.isAdmin = true))))))
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or m.startTime < :cursorTime
                    or (m.startTime = :cursorTime and m.id < :cursorId))
             order by m.startTime desc, m.id desc

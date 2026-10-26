@@ -1,6 +1,6 @@
 # Server API Endpoints
 
-96 endpoints across 14 controllers, generated from the Spring controllers in
+98 endpoints across 15 controllers, generated from the Spring controllers in
 `server/src/main/java/com/meetingplanner/domains/*/controller`.
 
 ## AuthController (9)
@@ -66,7 +66,7 @@
 
 | Method | Path | Handler |
 | --- | --- | --- |
-| GET | `/api/invites` | `listMine` |
+| GET | `/api/invites` (`?status=` optional) | `listMine` |
 | POST | `/api/invites/group/{inviteId}/accept` | `acceptGroupInvite` |
 | POST | `/api/invites/group/{inviteId}/decline` | `declineGroupInvite` |
 | POST | `/api/invites/meeting/{inviteId}/accept` | `acceptMeetingInvite` |
@@ -114,10 +114,11 @@
 | POST | `/api/meetings/{meetingId}/join-requests` | `requestJoin` |
 | GET | `/api/meetings/{meetingId}/join-requests` | `listJoinRequests` |
 
-## MeetingTimeChangeController (3)
+## MeetingTimeChangeController (4)
 
 | Method | Path | Handler |
 | --- | --- | --- |
+| GET | `/api/meetings/time-changes/pending` | `listAwaitingVote` |
 | GET | `/api/meetings/{meetingId}/time-change` | `get` |
 | POST | `/api/meetings/{meetingId}/time-change/{proposalId}/vote` | `vote` |
 | POST | `/api/meetings/{meetingId}/time-change/{proposalId}/cancel` | `cancel` |
@@ -137,6 +138,12 @@
 | --- | --- | --- |
 | GET | `/api/users/me/notification-preferences` | `get` |
 | PUT | `/api/users/me/notification-preferences` | `update` |
+
+## PostFeedController (1)
+
+| Method | Path | Handler |
+| --- | --- | --- |
+| GET | `/api/posts/recent` | `listRecent` |
 
 ## PostController (8)
 

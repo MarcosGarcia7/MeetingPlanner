@@ -1,28 +1,28 @@
 /* Design tokens. Modules use only these for colors; define every token in both blocks. */
 :root {
-  --background: #f6f7f9;
+  --background: #f5f7fa;
   --surface: #fff;
-  --surface-muted: #f3f4f6;
+  --surface-muted: #eef2f7;
   --input-background: #fff;
 
-  --text-primary: #000;
-  --text-secondary: #666;
-  --text-muted: #9ca3af;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
   --text-on-accent: #fff;
 
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
-  --button-secondary-border: #ebebeb;
-  --button-neutral: #808080;
+  --button-primary-hover: #1e293b;
+  --button-secondary-hover: #f1f5f9;
+  --button-secondary-border: #e2e8f0;
+  --button-neutral: #64748b;
 
-  --nav-background: #a4a4aa;
-  --nav-hover-background: #818185;
-  --nav-hover-text: #374151;
+  --nav-background: #e8edf5;
+  --nav-hover-background: #d5deec;
+  --nav-hover-text: #0f172a;
 
-  --accent: #0047AB;
+  --accent: #0047ab;
   --danger: #dc2626;
-  --border: #e5e7eb;
-  --card-shadow: 0 12px 32px rgb(0 0 0 / 6%);
+  --border: #e2e8f0;
+  --card-shadow: 0 12px 32px rgb(15 23 42 / 6%);
 
   /* Derived from other tokens, so it follows them into dark mode. */
   --accent-subtle: color-mix(in srgb, var(--accent) 10%, var(--surface));
@@ -30,27 +30,30 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --surface: #202035;
-    --surface-muted: #2a2f45;
-    --input-background: #303854;
+    --background: #2c2b2b;
+    --surface: #232222;
+    --surface-muted: #2e3947;
+    --input-background: #2f2f30;
 
-    --text-primary: #B2BEB5;
-    --text-secondary: #999;
-    --text-muted: #6b7280;
-    --text-on-accent: #fff;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-on-accent: #c1cee8;
 
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
-    --button-neutral: #808080;
+    --button-primary-hover: #cbd5e1;
+    --button-secondary-hover: #1e293b;
+    --button-secondary-border: #2a3650;
+    --button-neutral: #94a3b8;
 
     --nav-background: #232222;
-    --nav-hover-background: #232937;
-    --nav-hover-text: #6b7280;
+    --nav-current: #1c1b1b;
+    --nav-hover-background: #201f1f;
+    --nav-hover-text: #f1f5f9;
 
-    --border: #1f2937;
-    --card-shadow: 0 12px 32px rgb(0 0 0 / 40%);
+    --accent: #2353c3;
+    --danger: #f87171;
+    --border: #5c5f65;
+    --card-shadow: 0 12px 32px rgb(0 0 0 / 45%);
   }
 }
 

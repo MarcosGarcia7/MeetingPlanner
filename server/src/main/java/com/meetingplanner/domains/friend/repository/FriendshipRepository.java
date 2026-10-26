@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,7 +45,7 @@ public interface FriendshipRepository extends JpaRepository<FriendshipEntity, Fr
             select f from FriendshipEntity f
             where f.status = :status
               and f.user.id = :userId
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or f.createdAt < :cursorTime
                    or (f.createdAt = :cursorTime and f.friend.id < :cursorId))
             order by f.createdAt desc, f.friend.id desc
@@ -59,7 +60,7 @@ public interface FriendshipRepository extends JpaRepository<FriendshipEntity, Fr
             select f from FriendshipEntity f
             where f.status = :status
               and f.friend.id = :userId
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or f.createdAt < :cursorTime
                    or (f.createdAt = :cursorTime and f.user.id < :cursorId))
             order by f.createdAt desc, f.user.id desc
@@ -76,7 +77,7 @@ public interface FriendshipRepository extends JpaRepository<FriendshipEntity, Fr
               and f.user.id = :userId
               and ((:incoming = true and f.requester.id <> :userId)
                    or (:incoming = false and f.requester.id = :userId))
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or f.createdAt < :cursorTime
                    or (f.createdAt = :cursorTime and f.friend.id < :cursorId))
             order by f.createdAt desc, f.friend.id desc
@@ -94,7 +95,7 @@ public interface FriendshipRepository extends JpaRepository<FriendshipEntity, Fr
               and f.friend.id = :userId
               and ((:incoming = true and f.requester.id <> :userId)
                    or (:incoming = false and f.requester.id = :userId))
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or f.createdAt < :cursorTime
                    or (f.createdAt = :cursorTime and f.user.id < :cursorId))
             order by f.createdAt desc, f.user.id desc
@@ -105,6 +106,14 @@ public interface FriendshipRepository extends JpaRepository<FriendshipEntity, Fr
                                                 @Param("cursorTime") OffsetDateTime cursorTime,
                                                 @Param("cursorId") Long cursorId,
                                                 Pageable pageable);
+
+    @Query("""
+            select f from FriendshipEntity f
+            where (f.user.id = :userId and f.friend.id in :otherIds)
+               or (f.friend.id = :userId and f.user.id in :otherIds)
+            """)
+    List<FriendshipEntity> findBetweenUserAnd(@Param("userId") Long userId,
+                                              @Param("otherIds") Collection<Long> otherIds);
 
     @Query("select case when count(f) > 0 then true else false end " +
             "from FriendshipEntity f where f.status = 'ACCEPTED' " +

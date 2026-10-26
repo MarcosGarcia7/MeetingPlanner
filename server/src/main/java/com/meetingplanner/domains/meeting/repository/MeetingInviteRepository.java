@@ -19,12 +19,13 @@ public interface MeetingInviteRepository extends JpaRepository<MeetingInviteEnti
     @Query("""
             select mi from MeetingInviteEntity mi
             where (mi.recipient.id = :userId or mi.recipientEmail = :email)
+              and (:status is null or mi.status = :status)
               and not exists (
                   select 1 from FriendshipEntity f
                   where f.status = 'BLOCKED'
                     and ((f.user.id = :userId and f.friend.id = mi.sender.id)
                          or (f.friend.id = :userId and f.user.id = mi.sender.id)))
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or mi.timeSent < :cursorTime
                    or (mi.timeSent = :cursorTime
                        and (:cursorKind > :sourceKind
@@ -33,6 +34,7 @@ public interface MeetingInviteRepository extends JpaRepository<MeetingInviteEnti
             """)
     List<MeetingInviteEntity> listForRecipient(@Param("userId") Long userId,
                                                @Param("email") String email,
+                                               @Param("status") InviteStatus status,
                                                @Param("sourceKind") String sourceKind,
                                                @Param("cursorTime") OffsetDateTime cursorTime,
                                                @Param("cursorKind") String cursorKind,

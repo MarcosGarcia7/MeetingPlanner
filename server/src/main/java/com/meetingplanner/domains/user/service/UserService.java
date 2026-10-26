@@ -13,7 +13,7 @@ public interface UserService {
 
     UserProfileResponse getByUsername(long viewerId, String username);
 
-    CursorPage<UserSearchResult> search(String query, String cursor, int size);
+    CursorPage<UserSearchResult> search(long userId, String query, String cursor, int size);
 
     long resolveUserId(String username);
 

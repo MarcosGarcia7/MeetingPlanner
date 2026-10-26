@@ -16,7 +16,7 @@ public interface GroupPostCommentRepository extends JpaRepository<GroupPostComme
     @Query("""
             select c from GroupPostCommentEntity c
             where c.post.id = :postId
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or c.createdAt > :cursorTime
                    or (c.createdAt = :cursorTime and c.id > :cursorId))
             order by c.createdAt asc, c.id asc

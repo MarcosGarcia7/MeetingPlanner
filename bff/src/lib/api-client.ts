@@ -42,6 +42,34 @@ async function refreshAccessToken(session: SessionData): Promise<TokenResponse> 
   return (await res.json()) as TokenResponse;
 }
 
+// Refresh tokens rotate, and the API treats a reused one as theft and revokes every session. Pages
+// fire several requests in parallel, so requests that hit 401 together must share one refresh.
+const inflightRefreshes = new Map<string, Promise<SessionData>>();
+
+async function refreshSession(stale: SessionData): Promise<SessionData> {
+  const key = stale.refreshToken;
+  let pending = inflightRefreshes.get(key);
+  if (!pending) {
+    pending = (async () => {
+      // Another request may have finished rotating after this one read the session.
+      const current = await getSession();
+      if (current && current.refreshToken !== stale.refreshToken) {
+        return current;
+      }
+
+      const tokens = await refreshAccessToken(stale);
+      const refreshed = {...stale, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken};
+      const sessionId = await getSessionId();
+      if (sessionId) {
+        await updateSession(sessionId, refreshed);
+      }
+      return refreshed;
+    })().finally(() => inflightRefreshes.delete(key));
+    inflightRefreshes.set(key, pending);
+  }
+  return pending;
+}
+
 function buildHeaders(init: RequestInit, session: SessionData | null, clientIp?: string): Headers {
   const headers = new Headers(init.headers);
   if (session) {
@@ -70,25 +98,15 @@ export async function authFetchRaw(
     return res;
   }
 
-  let tokenResponse: TokenResponse;
+  let refreshed: SessionData;
   try {
-    tokenResponse = await refreshAccessToken(session);
+    refreshed = await refreshSession(session);
   } catch (err) {
     if (err instanceof AuthError) {
       await destroySession();
       throw new AuthError('Session expired. Please log in again.');
     }
     throw err;
-  }
-
-  const refreshed = {
-    ...session,
-    accessToken: tokenResponse.accessToken,
-    refreshToken: tokenResponse.refreshToken,
-  };
-  const sessionId = await getSessionId();
-  if (sessionId) {
-    await updateSession(sessionId, refreshed);
   }
 
   return fetch(`${API_BASE_URL}${path}`, {

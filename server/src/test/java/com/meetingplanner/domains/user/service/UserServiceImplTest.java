@@ -5,6 +5,10 @@ import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.UserProfileResponse;
 import com.meetingplanner.common.api.dto.UserProfileUpdateRequest;
 import com.meetingplanner.common.api.dto.UserSearchResult;
+import com.meetingplanner.common.api.model.UserRelationship;
+import com.meetingplanner.domains.friend.model.FriendshipEntity;
+import com.meetingplanner.domains.friend.model.FriendshipStatus;
+import com.meetingplanner.domains.friend.repository.FriendshipRepository;
 import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
@@ -35,6 +39,8 @@ class UserServiceImplTest {
     @Mock
     private UserRepository userRepository;
     @Mock
+    private FriendshipRepository friendshipRepository;
+    @Mock
     private AccountTokenService accountTokenService;
     @Mock
     private NotificationService notificationService;
@@ -50,6 +56,22 @@ class UserServiceImplTest {
         return user;
     }
 
+    private static UserEntity user(long id, String username) {
+        UserEntity user = new UserEntity(username, username + "@example.com", "hash", "#3B82F6", false);
+        user.setId(id);
+        return user;
+    }
+
+    private static FriendshipEntity friendship(UserEntity a, UserEntity b, UserEntity requester,
+                                               FriendshipStatus status) {
+        FriendshipEntity friendship = new FriendshipEntity();
+        friendship.setUser(a.getId() < b.getId() ? a : b);
+        friendship.setFriend(a.getId() < b.getId() ? b : a);
+        friendship.setRequester(requester);
+        friendship.setStatus(status);
+        return friendship;
+    }
+
     private static UserProfileUpdateRequest onlyTimezone(String timezone) {
         return new UserProfileUpdateRequest(null, null, null, timezone, null, null, null);
     }
@@ -59,10 +81,10 @@ class UserServiceImplTest {
         UserEntity alice = user(1L);
         alice.setFirstName("Alice");
         alice.setLastName("Smith");
-        when(userRepository.search("%alice%", null, null, PageRequest.of(0, 21)))
+        when(userRepository.search(99L, "%alice%", null, null, PageRequest.of(0, 21)))
                 .thenReturn(List.of(alice));
 
-        CursorPage<UserSearchResult> page = service.search(" ALICE ", null, 20);
+        CursorPage<UserSearchResult> page = service.search(99L, " ALICE ", null, 20);
 
         assertEquals(1, page.items().size());
         UserSearchResult result = page.items().getFirst();
@@ -71,17 +93,57 @@ class UserServiceImplTest {
         assertEquals("Alice", result.firstName());
         assertEquals("Smith", result.lastName());
         assertEquals("#3B82F6", result.avatarColor());
+        assertEquals(UserRelationship.NONE, result.relationship());
         assertNull(page.nextCursor());
+    }
+
+    @Test
+    void searchReportsRelationshipFromViewersSide() {
+        UserEntity viewer = user(5L, "viewer");
+        UserEntity friend = user(1L, "friend");
+        UserEntity sentTo = user(2L, "sentto");
+        UserEntity receivedFrom = user(7L, "receivedfrom");
+        UserEntity declined = user(8L, "declined");
+        UserEntity stranger = user(9L, "stranger");
+        when(userRepository.search(5L, "%e%", null, null, PageRequest.of(0, 21)))
+                .thenReturn(List.of(friend, sentTo, receivedFrom, declined, stranger));
+        when(friendshipRepository.findBetweenUserAnd(5L, List.of(1L, 2L, 7L, 8L, 9L)))
+                .thenReturn(List.of(
+                        friendship(viewer, friend, friend, FriendshipStatus.ACCEPTED),
+                        friendship(viewer, sentTo, viewer, FriendshipStatus.PENDING),
+                        friendship(viewer, receivedFrom, receivedFrom, FriendshipStatus.PENDING),
+                        friendship(viewer, declined, viewer, FriendshipStatus.DECLINED)));
+
+        CursorPage<UserSearchResult> page = service.search(5L, "e", null, 20);
+
+        assertEquals(List.of(
+                        UserRelationship.FRIENDS,
+                        UserRelationship.REQUEST_SENT,
+                        UserRelationship.REQUEST_RECEIVED,
+                        UserRelationship.NONE,
+                        UserRelationship.NONE),
+                page.items().stream().map(UserSearchResult::relationship).toList());
+    }
+
+    @Test
+    void searchSkipsRelationshipLookupWhenNothingMatches() {
+        when(userRepository.search(5L, "%zzz%", null, null, PageRequest.of(0, 21)))
+                .thenReturn(List.of());
+
+        CursorPage<UserSearchResult> page = service.search(5L, "zzz", null, 20);
+
+        assertEquals(0, page.items().size());
+        verify(friendshipRepository, never()).findBetweenUserAnd(any(), any());
     }
 
     @Test
     void searchPagesWithCaseInsensitiveUsernameCursor() {
         UserEntity alice = user(1L);
         UserEntity bob = user(2L);
-        when(userRepository.search("%a%", null, null, PageRequest.of(0, 2)))
+        when(userRepository.search(99L, "%a%", null, null, PageRequest.of(0, 2)))
                 .thenReturn(List.of(alice, bob));
 
-        CursorPage<UserSearchResult> page = service.search("a", null, 1);
+        CursorPage<UserSearchResult> page = service.search(99L, "a", null, 1);
 
         assertEquals(1, page.items().size());
         assertEquals("alice", page.items().getFirst().username());

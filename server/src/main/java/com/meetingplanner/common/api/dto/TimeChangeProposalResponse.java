@@ -9,6 +9,7 @@ import java.util.List;
 public record TimeChangeProposalResponse(
         Long id,
         Long meetingId,
+        String meetingTitle,
         Long proposedById,
         String proposedByUsername,
         OffsetDateTime proposedStartTime,

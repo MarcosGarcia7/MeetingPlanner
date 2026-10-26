@@ -22,7 +22,7 @@ public interface GroupBanRepository extends JpaRepository<GroupBanEntity, GroupB
     @Query("""
             select b from GroupBanEntity b
             where b.group.id = :groupId
-              and (:cursorTime is null
+              and (cast(:cursorTime as OffsetDateTime) is null
                    or b.bannedAt < :cursorTime
                    or (b.bannedAt = :cursorTime and b.user.id < :cursorUserId))
             order by b.bannedAt desc, b.user.id desc

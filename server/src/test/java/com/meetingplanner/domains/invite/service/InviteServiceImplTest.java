@@ -1,5 +1,7 @@
 package com.meetingplanner.domains.invite.service;
 
+import com.meetingplanner.common.api.dto.CursorPage;
+import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.domains.friend.service.BlockService;
@@ -32,6 +34,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -332,5 +335,30 @@ class InviteServiceImplTest {
         InOrder order = inOrder(meetingRepository);
         order.verify(meetingRepository).findByIdForUpdate(3L);
         order.verify(meetingRepository).save(meeting);
+    }
+
+    @Test
+    void listMinePassesStatusFilterAndLabelsInvites() {
+        UserEntity owner = user(1L, "owner");
+        UserEntity recipient = user(2L, "recipient");
+        GroupEntity group = group(3L, owner);
+        group.setGroupName("Book club");
+        MeetingEntity meeting = meeting(4L, owner, null);
+        GroupInviteEntity groupInvite = groupInvite(group, owner, recipient);
+        MeetingInviteEntity meetingInvite = meetingInvite(meeting, owner, recipient, InviteStatus.PENDING);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
+        when(groupInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(InviteStatus.PENDING),
+                eq("GROUP"), any(), any(), any(), any())).thenReturn(List.of(groupInvite));
+        when(meetingInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(InviteStatus.PENDING),
+                eq("MEETING"), any(), any(), any(), any())).thenReturn(List.of(meetingInvite));
+
+        CursorPage<InviteResponse> page = service.listMine(2L, InviteStatus.PENDING, null, 20);
+
+        assertEquals(2, page.items().size());
+        InviteResponse groupItem = page.items().stream().filter(i -> i.kind().equals("GROUP")).findFirst().orElseThrow();
+        InviteResponse meetingItem = page.items().stream().filter(i -> i.kind().equals("MEETING")).findFirst().orElseThrow();
+        assertEquals("Book club", groupItem.groupName());
+        assertEquals("Standup", meetingItem.meetingTitle());
+        assertNull(page.nextCursor());
     }
 }

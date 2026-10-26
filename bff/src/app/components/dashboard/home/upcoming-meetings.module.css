@@ -1,0 +1,12 @@
+.date {
+  flex-shrink: 0;
+  width: 88px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
+  align-self: flex-start;
+}

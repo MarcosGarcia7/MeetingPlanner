@@ -16,6 +16,7 @@ export const GET = withErrors(async (request: Request): Promise<Response> => {
   const avatar = new Avatar(style, {seed: name, borderRadius: 50, backgroundColor: [data.avatarColor]});
   const svg = avatar.toString();
   return new Response(svg, {
-    headers: {'Content-Type': 'image/svg+xml'},
+    // Per-user image behind a shared URL: never let a browser or proxy cache keep it.
+    headers: {'Content-Type': 'image/svg+xml', 'Cache-Control': 'private, no-store'},
   });
 });
