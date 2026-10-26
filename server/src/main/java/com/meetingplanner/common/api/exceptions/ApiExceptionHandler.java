@@ -45,6 +45,14 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
+    @ExceptionHandler(IncorrectPasswordException.class)
+    public ResponseEntity<Map<String, Object>> handleIncorrectPassword(IncorrectPasswordException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "error", "incorrect_password",
+                "message", e.getMessage()
+        ));
+    }
+
     @ExceptionHandler(RefreshTokenReuseException.class)
     public ResponseEntity<Map<String, Object>> handleRefreshTokenReuse(RefreshTokenReuseException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(

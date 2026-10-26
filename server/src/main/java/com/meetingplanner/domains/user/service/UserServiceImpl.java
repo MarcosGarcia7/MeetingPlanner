@@ -209,6 +209,7 @@ public class UserServiceImpl implements UserService {
                 user.getId(),
                 user.getUsername(),
                 includeEmail ? user.getEmail() : null,
+                includeEmail ? user.getPendingEmail() : null,
                 user.getFirstName(),
                 user.getLastName(),
                 user.getAvatarColor(),

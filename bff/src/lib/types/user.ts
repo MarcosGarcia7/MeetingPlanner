@@ -2,7 +2,9 @@
 export interface UserProfileResponse {
   id: number;
   username: string;
-  email: string;
+  email: string | null;
+  // Address awaiting confirmation via the EMAIL_CHANGE link; only returned on your own profile.
+  pendingEmail: string | null;
   firstName: string | null;
   lastName: string | null;
   avatarColor: string;
@@ -10,6 +12,24 @@ export interface UserProfileResponse {
   isPrivate: boolean;
   friendsCanViewSchedule: boolean;
   emailVerified: boolean;
+}
+
+// Mirrors server common/api/dto/UserProfileUpdateRequest. Omitted/null fields are left unchanged; a
+// pendingEmail equal to the current email cancels a pending change.
+export interface UserProfileUpdateRequest {
+  firstName?: string | null;
+  lastName?: string | null;
+  avatarColor?: string | null;
+  timezone?: string | null;
+  isPrivate?: boolean | null;
+  friendsCanViewSchedule?: boolean | null;
+  pendingEmail?: string | null;
+}
+
+// Mirrors server common/api/dto/ChangePasswordRequest.
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 // Mirrors server common/api/dto/UserAvailabilityUpdateRequest. Each day is a list of

@@ -7,9 +7,11 @@ import com.meetingplanner.common.api.dto.UserProfileResponse;
 import com.meetingplanner.common.api.exceptions.AccountLockedException;
 import com.meetingplanner.common.api.exceptions.EmailNotVerifiedException;
 import com.meetingplanner.common.api.exceptions.EmailTakenException;
+import com.meetingplanner.common.api.exceptions.IncorrectPasswordException;
 import com.meetingplanner.common.api.exceptions.InvalidCredentialsException;
 import com.meetingplanner.common.api.exceptions.RateLimitExceededException;
 import com.meetingplanner.common.api.exceptions.RefreshTokenReuseException;
+import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.exceptions.UsernameTakenException;
 import com.meetingplanner.common.api.model.LockoutBucket;
 import com.meetingplanner.common.api.model.TokenPair;
@@ -78,6 +80,10 @@ public class AuthService {
     private static final long CREATE_WINDOW_SECONDS = 10 * 60;
     private static final int FORGOT_MAX_PER_IP = 5;
     private static final long FORGOT_WINDOW_SECONDS = 10 * 60;
+
+    private static final String CHANGE_PASSWORD_RATE_LIMIT_PREFIX = "rl:change-password:";
+    private static final int CHANGE_PASSWORD_MAX_PER_USER = 5;
+    private static final long CHANGE_PASSWORD_WINDOW_SECONDS = 15 * 60;
 
     private static final String VERIFY_RESEND_PREFIX = "rl:verify-resend:";
     private static final int VERIFY_RESEND_MAX_PER_IP = 5;
@@ -363,6 +369,27 @@ public class AuthService {
         auditService.passwordResetCompleted(user.getEmail(), clientIp);
     }
 
+    public TokenResponse changePassword(long userId, String currentPassword, String newPassword, String clientIp) {
+        rateLimit(CHANGE_PASSWORD_RATE_LIMIT_PREFIX, Long.toString(userId), CHANGE_PASSWORD_MAX_PER_USER,
+                CHANGE_PASSWORD_WINDOW_SECONDS, "change_password");
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            auditService.passwordChangeRejected(userId, clientIp);
+            throw new IncorrectPasswordException();
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setUpdatedAt(OffsetDateTime.now());
+        accountTokenService.deleteForUser(user.getId(), AccountTokenType.PASSWORD_RESET);
+        jtiStorageService.revokeAllJtis(user.getId().toString());
+        userRepository.save(user);
+        notificationService.queueSecurityEmail(user, "PASSWORD_CHANGED", Map.of("name", displayName(user)));
+        auditService.passwordChanged(userId, clientIp);
+        return issueTokens(user);
+    }
+
     private TokenResponse issueTokens(UserEntity user) {
         loginAttemptService.resetAttempts(user.getUsername());
 
@@ -373,6 +400,7 @@ public class AuthService {
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
+                user.getPendingEmail(),
                 user.getFirstName(),
                 user.getLastName(),
                 user.getAvatarColor(),

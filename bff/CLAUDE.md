@@ -38,6 +38,9 @@ npx tsc --noEmit     # typecheck; there is no test suite yet
   `{ error, message }` body (or null). Use it instead of inline `response.json()` casts.
 - `src/lib/types/` — TS mirrors of server DTOs (see Types below). No `server-only`, so client
   components can import them.
+- `src/lib/avatar.ts` — `avatarSvg` / `avatarDataUri`: the DiceBear initials avatar. Used by `avatar/me`
+  and by client-side previews, so both render the same image.
+- `src/lib/password-schema.ts` — the zod password rule (mirrors the server's 12–72 chars / 72 bytes).
 - `src/lib/dal.ts` — `verifySession()`; call it at the top of server components that need the user.
   It returns only `{ userId, username }` — keep tokens out of anything a page can pass to a client
   component. `session.ts`, `api-client.ts`, and `dal.ts` import `server-only`.
@@ -104,8 +107,9 @@ npx tsc --noEmit     # typecheck; there is no test suite yet
   token in both blocks. stylelint rejects hex and named colors outside `globals.css`.
 - **Three layers**: tokens → **area module** `components/<area>/<area>.module.css` for primitives
   several components in that area share (e.g. `auth/auth.module.css`: page, card, title, form, field,
-  input, error, submit, linkButton) → **component module** for what only that component adds
-  (`login-form.module.css` is just `.resendLink`). Check the area module before writing a rule; when
+  input, error, submit, linkButton; `dashboard/dashboard.module.css`: page, card, cardHeader,
+  cardTitle, button, meta, error, … shared by every dashboard page) → **component module** for what
+  only that component adds (`login-form.module.css` is just `.resendLink`). Check the area module before writing a rule; when
   a second area needs the same rule, move it up into a shared module instead of copying it.
 - Variants use `composes:` (`.linkButton { composes: submit; }`); conditional classes use `clsx`.
 - Import another area's module only to share its primitives on purpose, never a sibling component's

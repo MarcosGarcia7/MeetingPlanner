@@ -8,6 +8,7 @@
 
 .navComponent {
   width: 10%;
+  min-width: 180px;
   height: 100%;
   flex-shrink: 0;
 }
@@ -32,4 +33,131 @@
   color: var(--text-on-accent);
   font-size: 0.75rem;
   font-weight: 700;
+}
+
+/* Card primitives shared by every dashboard page. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  padding: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.cardTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cardLink {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.meta {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.empty {
+  padding: 16px 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.error {
+  font-size: 0.875rem;
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.button {
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.button:hover {
+  opacity: 0.9;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.buttonSecondary {
+  composes: button;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.buttonSecondary:hover {
+  background: var(--surface-muted);
+  opacity: 1;
+}
+
+/* Phones: the side nav becomes a bottom tab bar (see sidenav.module.css). */
+@media (width < 768px) {
+  .layoutContainer {
+    flex-direction: column-reverse;
+  }
+
+  .navComponent {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--border);
+    background: var(--nav-background);
+  }
+
+  .mainContent {
+    padding: 16px;
+  }
 }

@@ -4,6 +4,7 @@ import {CalendarDaysIcon, UserGroupIcon} from '@heroicons/react/24/solid';
 import CountBadge from '@/app/components/dashboard/count-badge';
 import type {UserProfileResponse} from '@/lib/types/user';
 import {greeting} from './format';
+import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './home.module.css';
 
 interface WelcomeHeaderProps {
@@ -25,7 +26,7 @@ export default function WelcomeHeader({username, profile, unread}: WelcomeHeader
              unoptimized/>
       <div className={styles.headerText}>
         <h1 className={styles.greeting}>{greeting(timeZone)}, {name}</h1>
-        <p className={styles.meta}>
+        <p className={dashboardStyles.meta}>
           {unread ? (
             <Link href='/dashboard/inbox' className={styles.inboxLink}>
               <CountBadge count={unread} label='unread notifications'/>

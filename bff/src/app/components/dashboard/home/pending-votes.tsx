@@ -3,6 +3,7 @@
 import type {TimeChangeProposalResponse, TimeChangeVoteRequest} from '@/lib/types/meeting';
 import {formatMeetingTime} from './format';
 import {usePostAction} from './use-post-action';
+import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './home.module.css';
 
 interface PendingVotesProps {
@@ -26,12 +27,12 @@ export default function PendingVotes({proposals, timeZone}: PendingVotesProps) {
   }
 
   return (
-    <section className={styles.card}>
-      <div className={styles.cardHeader}>
-        <h2 className={styles.cardTitle}>Time changes to vote on</h2>
+    <section className={dashboardStyles.card}>
+      <div className={dashboardStyles.cardHeader}>
+        <h2 className={dashboardStyles.cardTitle}>Time changes to vote on</h2>
       </div>
       {proposals === null ? (
-        <p className={styles.error}>Couldn’t load pending time changes.</p>
+        <p className={dashboardStyles.error}>Couldn’t load pending time changes.</p>
       ) : (
         <ul className={styles.list}>
           {proposals.map((proposal) => {
@@ -42,22 +43,22 @@ export default function PendingVotes({proposals, timeZone}: PendingVotesProps) {
               <li key={proposal.id} className={styles.item}>
                 <div className={styles.itemBody}>
                   <span className={styles.itemTitle}>{proposal.meetingTitle ?? 'Meeting'}</span>
-                  <span className={styles.meta}>
+                  <span className={dashboardStyles.meta}>
                     @{proposal.proposedByUsername} proposed {day}, {time}
                   </span>
                   {conflicts > 0 && (
-                    <span className={styles.error}>
+                    <span className={dashboardStyles.error}>
                       Conflicts with {conflicts} of your meetings
                     </span>
                   )}
-                  {error && <span className={styles.error}>{error}</span>}
+                  {error && <span className={dashboardStyles.error}>{error}</span>}
                 </div>
-                <div className={styles.actions}>
-                  <button type='button' className={styles.button} disabled={busy}
+                <div className={dashboardStyles.actions}>
+                  <button type='button' className={dashboardStyles.button} disabled={busy}
                           onClick={() => vote(proposal, true)}>
                     Approve
                   </button>
-                  <button type='button' className={styles.buttonSecondary} disabled={busy}
+                  <button type='button' className={dashboardStyles.buttonSecondary} disabled={busy}
                           onClick={() => vote(proposal, false)}>
                     Decline
                   </button>

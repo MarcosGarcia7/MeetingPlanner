@@ -4,6 +4,7 @@ public record UserProfileResponse(
         Long id,
         String username,
         String email,
+        String pendingEmail,
         String firstName,
         String lastName,
         String avatarColor,

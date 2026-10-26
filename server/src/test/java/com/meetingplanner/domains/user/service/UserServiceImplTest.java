@@ -198,4 +198,28 @@ class UserServiceImplTest {
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
         verify(userRepository, never()).save(any(UserEntity.class));
     }
+
+    @Test
+    void getMeIncludesPendingEmail() {
+        UserEntity user = user(1L);
+        user.setPendingEmail("new@example.com");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        UserProfileResponse response = service.getMe(1L);
+
+        assertEquals("alice@example.com", response.email());
+        assertEquals("new@example.com", response.pendingEmail());
+    }
+
+    @Test
+    void getByUsernameHidesEmailsFromOtherViewers() {
+        UserEntity user = user(1L);
+        user.setPendingEmail("new@example.com");
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+
+        UserProfileResponse response = service.getByUsername(2L, "alice");
+
+        assertNull(response.email());
+        assertNull(response.pendingEmail());
+    }
 }

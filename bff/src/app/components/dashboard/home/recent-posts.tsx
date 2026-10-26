@@ -2,26 +2,27 @@ import Link from 'next/link';
 import type {CursorPage} from '@/lib/types/api';
 import type {PostResponse} from '@/lib/types/group';
 import {formatRelative} from './format';
+import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './home.module.css';
 import postStyles from './recent-posts.module.css';
 
 export default function RecentPosts({posts}: { posts: CursorPage<PostResponse> | null }) {
   return (
-    <section className={styles.card}>
-      <div className={styles.cardHeader}>
-        <h2 className={styles.cardTitle}>Recent posts</h2>
+    <section className={dashboardStyles.card}>
+      <div className={dashboardStyles.cardHeader}>
+        <h2 className={dashboardStyles.cardTitle}>Recent posts</h2>
       </div>
       {posts === null ? (
-        <p className={styles.error}>Couldn’t load recent posts.</p>
+        <p className={dashboardStyles.error}>Couldn’t load recent posts.</p>
       ) : posts.items.length === 0 ? (
-        <p className={styles.empty}>No posts in your groups yet.</p>
+        <p className={dashboardStyles.empty}>No posts in your groups yet.</p>
       ) : (
         <ul className={styles.cardList}>
           {posts.items.map((post) => (
             <li key={post.id}>
               <Link href={`/dashboard/groups?group=${post.groupId}`} className={styles.itemCard}>
                 <div className={styles.itemBody}>
-                  <span className={styles.meta}>
+                  <span className={dashboardStyles.meta}>
                     <strong className={postStyles.author}>@{post.authorUsername}</strong>
                     {post.groupName && <> in {post.groupName}</>}
                     {' · '}

@@ -14,6 +14,7 @@ import UpcomingMeetings from '@/app/components/dashboard/home/upcoming-meetings'
 import RecentPosts from '@/app/components/dashboard/home/recent-posts';
 import NeedsAttention from '@/app/components/dashboard/home/needs-attention';
 import PendingVotes from '@/app/components/dashboard/home/pending-votes';
+import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from '@/app/components/dashboard/home/home.module.css';
 
 // Each card gets its own data or null, so one failing call degrades that card instead of the page.
@@ -50,7 +51,7 @@ export default async function DashboardPage() {
   const timeZone = profile?.timezone ?? 'UTC';
 
   return (
-    <main className={styles.page}>
+    <main className={dashboardStyles.page}>
       <WelcomeHeader username={session.username} profile={profile} unread={unread?.unread ?? null}/>
       <PendingVotes proposals={votes} timeZone={timeZone}/>
       <div className={styles.cardGroup}>

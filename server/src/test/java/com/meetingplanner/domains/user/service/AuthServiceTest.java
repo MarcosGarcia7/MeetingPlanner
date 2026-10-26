@@ -1,6 +1,12 @@
 package com.meetingplanner.domains.user.service;
 
+import com.meetingplanner.common.api.dto.TokenResponse;
+import com.meetingplanner.common.api.exceptions.IncorrectPasswordException;
+import com.meetingplanner.common.api.exceptions.RateLimitExceededException;
+import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
+import com.meetingplanner.common.api.model.TokenPair;
 import com.meetingplanner.domains.notification.service.NotificationService;
+import com.meetingplanner.domains.user.model.AccountTokenType;
 import com.meetingplanner.domains.user.model.UserAvailabilityEntity;
 import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserAvailabilityRepository;
@@ -8,6 +14,7 @@ import com.meetingplanner.domains.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -16,12 +23,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -113,5 +127,69 @@ class AuthServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
         verify(userRepository, never()).save(org.mockito.ArgumentMatchers.any(UserEntity.class));
         verify(availabilityRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    private static UserEntity existingUser() {
+        UserEntity user = new UserEntity("alice", "alice@example.com", "old-hash", "#3B82F6", false);
+        user.setId(1L);
+        return user;
+    }
+
+    @Test
+    void changePasswordRevokesSessionsAndIssuesFreshTokens() {
+        UserEntity user = existingUser();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
+        when(passwordEncoder.encode("new-password-123")).thenReturn("new-hash");
+        when(tokenService.generateTokenPair("1", "alice")).thenReturn(new TokenPair("access", "refresh", "jti"));
+
+        TokenResponse response = service.changePassword(1L, "current-password", "new-password-123", "1.2.3.4");
+
+        assertEquals("new-hash", user.getPasswordHash());
+        assertEquals("access", response.accessToken());
+        assertEquals("refresh", response.refreshToken());
+        InOrder order = inOrder(jtiStorageService);
+        order.verify(jtiStorageService).revokeAllJtis("1");
+        order.verify(jtiStorageService).addValidJti("1", "jti");
+        verify(accountTokenService).deleteForUser(1L, AccountTokenType.PASSWORD_RESET);
+        verify(userRepository).save(user);
+        verify(notificationService).queueSecurityEmail(eq(user), eq("PASSWORD_CHANGED"), anyMap());
+    }
+
+    @Test
+    void changePasswordRejectsWrongCurrentPasswordWithoutChangingAnything() {
+        UserEntity user = existingUser();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", "old-hash")).thenReturn(false);
+
+        assertThrows(IncorrectPasswordException.class,
+                () -> service.changePassword(1L, "wrong-password", "new-password-123", "1.2.3.4"));
+
+        assertEquals("old-hash", user.getPasswordHash());
+        verify(userRepository, never()).save(any(UserEntity.class));
+        verify(jtiStorageService, never()).revokeAllJtis(anyString());
+        verify(accountLockoutService, never()).lockAccount(anyString(), anyInt(), anyString(), anyLong());
+    }
+
+    @Test
+    void changePasswordForMissingUserIsNotFound() {
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.changePassword(1L, "current-password", "new-password-123", "1.2.3.4"));
+
+        verify(passwordEncoder, never()).encode(anyString());
+    }
+
+    @Test
+    void changePasswordIsRateLimitedPerUser() {
+        when(loginAttemptService.isBlocked("rl:change-password:1", 5)).thenReturn(true);
+        when(loginAttemptService.getRemainingWindowSeconds("rl:change-password:1")).thenReturn(120L);
+
+        RateLimitExceededException exception = assertThrows(RateLimitExceededException.class,
+                () -> service.changePassword(1L, "current-password", "new-password-123", "1.2.3.4"));
+
+        assertEquals(120L, exception.getRetryAfterSeconds());
+        verify(userRepository, never()).findById(any());
     }
 }

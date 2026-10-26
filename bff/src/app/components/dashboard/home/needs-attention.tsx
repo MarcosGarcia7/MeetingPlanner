@@ -5,6 +5,7 @@ import type {CursorPage} from '@/lib/types/api';
 import type {FriendshipResponse} from '@/lib/types/friend';
 import type {InviteResponse} from '@/lib/types/invite';
 import {usePostAction} from './use-post-action';
+import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './home.module.css';
 
 interface NeedsAttentionProps {
@@ -66,13 +67,13 @@ export default function NeedsAttention({invites, friendRequests}: NeedsAttention
   const hasMore = Boolean(invites?.nextCursor || friendRequests?.nextCursor);
 
   return (
-    <section className={styles.card}>
-      <div className={styles.cardHeader}>
-        <h2 className={styles.cardTitle}>Needs your attention</h2>
+    <section className={dashboardStyles.card}>
+      <div className={dashboardStyles.cardHeader}>
+        <h2 className={dashboardStyles.cardTitle}>Needs your attention</h2>
       </div>
-      {failed && <p className={styles.error}>Some invites or requests couldn’t be loaded.</p>}
+      {failed && <p className={dashboardStyles.error}>Some invites or requests couldn’t be loaded.</p>}
       {items.length === 0 ? (
-        !failed && <p className={styles.empty}>No pending invites or friend requests.</p>
+        !failed && <p className={dashboardStyles.empty}>No pending invites or friend requests.</p>
       ) : (
         <ul className={styles.list}>
           {items.map((item) => {
@@ -82,16 +83,16 @@ export default function NeedsAttention({invites, friendRequests}: NeedsAttention
                 <div className={styles.itemBody}>
                   <span className={styles.itemTitle}>{item.title}</span>
                   {item.details.map((detail) => (
-                    <span key={detail} className={styles.meta}>{detail}</span>
+                    <span key={detail} className={dashboardStyles.meta}>{detail}</span>
                   ))}
-                  {error && <span className={styles.error}>{error}</span>}
+                  {error && <span className={dashboardStyles.error}>{error}</span>}
                 </div>
-                <div className={styles.actions}>
-                  <button type='button' className={styles.button} disabled={busy}
+                <div className={dashboardStyles.actions}>
+                  <button type='button' className={dashboardStyles.button} disabled={busy}
                           onClick={() => run(item.key, item.acceptUrl)}>
                     Accept
                   </button>
-                  <button type='button' className={styles.buttonSecondary} disabled={busy}
+                  <button type='button' className={dashboardStyles.buttonSecondary} disabled={busy}
                           onClick={() => run(item.key, item.declineUrl)}>
                     Decline
                   </button>
@@ -102,8 +103,8 @@ export default function NeedsAttention({invites, friendRequests}: NeedsAttention
         </ul>
       )}
       {hasMore && (
-        <div className={styles.cardFooter}>
-          <Link href='/dashboard/inbox' className={styles.cardLink}>See all</Link>
+        <div className={dashboardStyles.cardFooter}>
+          <Link href='/dashboard/inbox' className={dashboardStyles.cardLink}>See all</Link>
         </div>
       )}
     </section>

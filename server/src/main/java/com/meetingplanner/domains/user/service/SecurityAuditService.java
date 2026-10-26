@@ -46,6 +46,14 @@ public class SecurityAuditService {
         log.info("event=password_reset_completed email={} ip={}", sanitize(email), sanitize(ip));
     }
 
+    public void passwordChanged(long userId, String ip) {
+        log.info("event=password_changed user_id={} ip={}", userId, sanitize(ip));
+    }
+
+    public void passwordChangeRejected(long userId, String ip) {
+        log.warn("event=password_change_rejected user_id={} ip={}", userId, sanitize(ip));
+    }
+
     public void accountLocked(String username, int tier, long durationMinutes, String ip) {
         log.warn("event=account_locked username={} tier={} duration_minutes={} ip={}",
                 sanitize(username), tier, durationMinutes, sanitize(ip));

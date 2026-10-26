@@ -56,3 +56,52 @@
   flex-grow: 1;
   background-color: var(--nav-background);
 }
+
+/* Phones: a bottom tab bar of icons with short labels. */
+@media (width < 768px) {
+  .sidenav {
+    flex-direction: row;
+    min-height: 0;
+  }
+
+  .sidenav > * + * {
+    margin-top: 0;
+  }
+
+  .sidenavBlock {
+    display: none;
+  }
+
+  .navLink {
+    position: relative;
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    height: 56px;
+    padding: 0 2px;
+  }
+
+  .linkIcon {
+    width: 1.375rem;
+    margin-right: 0;
+  }
+
+  .name {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 0.625rem;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Pinned to the icon's top-right corner instead of the end of the row. */
+  .navBadge {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    margin-left: 6px;
+  }
+}
