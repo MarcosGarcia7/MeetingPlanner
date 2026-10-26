@@ -142,7 +142,10 @@ public class PostService {
     public PostResponse get(long userId, long groupId, long postId) {
         GroupEntity group = requireGroup(groupId);
         requireMember(group, userId);
-        return PostResponse.from(requirePost(postId));
+        GroupPostEntity post = requirePost(postId);
+        if (post.getGroup() != group)
+            throw new ResourceNotFoundException("Post not found");
+        return PostResponse.from(post);
     }
 
     @Transactional
