@@ -1,9 +1,9 @@
 'use client';
 
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
-import styles from '@/app/components/auth/login/login-form.module.css';
+import styles from '@/app/components/auth/auth.module.css';
 import {readApiError} from '@/lib/api-error';
 import type {VerifyEmailRequest} from '@/lib/types/auth';
 
@@ -12,15 +12,19 @@ type Status =
   | { kind: 'success' }
   | { kind: 'error'; message: string };
 
+const FAILED_MESSAGE = 'Verification failed. The link may be invalid or expired.';
+
 export default function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
   const [status, setStatus] = useState<Status>({kind: 'loading'});
+  // The token is single-use, so StrictMode's second effect run must not send it again.
+  const sentToken = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || sentToken.current === token) return;
+    sentToken.current = token;
 
-    let cancelled = false;
     const body: VerifyEmailRequest = {token};
     fetch('/api/auth/verify-email', {
       method: 'POST',
@@ -28,29 +32,16 @@ export default function VerifyEmailContent() {
       body: JSON.stringify(body),
     })
       .then(async (response) => {
-        if (cancelled) return;
         if (response.ok) {
           setStatus({kind: 'success'});
           return;
         }
         const err = await readApiError(response);
-        setStatus({
-          kind: 'error',
-          message: err?.message ?? 'Verification failed. The link may be invalid or expired.',
-        });
+        setStatus({kind: 'error', message: err?.message ?? FAILED_MESSAGE});
       })
       .catch(() => {
-        if (!cancelled) {
-          setStatus({
-            kind: 'error',
-            message: 'Verification failed. The link may be invalid or expired.',
-          });
-        }
+        setStatus({kind: 'error', message: FAILED_MESSAGE});
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [token]);
 
   if (!token) {
@@ -59,10 +50,7 @@ export default function VerifyEmailContent() {
         <p className={styles.error} role='alert'>
           This verification link is missing its token.
         </p>
-        <Link
-          className={styles.submit}
-          href='/login'
-        >
+        <Link className={styles.linkButton} href='/login'>
           Back to login
         </Link>
       </>
@@ -79,10 +67,7 @@ export default function VerifyEmailContent() {
         <p className={styles.subtitle}>
           Your email has been verified. You can now sign in.
         </p>
-        <Link
-          className={styles.submit}
-          href='/login'
-        >
+        <Link className={styles.linkButton} href='/login'>
           Go to login
         </Link>
       </>
@@ -94,10 +79,7 @@ export default function VerifyEmailContent() {
       <p className={styles.error} role='alert'>
         {status.message}
       </p>
-      <Link
-        className={styles.submit}
-        href='/login'
-      >
+      <Link className={styles.linkButton} href='/login'>
         Back to login
       </Link>
     </>

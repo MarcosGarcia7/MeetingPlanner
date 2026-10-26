@@ -1,12 +1,14 @@
 'use client';
 
+import Image from 'next/image';
+import Link from 'next/link';
 import {useMemo, useState} from 'react';
 import {useForm} from 'react-hook-form';
 import {useRouter} from 'next/navigation';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {z} from 'zod';
+import authStyles from '@/app/components/auth/auth.module.css';
 import styles from './signup-form.module.css';
-import Image from "next/image";
 import {readApiError} from '@/lib/api-error';
 import type {AccountCreatedResponse, CreateAccountRequest} from '@/lib/types/auth';
 
@@ -140,118 +142,118 @@ export default function SignupForm() {
   return (
     <div>
       <Image
-        className={styles.logo}
+        className={authStyles.logo}
         src='/logo-mp.svg'
         alt='Meeting Planner logo'
         width={64}
         height={64}
         priority
       />
-      <h1 className={styles.title}>Create your account</h1>
-      <form onSubmit={handleSubmit(onSubmit)} className={styles.form}>
+      <h1 className={authStyles.title}>Create your account</h1>
+      <form onSubmit={handleSubmit(onSubmit)} className={authStyles.form}>
         {step === 1 && (
-          <div>
-            <label className={styles.field}>
-              <span className={styles.label}>Email *</span>
+          <div className={styles.step}>
+            <label className={authStyles.field}>
+              <span className={authStyles.label}>Email *</span>
               <input
                 type='email'
                 autoComplete='email'
                 {...register('email')}
-                className={styles.input}
+                className={authStyles.input}
               />
             </label>
             {errors.email && (
-              <p className={styles.error} role='alert'>
+              <p className={authStyles.error} role='alert'>
                 {errors.email.message}
               </p>
             )}
 
-            <label className={styles.field}>
-              <span className={styles.label}>Username (optional)</span>
+            <label className={authStyles.field}>
+              <span className={authStyles.label}>Username (optional)</span>
               <input
                 type='text'
                 autoComplete='username'
                 {...register('username')}
-                className={styles.input}
+                className={authStyles.input}
                 placeholder='Leave blank to auto-generate'
               />
             </label>
             {errors.username && (
-              <p className={styles.error} role='alert'>
+              <p className={authStyles.error} role='alert'>
                 {errors.username.message}
               </p>
             )}
 
-            <label className={styles.field}>
-              <span className={styles.label}>Password *</span>
+            <label className={authStyles.field}>
+              <span className={authStyles.label}>Password *</span>
               <input
                 type='password'
                 autoComplete='new-password'
                 {...register('password')}
-                className={styles.input}
+                className={authStyles.input}
               />
             </label>
             {errors.password && (
-              <p className={styles.error} role='alert'>
+              <p className={authStyles.error} role='alert'>
                 {errors.password.message}
               </p>
             )}
 
-            <label className={styles.field}>
-              <span className={styles.label}>Confirm Password *</span>
+            <label className={authStyles.field}>
+              <span className={authStyles.label}>Confirm Password *</span>
               <input
                 type='password'
                 autoComplete='new-password'
                 {...register('confirm')}
-                className={styles.input}
+                className={authStyles.input}
               />
             </label>
             {errors.confirm && (
-              <p className={styles.error} role='alert'>
+              <p className={authStyles.error} role='alert'>
                 {errors.confirm.message}
               </p>
             )}
 
-            <button type='submit' className={styles.submit}>
+            <button type='submit' className={authStyles.submit}>
               Next
             </button>
           </div>
         )}
         {step === 2 && (
-          <div>
-            <label className={styles.field}>
-              <span className={styles.label}>First Name (optional)</span>
+          <div className={styles.step}>
+            <label className={authStyles.field}>
+              <span className={authStyles.label}>First Name (optional)</span>
               <input
                 type='text'
                 autoComplete='given-name'
                 {...register('firstName')}
-                className={styles.input}
+                className={authStyles.input}
               />
             </label>
             {errors.firstName && (
-              <p className={styles.error} role='alert'>
+              <p className={authStyles.error} role='alert'>
                 {errors.firstName.message}
               </p>
             )}
 
-            <label className={styles.field}>
-              <span className={styles.label}>Last Name (optional)</span>
+            <label className={authStyles.field}>
+              <span className={authStyles.label}>Last Name (optional)</span>
               <input
                 type='text'
                 autoComplete='family-name'
                 {...register('lastName')}
-                className={styles.input}
+                className={authStyles.input}
               />
             </label>
             {errors.lastName && (
-              <p className={styles.error} role='alert'>
+              <p className={authStyles.error} role='alert'>
                 {errors.lastName.message}
               </p>
             )}
 
-            <label className={styles.field}>
-              <span className={styles.label}>Timezone *</span>
-              <select {...register('timezone')} className={styles.input}>
+            <label className={authStyles.field}>
+              <span className={authStyles.label}>Timezone *</span>
+              <select {...register('timezone')} className={authStyles.input}>
                 {timezones.map((zone) => (
                   <option key={zone} value={zone}>
                     {zone.replaceAll('_', ' ')}
@@ -260,7 +262,7 @@ export default function SignupForm() {
               </select>
             </label>
             {errors.timezone && (
-              <p className={styles.error} role='alert'>
+              <p className={authStyles.error} role='alert'>
                 {errors.timezone.message}
               </p>
             )}
@@ -279,18 +281,21 @@ export default function SignupForm() {
               >
                 Back
               </button>
-              <button type='submit' disabled={isSubmitting} className={styles.submit}>
+              <button type='submit' disabled={isSubmitting} className={authStyles.submit}>
                 {isSubmitting ? 'Submitting...' : 'Submit'}
               </button>
             </div>
           </div>
         )}
         {error && (
-          <p className={styles.error} role='alert'>
+          <p className={authStyles.error} role='alert'>
             {error}
           </p>
         )}
       </form>
+      <p className={authStyles.altLink}>
+        Already have an account? <Link href='/login'>Log in</Link>
+      </p>
     </div>
   );
 }

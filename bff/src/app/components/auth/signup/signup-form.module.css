@@ -1,22 +1,14 @@
-.form {
+/* Each step wraps its fields, so it needs the same spacing as the form itself. */
+.step {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  margin-top: 24px;
-}
-
-.title {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  color: var(--text-primary);
 }
 
 .checkRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 18px;
   font-size: 14px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -25,95 +17,20 @@
 .actions {
   display: flex;
   gap: 12px;
-  margin-top: 18px;
+  margin-top: 10px;
 }
 
-.actions .submit,
-.actions .back {
+.actions > button {
   flex: 1;
   margin-top: 0;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.label {
-  margin-top: 18px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.input {
-  height: 44px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--input-background);
-  color: var(--text-primary);
-  font-size: 16px;
-  transition: border-color 0.2s;
-}
-
-.input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.error {
-  font-size: 14px;
-  color: var(--danger);
-}
-
-.resendLink {
-  display: block;
-  margin-top: 4px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-size: 14px;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.resendLink:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.submit {
-  margin-top: 18px;
-  padding: .5em;
-  height: 38px;
-  border: none;
-  border-radius: 4px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.submit:hover {
-  opacity: 0.9;
-}
-
-.submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .back {
   height: 44px;
   border: none;
   border-radius: 8px;
-  background: gray;
-  color: #fff;
+  background: var(--button-neutral);
+  color: var(--text-on-accent);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;

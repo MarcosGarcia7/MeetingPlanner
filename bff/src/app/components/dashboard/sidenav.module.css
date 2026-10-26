@@ -4,7 +4,7 @@
   flex-grow: 0;
   align-items: center;
   justify-content: left;
-  background-color: #232222;
+  background-color: var(--nav-background);
   font-size: 0.875rem;
   line-height: 1.25rem;
   font-weight: 500;
@@ -14,14 +14,14 @@
 }
 
 .currentNavLink {
-  background-color: var(--foreground);
+  background-color: var(--surface);
   color: var(--text-primary);
   transition: color 0.2s ease-in-out, transform 0.1s ease;
 }
 
 .navLink:hover {
-  background-color: #232937;
-  color: #6b7280;
+  background-color: var(--nav-hover-background);
+  color: var(--nav-hover-text);
 }
 
 .navLink:active {
@@ -50,5 +50,5 @@
   display: block;
   height: auto;
   flex-grow: 1;
-  background-color: #232222;
+  background-color: var(--nav-background);
 }

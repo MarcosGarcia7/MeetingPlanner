@@ -15,7 +15,7 @@ adding dependencies.
 ```bash
 npm run dev          # http://localhost:3000; needs Redis + API (see .env.example)
 npm run build        # production build (output: standalone)
-npm run lint         # eslint (next core-web-vitals + typescript)
+npm run lint         # eslint (next core-web-vitals + typescript) + stylelint on src/**/*.css
 npx tsc --noEmit     # typecheck; there is no test suite yet
 ```
 
@@ -92,6 +92,26 @@ npx tsc --noEmit     # typecheck; there is no test suite yet
   explicitly — `''` → `undefined` for optional fields — and POST it as JSON.
 - On failure, `readApiError(response)`, branch on `error` codes, display `message`; also `catch`
   network errors.
+
+## Styling
+
+- **Tokens** live in `src/app/globals.css` (`--surface`, `--text-primary`, `--accent`, `--border`, …).
+  Every token is defined in both the light block and the `prefers-color-scheme: dark` block (derived
+  tokens like `--accent-subtle` are written once in terms of others). Modules use only `var(--…)` for
+  colors and shadows, and don't add their own dark-mode blocks for them. Need a new color? Add a
+  token in both blocks. stylelint rejects hex and named colors outside `globals.css`.
+- **Three layers**: tokens → **area module** `components/<area>/<area>.module.css` for primitives
+  several components in that area share (e.g. `auth/auth.module.css`: page, card, title, form, field,
+  input, error, submit, linkButton) → **component module** for what only that component adds
+  (`login-form.module.css` is just `.resendLink`). Check the area module before writing a rule; when
+  a second area needs the same rule, move it up into a shared module instead of copying it.
+- Variants use `composes:` (`.linkButton { composes: submit; }`); conditional classes use `clsx`.
+- Import another area's module only to share its primitives on purpose, never a sibling component's
+  module.
+- No `style={{…}}` (eslint `react/forbid-dom-props` covers DOM elements; don't pass `style` to
+  components like `Link` either).
+- A `styles.x` that doesn't exist in the module is just `undefined`. Nothing catches it (no lint
+  plugin resolves the `@/` alias), so check new pages in the browser in both color schemes.
 
 ## Rules
 

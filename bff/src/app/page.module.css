@@ -16,7 +16,7 @@
   align-items: flex-start;
   justify-content: space-between;
   background-color: var(--background);
-  padding: 0px 0px;
+  padding: 0;
 }
 
 .banner {
@@ -40,7 +40,7 @@
   max-width: 320px;
   font-size: 35px;
   font-weight: 600;
-  padding: 10px 10px 10px 0px;
+  padding: 10px 10px 10px 0;
   line-height: 48px;
   letter-spacing: -2.4px;
   text-wrap: balance;
@@ -83,7 +83,7 @@ a.secondary {
   }
 }
 
-@media (max-width: 600px) {
+@media (width <= 600px) {
   .main {
     padding: 48px 24px;
   }

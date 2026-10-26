@@ -1,11 +1,13 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import {useState} from 'react';
 import {useForm, useWatch} from 'react-hook-form';
 import {useRouter} from 'next/navigation';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {z} from 'zod';
+import authStyles from '@/app/components/auth/auth.module.css';
 import styles from './login-form.module.css';
 import {readApiError} from '@/lib/api-error';
 import type {LoginRequest, VerifyEmailResendRequest} from '@/lib/types/auth';
@@ -102,51 +104,51 @@ export default function LoginForm() {
   return (
     <div>
       <Image
-        className={styles.logo}
+        className={authStyles.logo}
         src='/logo-mp.svg'
         alt='Meeting Planner logo'
         width={64}
         height={64}
         priority
       />
-      <h1 className={styles.title}>Login</h1>
-      <form className={styles.form} onSubmit={handleSubmit(onSubmit)}>
-        <label className={styles.field}>
-          <span className={styles.label}>Email or username</span>
+      <h1 className={authStyles.title}>Login</h1>
+      <form className={authStyles.form} onSubmit={handleSubmit(onSubmit)}>
+        <label className={authStyles.field}>
+          <span className={authStyles.label}>Email or username</span>
           <input
-            className={styles.input}
+            className={authStyles.input}
             autoComplete='username'
             {...register('identifier')}
           />
         </label>
         {errors.identifier && (
-          <p className={styles.error} role='alert'>
+          <p className={authStyles.error} role='alert'>
             {errors.identifier.message}
           </p>
         )}
-        <label className={styles.field}>
-          <span className={styles.label}>Password</span>
+        <label className={authStyles.field}>
+          <span className={authStyles.label}>Password</span>
           <input
-            className={styles.input}
+            className={authStyles.input}
             type='password'
             autoComplete='current-password'
             {...register('password')}
           />
         </label>
         {errors.password && (
-          <p className={styles.error} role='alert'>
+          <p className={authStyles.error} role='alert'>
             {errors.password.message}
           </p>
         )}
 
         {error && (
-          <p className={styles.error} role='alert'>
+          <p className={authStyles.error} role='alert'>
             {error}
           </p>
         )}
 
         {unverified && (
-          <div className={styles.error} role='alert'>
+          <div className={authStyles.error} role='alert'>
             {resendSent ? (
               <span>Verification email resent. Check your inbox before signing in.</span>
             ) : isEmail ? (
@@ -167,10 +169,13 @@ export default function LoginForm() {
           </div>
         )}
 
-        <button className={styles.submit} type='submit' disabled={isSubmitting}>
+        <button className={authStyles.submit} type='submit' disabled={isSubmitting}>
           {isSubmitting ? 'Logging in...' : 'Log in'}
         </button>
       </form>
+      <p className={authStyles.altLink}>
+        Don&apos;t have an account? <Link href='/signup'>Sign up</Link>
+      </p>
     </div>
   );
 }

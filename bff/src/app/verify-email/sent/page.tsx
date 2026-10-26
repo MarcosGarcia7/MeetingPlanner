@@ -34,11 +34,7 @@ export default async function VerificationSentPage({
           )}
           . Click it to verify your email, then sign in to your account.
         </p>
-        <Link
-          className={styles.submit}
-          href='/login'
-          style={{textAlign: 'center', display: 'block', marginTop: 16}}
-        >
+        <Link className={styles.linkButton} href='/login'>
           Go to login
         </Link>
       </div>

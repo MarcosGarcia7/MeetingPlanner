@@ -66,7 +66,7 @@ export default function NavLinks() {
     <>
       {links.map((link) => {
         if (link.name === 'block') {
-          return (<div className={styles.sidenavBlock}></div>);
+          return (<div key={link.name} className={styles.sidenavBlock}></div>);
         } else {
           const LinkIcon = link.icon;
           return (
