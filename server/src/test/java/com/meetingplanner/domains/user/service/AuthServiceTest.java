@@ -2,10 +2,12 @@ package com.meetingplanner.domains.user.service;
 
 import com.meetingplanner.common.api.dto.TokenResponse;
 import com.meetingplanner.common.api.exceptions.IncorrectPasswordException;
+import com.meetingplanner.common.api.exceptions.InvalidTokenException;
 import com.meetingplanner.common.api.exceptions.RateLimitExceededException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.TokenPair;
 import com.meetingplanner.domains.notification.service.NotificationService;
+import com.meetingplanner.domains.user.model.AccountTokenEntity;
 import com.meetingplanner.domains.user.model.AccountTokenType;
 import com.meetingplanner.domains.user.model.UserAvailabilityEntity;
 import com.meetingplanner.domains.user.model.UserEntity;
@@ -23,11 +25,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -191,5 +196,92 @@ class AuthServiceTest {
 
         assertEquals(120L, exception.getRetryAfterSeconds());
         verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void forgotPasswordQueuesResetEmailWithOneHourToken() {
+        UserEntity user = existingUser();
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+        when(accountTokenService.create(user, AccountTokenType.PASSWORD_RESET, null, "1.2.3.4", Duration.ofHours(1)))
+                .thenReturn("raw-token");
+
+        service.forgotPassword(" Alice@Example.com ", "1.2.3.4");
+
+        verify(notificationService).queueSecurityEmail(eq(user), eq("PASSWORD_RESET"), anyMap());
+    }
+
+    @Test
+    void forgotPasswordForUnknownEmailDoesNothing() {
+        when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+
+        service.forgotPassword("nobody@example.com", "1.2.3.4");
+
+        verify(accountTokenService, never()).create(any(), any(), any(), any(), any());
+        verify(notificationService, never()).queueSecurityEmail(any(), anyString(), anyMap());
+    }
+
+    @Test
+    void forgotPasswordIsRateLimitedPerEmailBeforeLookup() {
+        when(loginAttemptService.isBlocked("rl:forgot:1.2.3.4", 5)).thenReturn(false);
+        when(loginAttemptService.isBlocked("rl:forgot:email:alice@example.com", 3)).thenReturn(true);
+        when(loginAttemptService.getRemainingWindowSeconds("rl:forgot:email:alice@example.com")).thenReturn(300L);
+
+        RateLimitExceededException exception = assertThrows(RateLimitExceededException.class,
+                () -> service.forgotPassword("alice@example.com", "1.2.3.4"));
+
+        assertEquals(300L, exception.getRetryAfterSeconds());
+        verify(userRepository, never()).findByEmail(anyString());
+    }
+
+    private AccountTokenEntity resetToken(UserEntity user) {
+        AccountTokenEntity token = new AccountTokenEntity();
+        token.setUser(user);
+        token.setTokenType(AccountTokenType.PASSWORD_RESET);
+        return token;
+    }
+
+    @Test
+    void resetPasswordUpdatesHashRevokesSessionsAndClearsLockouts() {
+        UserEntity user = existingUser();
+        user.setEmailVerifiedAt(OffsetDateTime.now().minusDays(1));
+        when(accountTokenService.consume("raw-token", AccountTokenType.PASSWORD_RESET)).thenReturn(resetToken(user));
+        when(passwordEncoder.encode("new-password-123")).thenReturn("new-hash");
+
+        service.resetPassword("raw-token", "new-password-123", "1.2.3.4");
+
+        assertEquals("new-hash", user.getPasswordHash());
+        verify(userRepository).save(user);
+        verify(accountTokenService).deleteForUser(1L, AccountTokenType.PASSWORD_RESET);
+        verify(jtiStorageService).revokeAllJtis("1");
+        verify(accountLockoutService).unlockAccount("alice@example.com");
+        verify(accountLockoutService).unlockAccount("alice");
+        verify(loginAttemptService).resetAttempts("alice@example.com");
+        verify(loginAttemptService).resetAttempts("alice");
+        verify(notificationService).queueSecurityEmail(eq(user), eq("PASSWORD_CHANGED"), anyMap());
+    }
+
+    @Test
+    void resetPasswordVerifiesUnverifiedEmail() {
+        UserEntity user = existingUser();
+        assertNull(user.getEmailVerifiedAt());
+        when(accountTokenService.consume("raw-token", AccountTokenType.PASSWORD_RESET)).thenReturn(resetToken(user));
+        when(passwordEncoder.encode("new-password-123")).thenReturn("new-hash");
+
+        service.resetPassword("raw-token", "new-password-123", "1.2.3.4");
+
+        assertNotNull(user.getEmailVerifiedAt());
+    }
+
+    @Test
+    void resetPasswordWithInvalidTokenChangesNothing() {
+        when(accountTokenService.consume("bad-token", AccountTokenType.PASSWORD_RESET))
+                .thenThrow(new InvalidTokenException("Invalid or expired token"));
+
+        assertThrows(InvalidTokenException.class,
+                () -> service.resetPassword("bad-token", "new-password-123", "1.2.3.4"));
+
+        verify(userRepository, never()).save(any(UserEntity.class));
+        verify(jtiStorageService, never()).revokeAllJtis(anyString());
+        verify(notificationService, never()).queueSecurityEmail(any(), anyString(), anyMap());
     }
 }

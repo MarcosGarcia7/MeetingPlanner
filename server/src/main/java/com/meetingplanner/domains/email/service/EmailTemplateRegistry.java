@@ -55,7 +55,7 @@ public class EmailTemplateRegistry {
                     "Hi {{name}},\n\nPlease confirm this email address by clicking the link below:\n{{link}}\n\nThis link expires in 24 hours.\n\n- {{app_url}}");
             case "PASSWORD_RESET" -> new Template(
                     "Reset your password",
-                    "Hi {{name}},\n\nWe received a request to reset your password. Click the link below to choose a new one:\n{{link}}\n\nIf you did not request this, you can safely ignore this email.\n\n- {{app_url}}");
+                    "Hi {{name}},\n\nWe received a request to reset your password. Click the link below to choose a new one:\n{{link}}\n\nThis link expires in 1 hour.\n\nIf you did not request this, you can safely ignore this email.\n\n- {{app_url}}");
             case "PASSWORD_CHANGED" -> new Template(
                     "Your password was changed",
                     "Hi {{name}},\n\nThe password for your account was just changed, and all other devices were signed out.\n\nIf you did not make this change, reset your password from the sign-in page right away.\n\n- {{app_url}}");

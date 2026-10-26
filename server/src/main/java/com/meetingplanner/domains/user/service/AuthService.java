@@ -31,8 +31,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Locale;
 import java.util.Map;
@@ -80,6 +82,9 @@ public class AuthService {
     private static final long CREATE_WINDOW_SECONDS = 10 * 60;
     private static final int FORGOT_MAX_PER_IP = 5;
     private static final long FORGOT_WINDOW_SECONDS = 10 * 60;
+    private static final int FORGOT_MAX_PER_EMAIL = 3;
+    private static final long FORGOT_EMAIL_WINDOW_SECONDS = 10 * 60;
+    private static final Duration PASSWORD_RESET_TTL = Duration.ofHours(1);
 
     private static final String CHANGE_PASSWORD_RATE_LIMIT_PREFIX = "rl:change-password:";
     private static final int CHANGE_PASSWORD_MAX_PER_USER = 5;
@@ -340,13 +345,16 @@ public class AuthService {
         rateLimit(FORGOT_RATE_LIMIT_PREFIX, clientIp, FORGOT_MAX_PER_IP, FORGOT_WINDOW_SECONDS, "forgot_password");
 
         String normalizedEmail = normalizeEmail(email);
+        // Counted before the lookup so the limit behaves the same whether or not the account exists.
+        rateLimit(FORGOT_RATE_LIMIT_PREFIX + "email:", normalizedEmail, FORGOT_MAX_PER_EMAIL,
+                FORGOT_EMAIL_WINDOW_SECONDS, "forgot_password");
         UserEntity user = userRepository.findByEmail(normalizedEmail).orElse(null);
         if (user == null) {
             auditService.forgotPasswordNotRequested(normalizedEmail, clientIp);
             return;
         }
 
-        String resetToken = accountTokenService.create(user, AccountTokenType.PASSWORD_RESET, null, clientIp, null);
+        String resetToken = accountTokenService.create(user, AccountTokenType.PASSWORD_RESET, null, clientIp, PASSWORD_RESET_TTL);
         String resetLink = appBaseUrl + "/reset-password?token=" + resetToken;
         notificationService.queueSecurityEmail(user, "PASSWORD_RESET", Map.of(
                 "name", displayName(user),
@@ -354,6 +362,7 @@ public class AuthService {
         auditService.forgotPasswordRequested(normalizedEmail, clientIp);
     }
 
+    @Transactional
     public void resetPassword(String rawToken, String newPassword, String clientIp) {
         if (newPassword == null || newPassword.isBlank()) {
             throw new InvalidCredentialsException();
@@ -362,10 +371,20 @@ public class AuthService {
         AccountTokenEntity token = accountTokenService.consume(rawToken, AccountTokenType.PASSWORD_RESET);
         UserEntity user = token.getUser();
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        // Following the emailed link proves inbox ownership, so an unverified account can sign in afterwards.
+        if (user.getEmailVerifiedAt() == null) {
+            user.setEmailVerifiedAt(OffsetDateTime.now());
+        }
         user.setUpdatedAt(OffsetDateTime.now());
         accountTokenService.deleteForUser(user.getId(), AccountTokenType.PASSWORD_RESET);
         jtiStorageService.revokeAllJtis(user.getId().toString());
         userRepository.save(user);
+        // Lockouts are keyed by the login identifier, which may be either the email or the username.
+        for (String identifier : new String[]{user.getEmail(), user.getUsername()}) {
+            accountLockoutService.unlockAccount(identifier);
+            loginAttemptService.resetAttempts(identifier);
+        }
+        notificationService.queueSecurityEmail(user, "PASSWORD_CHANGED", Map.of("name", displayName(user)));
         auditService.passwordResetCompleted(user.getEmail(), clientIp);
     }
 

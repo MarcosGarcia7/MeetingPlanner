@@ -10,6 +10,12 @@
   cursor: pointer;
 }
 
+.forgotLink {
+  align-self: flex-end;
+  color: var(--accent);
+  font-size: 14px;
+}
+
 .resendLink:disabled {
   opacity: 0.6;
   cursor: not-allowed;

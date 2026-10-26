@@ -7,7 +7,6 @@ import {
   CalendarDaysIcon,
   EnvelopeIcon,
   UsersIcon,
-  PlusCircleIcon,
   CodeBracketIcon,
   Cog8ToothIcon,
   UserIcon

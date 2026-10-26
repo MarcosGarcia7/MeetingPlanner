@@ -57,6 +57,17 @@ export interface VerifyEmailResendRequest {
   email: string;
 }
 
+// Mirrors server common/api/dto/ForgotPasswordRequest.
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+// Mirrors server common/api/dto/ResetPasswordRequest.
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
 // BFF-only: body of POST /api/auth/login; the route picks the email or username endpoint.
 export interface LoginRequest {
   identifier: string;

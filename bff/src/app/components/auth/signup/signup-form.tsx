@@ -162,7 +162,7 @@ export default function SignupForm() {
             )}
 
             <label className={authStyles.field}>
-              <span className={authStyles.label}>Username (optional)</span>
+              <span className={authStyles.label}>Username (can\'t be changed later)</span>
               <input
                 type='text'
                 autoComplete='username'
@@ -262,7 +262,7 @@ export default function SignupForm() {
 
             <label className={styles.checkRow}>
               <input type='checkbox' {...register('isPrivate')} />
-              <span>Make my account private</span>
+              <span>Make my account private (schedule will be hidden)</span>
             </label>
 
             <div className={styles.actions}>

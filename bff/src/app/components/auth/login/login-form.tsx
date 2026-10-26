@@ -140,6 +140,9 @@ export default function LoginForm() {
             {errors.password.message}
           </p>
         )}
+        <Link className={styles.forgotLink} href='/forgot-password'>
+          Forgot password?
+        </Link>
 
         {error && (
           <p className={authStyles.error} role='alert'>

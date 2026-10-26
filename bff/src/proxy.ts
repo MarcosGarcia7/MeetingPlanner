@@ -4,7 +4,7 @@ import {refreshSessionTtl, SESSION_COOKIE, SESSION_COOKIE_OPTIONS} from '@/lib/s
 
 const protectedRoutes = ['/dashboard'];
 
-const authRoutes = ['/login', '/signup'];
+const authRoutes = ['/login', '/signup', '/forgot-password'];
 
 const sessionLifecycleRoutes = ['/api/auth/login', '/api/auth/logout'];
 
