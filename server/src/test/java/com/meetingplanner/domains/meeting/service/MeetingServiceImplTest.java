@@ -310,6 +310,30 @@ class MeetingServiceImplTest {
     }
 
     @Test
+    void getReportsUnavailableForManagerWhoIsNotParticipant() {
+        MeetingEntity meeting = publicGroupMeeting(group(5L));
+        meeting.setPrivate(true);
+        when(authorization.canManage(2L, meeting)).thenReturn(true);
+
+        MeetingResponse response = service.get(2L, 10L);
+
+        assertEquals(MeetingViewerStatus.UNAVAILABLE, response.viewerStatus());
+        assertTrue(response.canManage());
+    }
+
+    @Test
+    void getStillReportsPendingInviteForManager() {
+        MeetingEntity meeting = publicGroupMeeting(group(5L));
+        when(authorization.canManage(2L, meeting)).thenReturn(true);
+        MeetingInviteEntity invite = new MeetingInviteEntity();
+        invite.setId(30L);
+        when(meetingInviteRepository.findFirstByMeetingIdAndRecipientIdAndStatus(10L, 2L, InviteStatus.PENDING))
+                .thenReturn(Optional.of(invite));
+
+        assertEquals(MeetingViewerStatus.INVITED, service.get(2L, 10L).viewerStatus());
+    }
+
+    @Test
     void getHidesMeetingViewerCannotSee() {
         MeetingEntity meeting = meeting(10L, user(1L, "alice"));
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));

@@ -401,6 +401,27 @@ class JoinRequestServiceImplTest {
     }
 
     @Test
+    void requestMeetingJoinRejectsManager() {
+        UserEntity creator = user(1L, "alice");
+        GroupEntity group = group(5L, creator);
+        MeetingEntity meeting = meeting(10L, creator, group);
+        meeting.setPrivate(true);
+
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(groupRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(group));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(meetingAuthorization.canView(2L, meeting)).thenReturn(true);
+        when(meetingAuthorization.canManage(2L, meeting)).thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.requestMeetingJoin(2L, 10L));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verify(meetingJoinRequestRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
     void requestMeetingJoinRejectsEndedMeeting() {
         UserEntity creator = user(1L, "alice");
         GroupEntity group = group(5L, creator);

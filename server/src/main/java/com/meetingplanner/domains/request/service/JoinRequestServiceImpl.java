@@ -154,6 +154,10 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         if (meetingAuthorization.isParticipantOrCreator(userId, meeting)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "You are already a participant of this meeting");
         }
+        // Managers would be approving their own request.
+        if (meetingAuthorization.canManage(userId, meeting)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You manage this meeting");
+        }
         if (blockService.isBlocked(userId, meeting.getCreator().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot request to join this meeting");
         }

@@ -405,9 +405,10 @@ public class MeetingServiceImpl implements MeetingService {
             participants.add(new ParticipantResponse(p.getUser().getId(), p.getUser().getUsername()));
             viewerIsParticipant |= p.getUser().getId().equals(viewerId);
         }
+        boolean canManage = authorization.canManage(viewerId, m);
         ViewerState viewer = viewerIsParticipant
                 ? new ViewerState(MeetingViewerStatus.PARTICIPANT, null, null)
-                : viewerState(m, viewerId);
+                : viewerState(m, viewerId, canManage);
         return new MeetingResponse(
                 m.getId(),
                 m.getGroup() == null ? null : m.getGroup().getId(),
@@ -422,7 +423,7 @@ public class MeetingServiceImpl implements MeetingService {
                 participants,
                 warnings,
                 timeChangeService.pendingSummary(m.getId()).orElse(null),
-                authorization.canManage(viewerId, m),
+                canManage,
                 viewer.status(),
                 viewer.pendingRequestId(),
                 viewer.pendingInviteId());
@@ -433,7 +434,7 @@ public class MeetingServiceImpl implements MeetingService {
 
     // For a non-participant who can view the meeting: a pending invite wins over a pending request; otherwise
     // whether JoinRequestServiceImpl.requestMeetingJoin would accept a request from them.
-    private ViewerState viewerState(MeetingEntity m, long viewerId) {
+    private ViewerState viewerState(MeetingEntity m, long viewerId, boolean canManage) {
         Optional<MeetingInviteEntity> invite = meetingInviteRepository.findFirstByMeetingIdAndRecipientIdAndStatus(
                 m.getId(), viewerId, InviteStatus.PENDING);
         if (invite.isPresent()) {
@@ -446,6 +447,7 @@ public class MeetingServiceImpl implements MeetingService {
         }
         GroupEntity group = m.getGroup();
         boolean canRequest = group != null
+                && !canManage
                 && !m.hasEnded()
                 && !groupAuthorization.isBanned(viewerId, group)
                 && !blockService.isBlocked(viewerId, m.getCreator().getId());
