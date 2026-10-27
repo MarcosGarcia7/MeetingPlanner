@@ -1,6 +1,9 @@
 package com.meetingplanner.domains.friend.service;
 
+import com.meetingplanner.common.api.dto.CursorPage;
+import com.meetingplanner.common.api.dto.FriendshipResponse;
 import com.meetingplanner.common.api.dto.MemberUsernameRequest;
+import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.domains.friend.model.FriendshipEntity;
 import com.meetingplanner.domains.friend.model.FriendshipStatus;
 import com.meetingplanner.domains.friend.repository.FriendshipRepository;
@@ -17,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -199,5 +204,83 @@ class FriendshipServiceTest {
 
         assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
         assertEquals(FriendshipStatus.ACCEPTED, accepted.getStatus());
+    }
+
+    @Test
+    void unfriendDeletesAcceptedFriendship() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        FriendshipEntity accepted = friendship(alice, bob, bob, FriendshipStatus.ACCEPTED);
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.of(accepted));
+
+        service.unfriend(2L, "alice");
+
+        verify(friendshipRepository).delete(accepted);
+    }
+
+    @Test
+    void unfriendUnknownUserIsNotFound() {
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.unfriend(1L, "ghost"));
+        verify(friendshipRepository, never()).delete(any());
+    }
+
+    @Test
+    void unfriendWithoutFriendshipIsNotFound() {
+        UserEntity bob = user(2L, "bob");
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.unfriend(1L, "bob"));
+    }
+
+    @Test
+    void unfriendCannotRemovePendingOrBlockedRows() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        for (FriendshipStatus status : List.of(FriendshipStatus.PENDING, FriendshipStatus.BLOCKED)) {
+            FriendshipEntity row = friendship(alice, bob, bob, status);
+            when(friendshipRepository.findByUserIdAndFriendIdForUpdate(1L, 2L)).thenReturn(Optional.of(row));
+
+            assertThrows(ResourceNotFoundException.class, () -> service.unfriend(1L, "bob"));
+        }
+        verify(friendshipRepository, never()).delete(any());
+    }
+
+    @Test
+    void listBlockedOnlyQueriesBlocksTheCallerMade() {
+        when(friendshipRepository.listRequestsAsUser(eq(1L), eq(FriendshipStatus.BLOCKED), eq(false),
+                isNull(), isNull(), any())).thenReturn(List.of());
+        when(friendshipRepository.listRequestsAsFriend(eq(1L), eq(FriendshipStatus.BLOCKED), eq(false),
+                isNull(), isNull(), any())).thenReturn(List.of());
+
+        service.listBlocked(1L, null, 20);
+
+        verify(friendshipRepository, never()).listRequestsAsUser(any(), any(), eq(true), any(), any(), any());
+        verify(friendshipRepository, never()).listByStatusAsUser(any(), any(), any(), any(), any());
+        verify(friendshipRepository, never()).listByStatusAsFriend(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void responseDescribesCounterpartRegardlessOfWhoRequested() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        bob.setAvatarColor("#3B82F6");
+        FriendshipEntity row = friendship(alice, bob, bob, FriendshipStatus.ACCEPTED);
+        row.setCreatedAt(OffsetDateTime.now());
+        when(friendshipRepository.listByStatusAsUser(eq(1L), eq(FriendshipStatus.ACCEPTED), isNull(), isNull(), any()))
+                .thenReturn(List.of(row));
+        when(friendshipRepository.listByStatusAsFriend(eq(1L), eq(FriendshipStatus.ACCEPTED), isNull(), isNull(), any()))
+                .thenReturn(List.of());
+
+        CursorPage<FriendshipResponse> page = service.listFriends(1L, null, 20);
+
+        FriendshipResponse only = page.items().getFirst();
+        assertEquals("bob", only.username());
+        assertEquals("#3B82F6", only.avatarColor());
+        assertEquals(2L, only.requesterId());
     }
 }

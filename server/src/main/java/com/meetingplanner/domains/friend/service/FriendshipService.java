@@ -140,6 +140,18 @@ public class FriendshipService {
     }
 
     @Transactional
+    public void unfriend(long userId, String otherUsername) {
+        UserEntity other = userRepository.findByUsername(otherUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Pair pair = pair(userId, other.getId());
+        FriendshipEntity friendship = friendshipRepository.findByUserIdAndFriendIdForUpdate(pair.a, pair.b)
+                .filter(f -> f.getStatus() == FriendshipStatus.ACCEPTED)
+                .orElseThrow(() -> new ResourceNotFoundException("Friend not found"));
+        friendshipRepository.delete(friendship);
+    }
+
+    @Transactional
     public void block(long blockerId, long targetUserId) {
         requireUser(blockerId);
         requireUser(targetUserId);
@@ -189,17 +201,18 @@ public class FriendshipService {
 
     @Transactional(readOnly = true)
     public CursorPage<FriendshipResponse> listIncomingRequests(long userId, String cursor, int size) {
-        return listRequests(userId, true, cursor, size);
+        return listRequests(userId, FriendshipStatus.PENDING, true, cursor, size);
     }
 
     @Transactional(readOnly = true)
     public CursorPage<FriendshipResponse> listOutgoingRequests(long userId, String cursor, int size) {
-        return listRequests(userId, false, cursor, size);
+        return listRequests(userId, FriendshipStatus.PENDING, false, cursor, size);
     }
 
     @Transactional(readOnly = true)
     public CursorPage<FriendshipResponse> listBlocked(long userId, String cursor, int size) {
-        return listByStatus(userId, FriendshipStatus.BLOCKED, cursor, size);
+        // Only blocks the caller made; being blocked by someone else stays invisible.
+        return listRequests(userId, FriendshipStatus.BLOCKED, false, cursor, size);
     }
 
     private CursorPage<FriendshipResponse> listByStatus(long userId, FriendshipStatus status, String cursor, int size) {
@@ -215,16 +228,18 @@ public class FriendshipService {
         return toPage(merge(asUser, asFriend, userId), limit, userId);
     }
 
-    private CursorPage<FriendshipResponse> listRequests(long userId, boolean incoming, String cursor, int size) {
+    // incoming = rows the other user initiated; otherwise rows the caller initiated (requester = caller).
+    private CursorPage<FriendshipResponse> listRequests(long userId, FriendshipStatus status, boolean incoming,
+                                                        String cursor, int size) {
         int limit = CursorCodec.clampSize(size);
         CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
         OffsetDateTime cursorTime = decoded == null ? null : decoded.time();
         Long cursorId = decoded == null ? null : decoded.id();
 
         List<FriendshipEntity> asUser = friendshipRepository.listRequestsAsUser(
-                userId, FriendshipStatus.PENDING, incoming, cursorTime, cursorId, PageRequest.of(0, limit + 1));
+                userId, status, incoming, cursorTime, cursorId, PageRequest.of(0, limit + 1));
         List<FriendshipEntity> asFriend = friendshipRepository.listRequestsAsFriend(
-                userId, FriendshipStatus.PENDING, incoming, cursorTime, cursorId, PageRequest.of(0, limit + 1));
+                userId, status, incoming, cursorTime, cursorId, PageRequest.of(0, limit + 1));
         return toPage(merge(asUser, asFriend, userId), limit, userId);
     }
 

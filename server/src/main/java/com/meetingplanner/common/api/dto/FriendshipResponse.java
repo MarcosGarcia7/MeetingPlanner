@@ -2,6 +2,7 @@ package com.meetingplanner.common.api.dto;
 
 import com.meetingplanner.domains.friend.model.FriendshipEntity;
 import com.meetingplanner.domains.friend.model.FriendshipStatus;
+import com.meetingplanner.domains.user.model.UserEntity;
 
 import java.time.OffsetDateTime;
 
@@ -10,18 +11,23 @@ public record FriendshipResponse(
         String username,
         String firstName,
         String lastName,
+        String avatarColor,
         FriendshipStatus status,
         Long requesterId,
         OffsetDateTime createdAt
 ) {
 
     public static FriendshipResponse from(FriendshipEntity friendship, Long viewerId) {
-        boolean requester = friendship.getRequester().getId().equals(viewerId);
+        // Rows store the pair in id order, so the counterpart is whichever side isn't the viewer.
+        UserEntity other = friendship.getUser().getId().equals(viewerId)
+                ? friendship.getFriend()
+                : friendship.getUser();
         return new FriendshipResponse(
-                requester ? friendship.getFriend().getId() : friendship.getUser().getId(),
-                requester ? friendship.getFriend().getUsername() : friendship.getUser().getUsername(),
-                requester ? friendship.getFriend().getFirstName() : friendship.getUser().getFirstName(),
-                requester ? friendship.getFriend().getLastName() : friendship.getUser().getLastName(),
+                other.getId(),
+                other.getUsername(),
+                other.getFirstName(),
+                other.getLastName(),
+                other.getAvatarColor(),
                 friendship.getStatus(),
                 friendship.getRequester().getId(),
                 friendship.getCreatedAt()

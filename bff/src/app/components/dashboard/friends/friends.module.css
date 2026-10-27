@@ -1,0 +1,59 @@
+/* Friends tab. Rows, menus, and pagination reuse the group list primitives. */
+
+.list {
+  composes: groupList from '../groups/groups.module.css';
+}
+
+.row {
+  composes: groupCard from '../groups/groups.module.css';
+}
+
+.body {
+  composes: groupBody from '../groups/groups.module.css';
+}
+
+.name {
+  composes: groupName from '../groups/groups.module.css';
+}
+
+.chip {
+  composes: ownerBadge from '../groups/groups.module.css';
+}
+
+.menu {
+  composes: menu from '../groups/groups.module.css';
+}
+
+.menuButton {
+  composes: menuButton from '../groups/groups.module.css';
+}
+
+.menuIcon {
+  composes: menuIcon from '../groups/groups.module.css';
+}
+
+.menuPanel {
+  composes: menuPanel from '../groups/groups.module.css';
+}
+
+.loadMore {
+  composes: loadMore from '../groups/groups.module.css';
+}
+
+.searchResults {
+  composes: searchResults from '../groups/groups.module.css';
+}
+
+/* Friends list: pointer to pending incoming requests. */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--accent-subtle);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}

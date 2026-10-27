@@ -1,6 +1,6 @@
 # Server API Endpoints
 
-103 endpoints across 15 controllers, generated from the Spring controllers in
+104 endpoints across 15 controllers, generated from the Spring controllers in
 `server/src/main/java/com/meetingplanner/domains/*/controller`.
 
 ## AuthController (9)
@@ -17,7 +17,7 @@
 | POST | `/api/auth/forgot-password` | `forgotPassword` |
 | POST | `/api/auth/reset-password` | `resetPassword` |
 
-## FriendshipController (10)
+## FriendshipController (11)
 
 | Method | Path | Handler |
 | --- | --- | --- |
@@ -29,6 +29,7 @@
 | POST | `/api/users/me/friends/requests/{username}/accept` | `accept` |
 | POST | `/api/users/me/friends/requests/{username}/decline` | `decline` |
 | DELETE | `/api/users/me/friends/requests/{username}` | `cancel` |
+| DELETE | `/api/users/me/friends/{username}` | `unfriend` |
 | POST | `/api/users/me/friends/blocked` | `block` |
 | DELETE | `/api/users/me/friends/blocked/{username}` | `unblock` |
 
