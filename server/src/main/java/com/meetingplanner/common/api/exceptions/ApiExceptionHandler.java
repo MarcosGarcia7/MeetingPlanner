@@ -168,6 +168,7 @@ public class ApiExceptionHandler {
             case NOT_FOUND -> "not_found";
             case METHOD_NOT_ALLOWED -> "method_not_allowed";
             case CONFLICT -> "conflict";
+            case GONE -> "gone";
             case UNSUPPORTED_MEDIA_TYPE -> "unsupported_media_type";
             case TOO_MANY_REQUESTS -> "rate_limited";
             default -> "http_" + status.value();

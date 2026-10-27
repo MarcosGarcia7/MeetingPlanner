@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.Collection;
@@ -81,4 +82,13 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
     int cancelPendingForRequesterInGroup(@Param("groupId") Long groupId,
                                          @Param("userId") Long userId,
                                          @Param("at") OffsetDateTime at);
+
+    @Transactional
+    @Modifying
+    @Query("""
+            delete from GroupJoinRequestEntity r
+            where r.status <> com.meetingplanner.common.api.model.RequestStatus.PENDING
+              and r.respondedAt < :respondedBefore
+            """)
+    int deleteRespondedBefore(@Param("respondedBefore") OffsetDateTime respondedBefore);
 }

@@ -98,7 +98,8 @@ public class InviteServiceImpl implements InviteService {
         // A kind filter skips the other source entirely; the merged keyset order still holds for one source.
         List<GroupInviteEntity> groupInvites = kind == null || kind == TargetKind.GROUP
                 ? groupInviteRepository.listForRecipient(
-                        userId, user.getEmail(), status, "GROUP", cursorTime, cursorKind, cursorId,
+                        userId, user.getEmail(), status, OffsetDateTime.now().minus(GroupInviteEntity.EXPIRY),
+                        "GROUP", cursorTime, cursorKind, cursorId,
                         PageRequest.of(0, limit + 1))
                 : List.of();
         List<MeetingInviteEntity> meetingInvites = kind == null || kind == TargetKind.MEETING
@@ -402,6 +403,9 @@ public class InviteServiceImpl implements InviteService {
     private void requirePending(GroupInviteEntity invite, String errorMessage) {
         if (invite.getStatus() != InviteStatus.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, errorMessage);
+        }
+        if (invite.isExpired(OffsetDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.GONE, "Invite has expired");
         }
     }
 

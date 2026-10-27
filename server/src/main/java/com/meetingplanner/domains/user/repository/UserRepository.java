@@ -3,10 +3,13 @@ package com.meetingplanner.domains.user.repository;
 import com.meetingplanner.domains.user.model.UserEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,4 +45,10 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
                             @Param("cursorValue") String cursorValue,
                             @Param("cursorId") Long cursorId,
                             Pageable pageable);
+
+    // Unverified accounts can't sign in, so they hold no sessions; FK cascades remove their dependent rows.
+    @Transactional
+    @Modifying
+    @Query("delete from UserEntity u where u.emailVerifiedAt is null and u.createdAt < :createdBefore")
+    int deleteUnverifiedCreatedBefore(@Param("createdBefore") OffsetDateTime createdBefore);
 }

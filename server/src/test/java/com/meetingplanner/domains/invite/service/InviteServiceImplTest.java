@@ -23,6 +23,7 @@ import com.meetingplanner.domains.user.model.UserEntity;
 import com.meetingplanner.domains.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -224,6 +226,53 @@ class InviteServiceImplTest {
     }
 
     @Test
+    void expiredGroupInviteCannotBeAcceptedById() {
+        UserEntity sender = user(1L, "alice");
+        GroupInviteEntity invite = groupInvite(group(9L, sender), sender, user(2L, "bob"));
+        invite.setTimeSent(OffsetDateTime.now().minus(GroupInviteEntity.EXPIRY).minusMinutes(1));
+
+        when(groupInviteRepository.findById(5L)).thenReturn(Optional.of(invite));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.acceptGroupInvite(2L, 5L));
+
+        assertEquals(HttpStatus.GONE, exception.getStatusCode());
+        assertEquals("Invite has expired", exception.getReason());
+        verify(groupRepository, never()).findByIdForUpdate(anyLong());
+        verify(groupInviteRepository, never()).transitionStatus(anyLong(), any(), any(), any());
+        verify(groupMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void expiredGroupInviteCannotBeDeclinedByToken() {
+        UserEntity sender = user(1L, "alice");
+        GroupInviteEntity invite = groupInvite(group(9L, sender), sender, user(2L, "bob"));
+        invite.setTimeSent(OffsetDateTime.now().minus(GroupInviteEntity.EXPIRY).minusMinutes(1));
+
+        when(groupInviteRepository.findByTokenHash(anyString())).thenReturn(Optional.of(invite));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.declineGroupInviteByToken("token"));
+
+        assertEquals(HttpStatus.GONE, exception.getStatusCode());
+        verify(groupInviteRepository, never()).transitionStatus(anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void groupInviteJustInsideExpiryCanStillBeDeclined() {
+        UserEntity sender = user(1L, "alice");
+        GroupInviteEntity invite = groupInvite(group(9L, sender), sender, user(2L, "bob"));
+        invite.setTimeSent(OffsetDateTime.now().minus(GroupInviteEntity.EXPIRY).plusMinutes(1));
+
+        when(groupInviteRepository.findById(5L)).thenReturn(Optional.of(invite));
+        when(groupInviteRepository.transitionStatus(anyLong(), any(), any(), any())).thenReturn(1);
+
+        service.declineGroupInvite(2L, 5L);
+
+        assertEquals(InviteStatus.DECLINED, invite.getStatus());
+    }
+
+    @Test
     void declineGroupInviteLosingRaceIsConflict() {
         UserEntity sender = user(1L, "alice");
         GroupInviteEntity invite = groupInvite(group(9L, sender), sender, user(2L, "bob"));
@@ -349,7 +398,7 @@ class InviteServiceImplTest {
         MeetingInviteEntity meetingInvite = meetingInvite(meeting, owner, recipient, InviteStatus.PENDING);
         when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
         when(groupInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(InviteStatus.PENDING),
-                eq("GROUP"), any(), any(), any(), any())).thenReturn(List.of(groupInvite));
+                any(), eq("GROUP"), any(), any(), any(), any())).thenReturn(List.of(groupInvite));
         when(meetingInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(InviteStatus.PENDING),
                 eq("MEETING"), any(), any(), any(), any())).thenReturn(List.of(meetingInvite));
 
@@ -364,11 +413,27 @@ class InviteServiceImplTest {
     }
 
     @Test
+    void listMineHidesGroupInvitesPendingPastExpiry() {
+        UserEntity recipient = user(2L, "recipient");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
+        ArgumentCaptor<OffsetDateTime> pendingSince = ArgumentCaptor.forClass(OffsetDateTime.class);
+        when(groupInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(null),
+                pendingSince.capture(), eq("GROUP"), any(), any(), any(), any())).thenReturn(List.of());
+
+        OffsetDateTime before = OffsetDateTime.now().minus(GroupInviteEntity.EXPIRY);
+        service.listMine(2L, null, TargetKind.GROUP, null, 20);
+        OffsetDateTime after = OffsetDateTime.now().minus(GroupInviteEntity.EXPIRY);
+
+        assertFalse(pendingSince.getValue().isBefore(before));
+        assertFalse(pendingSince.getValue().isAfter(after));
+    }
+
+    @Test
     void listMineWithGroupKindSkipsMeetingInvites() {
         UserEntity recipient = user(2L, "recipient");
         when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
         when(groupInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(null),
-                eq("GROUP"), any(), any(), any(), any())).thenReturn(List.of());
+                any(), eq("GROUP"), any(), any(), any(), any())).thenReturn(List.of());
 
         service.listMine(2L, null, TargetKind.GROUP, null, 20);
 

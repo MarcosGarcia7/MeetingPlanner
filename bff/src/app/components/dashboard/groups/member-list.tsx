@@ -53,6 +53,7 @@ export default function MemberList({groupId, ownerId, members, viewerId, viewerR
           const error = errorFor(key);
           const actions = actionsFor(viewerRole, viewerId, ownerId, member);
           const memberUrl = `/api/groups/${groupId}/members/${member.userId}`;
+          const fullName = [member.firstName, member.lastName].filter(Boolean).join(' ');
           return (
             <li key={key} className={styles.groupCard}>
               <Image src={avatarDataUri({
@@ -63,7 +64,7 @@ export default function MemberList({groupId, ownerId, members, viewerId, viewerR
               })} alt='' width={40} height={40} className={dashboardStyles.avatar} unoptimized/>
               <div className={styles.groupBody}>
                 <span className={styles.groupName}>
-                  @{member.username}
+                  {fullName || `@${member.username}`}
                   {member.userId === viewerId && <span className={dashboardStyles.meta}>(you)</span>}
                   {member.userId === ownerId ? (
                     <span className={styles.ownerBadge}>Owner</span>
@@ -71,6 +72,7 @@ export default function MemberList({groupId, ownerId, members, viewerId, viewerR
                     <span className={styles.ownerBadge}>Admin</span>
                   )}
                 </span>
+                {fullName && <span className={dashboardStyles.meta}>@{member.username}</span>}
                 {error && <span className={dashboardStyles.error} role='alert'>{error}</span>}
               </div>
               {actions.length > 0 && (

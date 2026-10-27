@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -32,4 +33,14 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     @Modifying
     @Query("update NotificationEntity n set n.readAt = :readAt where n.user.id = :userId and n.readAt is null")
     int markAllRead(@Param("userId") Long userId, @Param("readAt") OffsetDateTime readAt);
+
+    @Transactional
+    @Modifying
+    @Query("""
+            delete from NotificationEntity n
+            where (n.readAt is not null and n.createdAt < :readBefore)
+               or n.createdAt < :createdBefore
+            """)
+    int deleteOld(@Param("readBefore") OffsetDateTime readBefore,
+                  @Param("createdBefore") OffsetDateTime createdBefore);
 }

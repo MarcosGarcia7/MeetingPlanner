@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.Collection;
@@ -34,6 +35,8 @@ public interface GroupInviteRepository extends JpaRepository<GroupInviteEntity, 
             select gi from GroupInviteEntity gi
             where (gi.recipient.id = :userId or gi.recipientEmail = :email)
               and (:status is null or gi.status = :status)
+              and (gi.status <> com.meetingplanner.common.api.model.InviteStatus.PENDING
+                   or gi.timeSent >= :pendingSince)
               and not exists (
                   select 1 from FriendshipEntity f
                   where f.status = 'BLOCKED'
@@ -49,6 +52,7 @@ public interface GroupInviteRepository extends JpaRepository<GroupInviteEntity, 
     List<GroupInviteEntity> listForRecipient(@Param("userId") Long userId,
                                              @Param("email") String email,
                                              @Param("status") InviteStatus status,
+                                             @Param("pendingSince") OffsetDateTime pendingSince,
                                              @Param("sourceKind") String sourceKind,
                                              @Param("cursorTime") OffsetDateTime cursorTime,
                                              @Param("cursorKind") String cursorKind,
@@ -105,4 +109,16 @@ public interface GroupInviteRepository extends JpaRepository<GroupInviteEntity, 
     int declinePendingForRecipientInGroup(@Param("groupId") Long groupId,
                                           @Param("userId") Long userId,
                                           @Param("at") OffsetDateTime at);
+
+    @Transactional
+    @Modifying
+    @Query("""
+            delete from GroupInviteEntity gi
+            where (gi.status = com.meetingplanner.common.api.model.InviteStatus.PENDING
+                   and gi.timeSent < :expiredBefore)
+               or (gi.status <> com.meetingplanner.common.api.model.InviteStatus.PENDING
+                   and gi.respondedAt < :respondedBefore)
+            """)
+    int deleteExpiredAndResponded(@Param("expiredBefore") OffsetDateTime expiredBefore,
+                                  @Param("respondedBefore") OffsetDateTime respondedBefore);
 }

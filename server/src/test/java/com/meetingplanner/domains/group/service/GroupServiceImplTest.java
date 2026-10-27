@@ -53,6 +53,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -197,7 +198,12 @@ class GroupServiceImplTest {
         GroupInviteEntity invite = new GroupInviteEntity();
         invite.setId(40L);
         invite.setGroup(invited);
-        when(groupInviteRepository.findByRecipientIdAndStatusAndGroupIdIn(9L, InviteStatus.PENDING, ids)).thenReturn(List.of(invite));
+        GroupInviteEntity expiredInvite = new GroupInviteEntity();
+        expiredInvite.setId(41L);
+        expiredInvite.setGroup(none);
+        expiredInvite.setTimeSent(OffsetDateTime.now().minus(GroupInviteEntity.EXPIRY).minusHours(1));
+        when(groupInviteRepository.findByRecipientIdAndStatusAndGroupIdIn(9L, InviteStatus.PENDING, ids))
+                .thenReturn(List.of(invite, expiredInvite));
         GroupJoinRequestEntity request = new GroupJoinRequestEntity();
         request.setId(50L);
         request.setGroup(requested);
@@ -214,6 +220,7 @@ class GroupServiceImplTest {
         assertEquals(GroupViewerStatus.REQUESTED, items.get(3).viewerStatus());
         assertEquals(50L, items.get(3).pendingRequestId());
         assertEquals(GroupViewerStatus.NONE, items.get(4).viewerStatus());
+        assertNull(items.get(4).pendingInviteId());
         assertEquals(0, items.get(4).memberCount());
     }
 
@@ -497,6 +504,36 @@ class GroupServiceImplTest {
         assertEquals("Could not invite @bob: An invite already exists for this email", exception.getReason());
         verify(groupInviteRepository, never()).save(any(GroupInviteEntity.class));
         verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void reinviteWithExpiredPendingInviteReusesIt() {
+        UserEntity actor = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        prepareAdmin(1L, actor);
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(groupMemberRepository.existsByGroupIdAndUserId(1L, 2L)).thenReturn(false);
+
+        GroupInviteEntity existing = new GroupInviteEntity();
+        existing.setId(5L);
+        existing.setStatus(InviteStatus.PENDING);
+        OffsetDateTime expiredSentAt = OffsetDateTime.now().minus(GroupInviteEntity.EXPIRY).minusHours(1);
+        existing.setTimeSent(expiredSentAt);
+        String oldHash = "a".repeat(64);
+        existing.setTokenHash(oldHash);
+        when(groupInviteRepository.findByGroupIdAndRecipientEmail(1L, "bob@example.com"))
+                .thenReturn(Optional.of(existing));
+        when(groupInviteRepository.save(any(GroupInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        InviteBatchResponse response = service.inviteBatch(1L, 1L, batch("bob"));
+
+        assertEquals(1, response.invited().size());
+        assertEquals(5L, response.invited().getFirst().id());
+        assertEquals(InviteStatus.PENDING, existing.getStatus());
+        assertTrue(existing.getTimeSent().isAfter(expiredSentAt));
+        assertNotEquals(oldHash, existing.getTokenHash());
+        verify(notificationService).queueEmailToForUser(eq(bob), eq("bob@example.com"), eq("GROUP_INVITE"), anyMap(), eq("group_invites"));
     }
 
     @Test

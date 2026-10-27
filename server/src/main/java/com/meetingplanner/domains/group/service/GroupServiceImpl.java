@@ -189,7 +189,10 @@ public class GroupServiceImpl implements GroupService {
         groupJoinRequestRepository.findByRequesterIdAndStatusAndGroupIdIn(viewerId, RequestStatus.PENDING, groupIds)
                 .forEach(request -> requestIds.put(request.getGroup().getId(), request.getId()));
         Map<Long, Long> inviteIds = new HashMap<>();
+        OffsetDateTime now = OffsetDateTime.now();
         groupInviteRepository.findByRecipientIdAndStatusAndGroupIdIn(viewerId, InviteStatus.PENDING, groupIds)
+                .stream()
+                .filter(invite -> !invite.isExpired(now))
                 .forEach(invite -> inviteIds.put(invite.getGroup().getId(), invite.getId()));
 
         return groups.stream().map(group -> {
@@ -722,7 +725,7 @@ public class GroupServiceImpl implements GroupService {
     // Called after the membership check, so an ACCEPTED invite belongs to someone who has since left or
     // been removed and can be reset like a declined one.
     private GroupInviteEntity reuseForReinvite(GroupInviteEntity existing) {
-        if (existing.getStatus() == InviteStatus.PENDING) {
+        if (existing.getStatus() == InviteStatus.PENDING && !existing.isExpired(OffsetDateTime.now())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An invite already exists for this email");
         }
         return existing;

@@ -6,11 +6,15 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "group_invites")
 public class GroupInviteEntity {
+
+    // Pending invites stop working after this; RetentionCleanupWorker deletes them once a day.
+    public static final Duration EXPIRY = Duration.ofDays(7);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,6 +51,10 @@ public class GroupInviteEntity {
     private InviteStatus status = InviteStatus.PENDING;
 
     public GroupInviteEntity() {
+    }
+
+    public boolean isExpired(OffsetDateTime now) {
+        return status == InviteStatus.PENDING && timeSent != null && timeSent.isBefore(now.minus(EXPIRY));
     }
 
     public Long getId() {
