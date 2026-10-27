@@ -82,11 +82,6 @@
   height: 14px;
 }
 
-.avatar {
-  flex-shrink: 0;
-  border-radius: 50%;
-}
-
 /* Avatar color picker */
 
 .colorPicker {

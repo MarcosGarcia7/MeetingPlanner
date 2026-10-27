@@ -45,3 +45,53 @@ export interface TimeChangeProposalResponse {
 export interface TimeChangeVoteRequest {
   approve: boolean;
 }
+
+// Mirrors server common/api/dto/MeetingCreateRequest.
+export interface MeetingCreateRequest {
+  startTime: string;
+  endTime?: string | null;
+  location?: string | null;
+  title: string;
+  isPrivate?: boolean | null;
+}
+
+// Mirrors server common/api/dto/ParticipantResponse.
+export interface ParticipantResponse {
+  userId: number | null;
+  username: string | null;
+}
+
+// Mirrors server common/api/dto/PendingTimeChange.
+export interface PendingTimeChange {
+  proposalId: number | null;
+  proposedById: number | null;
+  proposedStartTime: string | null;
+  proposedEndTime: string | null;
+}
+
+// Mirrors server common/api/dto/MeetingResponse.
+export interface MeetingResponse {
+  id: number | null;
+  groupId: number | null;
+  creatorId: number | null;
+  startTime: string | null;
+  endTime: string | null;
+  location: string | null;
+  title: string | null;
+  isPrivate: boolean;
+  externalParticipantNames: string[] | null;
+  participants: ParticipantResponse[] | null;
+  warnings: string[] | null;
+  pendingTimeChange: PendingTimeChange | null;
+}
+
+// Mirrors server common/api/dto/MeetingInviteRequest. Exactly one of username or email.
+export interface MeetingInviteRequest {
+  username?: string | null;
+  email?: string | null;
+}
+
+// Mirrors server common/api/dto/MeetingInviteBatchRequest.
+export interface MeetingInviteBatchRequest {
+  recipients: MeetingInviteRequest[];
+}

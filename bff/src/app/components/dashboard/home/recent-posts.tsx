@@ -20,7 +20,7 @@ export default function RecentPosts({posts}: { posts: CursorPage<PostResponse> |
         <ul className={styles.cardList}>
           {posts.items.map((post) => (
             <li key={post.id}>
-              <Link href={`/dashboard/groups?group=${post.groupId}`} className={styles.itemCard}>
+              <Link href={`/dashboard/groups/${post.groupId}`} className={styles.itemCard}>
                 <div className={styles.itemBody}>
                   <span className={dashboardStyles.meta}>
                     <strong className={postStyles.author}>@{post.authorUsername}</strong>

@@ -254,6 +254,111 @@ class MeetingServiceImplTest {
                 () -> service.inviteBatch(1L, 10L, meetingBatch("ghost")));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertEquals("Could not invite @ghost: User not found", exception.getReason());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void inviteBatchWithAllRecipientsFailingListsEveryReason() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = verifiedUser(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(authorization.isParticipantOrCreator(2L, meeting)).thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.inviteBatch(1L, 10L, meetingBatch("ghost", "bob")));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertEquals("No invites could be sent. @ghost: User not found; "
+                + "@bob: User is already a participant of this meeting", exception.getReason());
+    }
+
+    @Test
+    void existingParticipantWithoutInviteIsRejected() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = verifiedUser(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(authorization.isParticipantOrCreator(2L, meeting)).thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.inviteBatch(1L, 10L, meetingBatch("bob")));
+
+        assertEquals("Could not invite @bob: User is already a participant of this meeting", exception.getReason());
+        verify(meetingInviteRepository, never()).findByMeetingIdAndRecipientEmail(10L, "bob@example.com");
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void reinviteAfterRemovalReusesAcceptedInvite() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = verifiedUser(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+
+        MeetingInviteEntity existing = new MeetingInviteEntity();
+        existing.setId(7L);
+        existing.setStatus(InviteStatus.ACCEPTED);
+        existing.setRecipient(bob);
+        existing.setRespondedAt(OffsetDateTime.now().minusDays(1));
+        when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "bob@example.com"))
+                .thenReturn(Optional.of(existing));
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        InviteBatchResponse response = service.inviteBatch(1L, 10L, meetingBatch("bob"));
+
+        assertEquals(1, response.invited().size());
+        assertEquals(7L, response.invited().getFirst().id());
+        assertEquals(InviteStatus.PENDING, existing.getStatus());
+        assertNull(existing.getRespondedAt());
+        verify(notificationService).queueEmailToForUser(eq(bob), eq("bob@example.com"), eq("MEETING_INVITE"), anyMap(), eq("meeting_invites"));
+    }
+
+    @Test
+    void emailReinviteWithAcceptedInviteOfCurrentParticipantIsRejected() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity carol = user(3L, "carol");
+        MeetingEntity meeting = meeting(10L, alice);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByEmail("carol@example.com")).thenReturn(Optional.empty());
+
+        MeetingInviteEntity existing = new MeetingInviteEntity();
+        existing.setId(8L);
+        existing.setStatus(InviteStatus.ACCEPTED);
+        existing.setRecipient(carol);
+        when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "carol@example.com"))
+                .thenReturn(Optional.of(existing));
+        when(authorization.isParticipantOrCreator(3L, meeting)).thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.inviteBatch(1L, 10L, new MeetingInviteBatchRequest(
+                        List.of(new MeetingInviteRequest(null, "carol@example.com")))));
+
+        assertEquals("Could not invite carol@example.com: User is already a participant of this meeting",
+                exception.getReason());
+        verify(meetingInviteRepository, never()).saveAndFlush(any(MeetingInviteEntity.class));
         verifyNoInteractions(notificationService);
     }
 

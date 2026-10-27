@@ -9,20 +9,21 @@ interface ActionError {
   message: string;
 }
 
-// POSTs to a BFF route for one list item, then re-renders the server page so every card reflects
-// the change. `key` identifies the item so its error shows next to it. Resolves to whether it succeeded.
+// Calls a BFF route for one list item (POST unless `method` says otherwise), then re-renders the server
+// page so every card reflects the change. `key` identifies the item so its error shows next to it.
+// Resolves to whether it succeeded.
 export function usePostAction() {
   const router = useRouter();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<ActionError | null>(null);
   const [isRefreshing, startTransition] = useTransition();
 
-  async function run(key: string, url: string, body?: object): Promise<boolean> {
+  async function run(key: string, url: string, body?: object, method = 'POST'): Promise<boolean> {
     setPendingKey(key);
     setError(null);
     try {
       const response = await fetch(url, {
-        method: 'POST',
+        method,
         headers: body ? {'Content-Type': 'application/json'} : undefined,
         body: body ? JSON.stringify(body) : undefined,
       });

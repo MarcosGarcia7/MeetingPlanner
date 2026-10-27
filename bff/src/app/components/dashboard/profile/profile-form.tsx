@@ -122,7 +122,7 @@ export default function ProfileForm({profile}: { profile: UserProfileResponse })
         <div className={authStyles.field}>
           <span className={authStyles.label} id='avatar-color-label'>Avatar color</span>
           <div className={styles.colorPicker}>
-            <Image src={preview} alt='Avatar preview' width={56} height={56} className={styles.avatar} unoptimized/>
+            <Image src={preview} alt='Avatar preview' width={56} height={56} className={dashboardStyles.avatar} unoptimized/>
             <fieldset className={styles.swatches} aria-labelledby='avatar-color-label'>
               {AVATAR_COLORS.map((color) => (
                 <label key={color} className={styles.swatch}>
@@ -132,7 +132,7 @@ export default function ProfileForm({profile}: { profile: UserProfileResponse })
                     alt={color}
                     width={32}
                     height={32}
-                    className={styles.avatar}
+                    className={dashboardStyles.avatar}
                     unoptimized
                   />
                 </label>

@@ -1,10 +1,9 @@
 'use client';
 
 import {useState} from 'react';
-import {useRouter} from 'next/navigation';
 import type {CursorPage} from '@/lib/types/api';
 import type {GroupSummaryResponse} from '@/lib/types/group';
-import {readApiError} from '@/lib/api-error';
+import {useCursorList} from '@/app/components/dashboard/use-cursor-list';
 import CreateGroupForm from './create-group-form';
 import GroupCard from './group-card';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
@@ -20,39 +19,8 @@ interface MyGroupsProps {
 
 // The My groups tab: every group the user is in, a page at a time, plus the create form.
 export default function MyGroups({initial, viewerId, creating: initiallyCreating}: MyGroupsProps) {
-  const router = useRouter();
   const [creating, setCreating] = useState(initiallyCreating);
-  const [groups, setGroups] = useState(initial?.items ?? []);
-  const [cursor, setCursor] = useState(initial?.nextCursor ?? null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(initial === null ? 'Couldn’t load your groups.' : null);
-
-  async function loadMore() {
-    if (!cursor) {
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/groups?cursor=${encodeURIComponent(cursor)}`);
-      if (!response.ok) {
-        const apiError = await readApiError(response);
-        if (apiError?.error === 'unauthenticated') {
-          router.push('/login');
-          return;
-        }
-        setError(apiError?.message ?? 'Couldn’t load more groups. Please try again.');
-        return;
-      }
-      const page = (await response.json()) as CursorPage<GroupSummaryResponse>;
-      setGroups((current) => [...current, ...page.items]);
-      setCursor(page.nextCursor);
-    } catch {
-      setError('Couldn’t reach the server. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const groups = useCursorList('/api/groups', initial, 'Couldn’t load your groups.');
 
   return (
     <>
@@ -73,18 +41,19 @@ export default function MyGroups({initial, viewerId, creating: initiallyCreating
             </button>
           )}
         </div>
-        {initial !== null && groups.length === 0 ? (
+        {groups.loaded && groups.items.length === 0 ? (
           <p className={dashboardStyles.empty}>You’re not in any groups yet. Create one, or find one in Discover.</p>
         ) : (
           <ul className={styles.groupList}>
-            {groups.map((group) => <GroupCard key={group.id} group={group} viewerId={viewerId}/>)}
+            {groups.items.map((group) => <GroupCard key={group.id} group={group} viewerId={viewerId}/>)}
           </ul>
         )}
-        {error && <p className={dashboardStyles.error}>{error}</p>}
-        {cursor && (
+        {groups.error && <p className={dashboardStyles.error}>{groups.error}</p>}
+        {groups.hasMore && (
           <div className={styles.loadMore}>
-            <button type='button' className={dashboardStyles.buttonSecondary} disabled={loading} onClick={loadMore}>
-              {loading ? 'Loading…' : 'Load more'}
+            <button type='button' className={dashboardStyles.buttonSecondary} disabled={groups.loading}
+                    onClick={groups.loadMore}>
+              {groups.loading ? 'Loading…' : 'Load more'}
             </button>
           </div>
         )}

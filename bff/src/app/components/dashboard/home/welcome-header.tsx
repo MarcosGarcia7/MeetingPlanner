@@ -22,7 +22,7 @@ export default function WelcomeHeader({username, profile, unread}: WelcomeHeader
 
   return (
     <header className={styles.header}>
-      <Image src={`/api/avatar/me?${avatarVersion}`} alt='' width={64} height={64} className={styles.avatar}
+      <Image src={`/api/avatar/me?${avatarVersion}`} alt='' width={64} height={64} className={dashboardStyles.avatar}
              unoptimized/>
       <div className={styles.headerText}>
         <h1 className={styles.greeting}>{greeting(timeZone)}, {name}</h1>

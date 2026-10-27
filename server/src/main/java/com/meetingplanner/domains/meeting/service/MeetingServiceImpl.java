@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.StringJoiner;
 
 @Service
 public class MeetingServiceImpl implements MeetingService {
@@ -513,7 +514,7 @@ public class MeetingServiceImpl implements MeetingService {
         }
 
         if (invited.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No invites could be sent");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, noInvitesSentMessage(failed));
         }
 
         return new InviteBatchResponse(invited, failed);
@@ -585,11 +586,14 @@ public class MeetingServiceImpl implements MeetingService {
             if (meeting.getGroup() != null && groupAuthorization.isBanned(recipient.getId(), meeting.getGroup())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is banned from this group");
             }
+            if (authorization.isParticipantOrCreator(recipient.getId(), meeting)) {
+                throw alreadyParticipant();
+            }
         }
 
         MeetingInviteEntity invite = meetingInviteRepository
                 .findByMeetingIdAndRecipientEmail(meeting.getId(), recipientEmail)
-                .map(this::reuseForReinvite)
+                .map(existing -> reuseForReinvite(existing, meeting))
                 .orElseGet(MeetingInviteEntity::new);
 
         String rawToken = InviteTokens.generateRawToken();
@@ -659,11 +663,38 @@ public class MeetingServiceImpl implements MeetingService {
         return "Invite failed";
     }
 
-    private MeetingInviteEntity reuseForReinvite(MeetingInviteEntity existing) {
-        if (existing.getStatus() == InviteStatus.PENDING || existing.getStatus() == InviteStatus.ACCEPTED) {
+    // An ACCEPTED invite whose recipient has since left or been removed is reset like a declined one. The
+    // recipient check covers invites by email, where the accepting account isn't resolved up front.
+    private MeetingInviteEntity reuseForReinvite(MeetingInviteEntity existing, MeetingEntity meeting) {
+        if (existing.getStatus() == InviteStatus.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An invite already exists for this email");
         }
+        if (existing.getStatus() == InviteStatus.ACCEPTED && existing.getRecipient() != null
+                && authorization.isParticipantOrCreator(existing.getRecipient().getId(), meeting)) {
+            throw alreadyParticipant();
+        }
         return existing;
+    }
+
+    private static ResponseStatusException alreadyParticipant() {
+        return new ResponseStatusException(HttpStatus.CONFLICT, "User is already a participant of this meeting");
+    }
+
+    // The 400 replaces the batch body, so the per-recipient reasons go into its message.
+    private static String noInvitesSentMessage(List<InviteFailure> failed) {
+        if (failed.size() == 1) {
+            InviteFailure only = failed.getFirst();
+            return "Could not invite " + recipientLabel(only) + ": " + only.reason();
+        }
+        StringJoiner reasons = new StringJoiner("; ", "No invites could be sent. ", "");
+        for (InviteFailure failure : failed) {
+            reasons.add(recipientLabel(failure) + ": " + failure.reason());
+        }
+        return reasons.toString();
+    }
+
+    private static String recipientLabel(InviteFailure failure) {
+        return failure.username() != null ? "@" + failure.username() : failure.email();
     }
 
     private static String emailDisplayName(String email) {

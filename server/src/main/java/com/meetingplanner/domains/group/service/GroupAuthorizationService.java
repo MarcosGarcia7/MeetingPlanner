@@ -26,6 +26,12 @@ public class GroupAuthorizationService {
         return isOwner(member, group) || member.isAdmin();
     }
 
+    // Renaming the group and switching it between public and private are owner-only; admins can change
+    // the other settings.
+    public boolean canChangeNameOrPrivacy(GroupMemberEntity member, GroupEntity group) {
+        return isOwner(member, group);
+    }
+
     public boolean isOwner(Long userId, GroupEntity group) {
         return group.getOwner().getId().equals(userId);
     }

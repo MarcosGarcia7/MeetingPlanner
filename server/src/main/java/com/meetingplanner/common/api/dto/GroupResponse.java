@@ -8,6 +8,12 @@ public record GroupResponse(
         Long ownerId,
         boolean isPrivate,
         int memberCount,
-        List<GroupMemberResponse> members
+        boolean membersCanPost,
+        boolean commentsEnabled,
+        boolean membersCanCreate,
+        // Empty unless the viewer is a member.
+        List<GroupMemberResponse> members,
+        // The viewer's own "share my schedule with this group" setting; null for non-members.
+        Boolean viewerShareSchedule
 ) {
 }

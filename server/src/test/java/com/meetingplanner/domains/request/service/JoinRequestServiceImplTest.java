@@ -470,6 +470,32 @@ class JoinRequestServiceImplTest {
         verifyNoInteractions(groupJoinRequestRepository);
     }
 
+    @Test
+    void listForGroupPassesStatusFilter() {
+        UserEntity owner = user(1L, "alice");
+        GroupEntity group = group(3L, owner);
+        when(groupRepository.findById(3L)).thenReturn(Optional.of(group));
+        when(groupAuthorization.isAdminOrOwner(1L, group)).thenReturn(true);
+        when(groupJoinRequestRepository.listForGroup(eq(3L), eq(RequestStatus.PENDING), any(), any(), any()))
+                .thenReturn(List.of(groupRequest(10L, group, user(2L, "bob"))));
+
+        CursorPage<JoinRequestResponse> page = service.listForGroup(1L, 3L, RequestStatus.PENDING, null, 20);
+
+        assertEquals(1, page.items().size());
+        assertEquals("bob", page.items().getFirst().requesterUsername());
+    }
+
+    @Test
+    void listForGroupHidesGroupFromNonAdmins() {
+        GroupEntity group = group(3L, user(1L, "alice"));
+        when(groupRepository.findById(3L)).thenReturn(Optional.of(group));
+        when(groupAuthorization.isAdminOrOwner(2L, group)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.listForGroup(2L, 3L, RequestStatus.PENDING, null, 20));
+        verifyNoInteractions(groupJoinRequestRepository);
+    }
+
     private static GroupEntity group(long id, UserEntity owner) {
         GroupEntity group = new GroupEntity();
         group.setId(id);

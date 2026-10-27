@@ -11,7 +11,7 @@ export default function ProfileHeader({profile}: { profile: UserProfileResponse 
 
   return (
     <header className={styles.header}>
-      <Image src={avatarDataUri(profile)} alt='' width={96} height={96} className={styles.avatar} unoptimized/>
+      <Image src={avatarDataUri(profile)} alt='' width={96} height={96} className={dashboardStyles.avatar} unoptimized/>
       <div className={styles.headerText}>
         <h1 className={styles.name}>{fullName || `@${profile.username}`}</h1>
         {fullName && <p className={dashboardStyles.meta}>@{profile.username}</p>}

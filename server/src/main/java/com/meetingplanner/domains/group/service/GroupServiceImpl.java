@@ -98,7 +98,7 @@ public class GroupServiceImpl implements GroupService {
         if (request.isPrivate() != null) {
             group.setPrivate(request.isPrivate());
         }
-        group.addMember(owner, true);
+        GroupMemberEntity ownerMember = group.addMember(owner, true);
 
         GroupEntity saved;
         try {
@@ -106,7 +106,7 @@ public class GroupServiceImpl implements GroupService {
         } catch (DataIntegrityViolationException e) {
             throw new GroupNameTakenException(groupName);
         }
-        return toGroupResponse(saved, true);
+        return toGroupResponse(saved, ownerMember);
     }
 
     @Override
@@ -114,8 +114,8 @@ public class GroupServiceImpl implements GroupService {
     public GroupResponse get(long userId, long groupId) {
         GroupEntity group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        boolean includeMembers = authorization.isMember(userId, group);
-        return toGroupResponse(group, includeMembers);
+        GroupMemberEntity viewer = groupMemberRepository.findByGroupIdAndUserId(groupId, userId).orElse(null);
+        return toGroupResponse(group, viewer);
     }
 
     @Override
@@ -225,10 +225,16 @@ public class GroupServiceImpl implements GroupService {
         return map;
     }
 
-    private GroupResponse toGroupResponse(GroupEntity group, boolean includeMembers) {
-        List<GroupMemberResponse> members = includeMembers
+    // `viewer` is the requesting user's membership, or null when they aren't a member: non-members get
+    // no member list and no viewer settings.
+    private GroupResponse toGroupResponse(GroupEntity group, GroupMemberEntity viewer) {
+        List<GroupMemberResponse> members = viewer != null
                 ? group.getMembers().stream()
-                        .map(m -> new GroupMemberResponse(m.getUser().getId(), m.getUser().getUsername(), m.isAdmin()))
+                        .map(m -> {
+                            UserEntity user = m.getUser();
+                            return new GroupMemberResponse(user.getId(), user.getUsername(), user.getFirstName(),
+                                    user.getLastName(), user.getAvatarColor(), m.isAdmin());
+                        })
                         .toList()
                 : List.of();
         return new GroupResponse(
@@ -237,7 +243,11 @@ public class GroupServiceImpl implements GroupService {
                 group.getOwner().getId(),
                 group.isPrivate(),
                 (int) groupMemberRepository.countByGroupId(group.getId()),
-                members);
+                group.isMembersCanPost(),
+                group.isCommentsEnabled(),
+                group.isMembersCanCreate(),
+                members,
+                viewer != null ? viewer.isShareSchedule() : null);
     }
 
     @Override
@@ -254,14 +264,20 @@ public class GroupServiceImpl implements GroupService {
         }
 
         String groupName = request.groupName() == null ? null : request.groupName().trim();
-        if (groupName != null && !Objects.equals(groupName, group.getGroupName())) {
+        boolean renaming = groupName != null && !Objects.equals(groupName, group.getGroupName());
+        boolean changingPrivacy = request.isPrivate() != null && !Objects.equals(request.isPrivate(), group.isPrivate());
+        if ((renaming || changingPrivacy) && !authorization.canChangeNameOrPrivacy(member, group)) {
+            throw new ForbiddenException("Only the group owner can rename the group or change its privacy");
+        }
+
+        if (renaming) {
             if (groupRepository.existsByGroupNameAndIdNot(groupName, groupId)) {
                 throw new GroupNameTakenException(groupName);
             }
             group.setGroupName(groupName);
         }
 
-        if (request.isPrivate() != null && !Objects.equals(request.isPrivate(), group.isPrivate())) {
+        if (changingPrivacy) {
             group.setPrivate(request.isPrivate());
         }
 
@@ -284,7 +300,7 @@ public class GroupServiceImpl implements GroupService {
             throw new GroupNameTakenException(group.getGroupName());
         }
 
-        return toGroupResponse(saved, false);
+        return toGroupResponse(saved, member);
     }
 
     @Override
@@ -358,10 +374,23 @@ public class GroupServiceImpl implements GroupService {
         }
 
         if (invited.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No invites could be sent");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, noInvitesSentMessage(failed));
         }
 
         return new InviteBatchResponse(invited, failed);
+    }
+
+    // The 400 replaces the batch body, so the per-recipient reasons go into its message.
+    private static String noInvitesSentMessage(List<InviteFailure> failed) {
+        if (failed.size() == 1) {
+            InviteFailure only = failed.getFirst();
+            return "Could not invite @" + only.username() + ": " + only.reason();
+        }
+        StringJoiner reasons = new StringJoiner("; ", "No invites could be sent. ", "");
+        for (InviteFailure failure : failed) {
+            reasons.add("@" + failure.username() + ": " + failure.reason());
+        }
+        return reasons.toString();
     }
 
     private InviteResponse inviteOne(GroupEntity group, UserEntity sender, MemberUsernameRequest request) {
@@ -690,8 +719,10 @@ public class GroupServiceImpl implements GroupService {
         groupMemberRepository.delete(member);
     }
 
+    // Called after the membership check, so an ACCEPTED invite belongs to someone who has since left or
+    // been removed and can be reset like a declined one.
     private GroupInviteEntity reuseForReinvite(GroupInviteEntity existing) {
-        if (existing.getStatus() == InviteStatus.PENDING || existing.getStatus() == InviteStatus.ACCEPTED) {
+        if (existing.getStatus() == InviteStatus.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An invite already exists for this email");
         }
         return existing;

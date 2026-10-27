@@ -1,7 +1,8 @@
 import {headers} from 'next/headers';
 import {redirect} from 'next/navigation';
 import {verifySession} from '@/lib/dal';
-import {AuthError, authFetch, getClientIp} from '@/lib/api-client';
+import {authFetch, getClientIp} from '@/lib/api-client';
+import {hasAuthError, valueOrNull} from '@/lib/settled';
 import type {CursorPage} from '@/lib/types/api';
 import type {FriendshipResponse} from '@/lib/types/friend';
 import type {PostResponse} from '@/lib/types/group';
@@ -16,11 +17,6 @@ import NeedsAttention from '@/app/components/dashboard/home/needs-attention';
 import PendingVotes from '@/app/components/dashboard/home/pending-votes';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from '@/app/components/dashboard/home/home.module.css';
-
-// Each card gets its own data or null, so one failing call degrades that card instead of the page.
-function valueOrNull<T>(result: PromiseSettledResult<T>): T | null {
-  return result.status === 'fulfilled' ? result.value : null;
-}
 
 export default async function DashboardPage() {
   const session = await verifySession();
@@ -37,7 +33,7 @@ export default async function DashboardPage() {
     get<UnreadCountResponse>('/api/users/me/notifications/unread-count'),
   ] as const);
 
-  if (results.some((result) => result.status === 'rejected' && result.reason instanceof AuthError)) {
+  if (hasAuthError(results)) {
     redirect('/login');
   }
 

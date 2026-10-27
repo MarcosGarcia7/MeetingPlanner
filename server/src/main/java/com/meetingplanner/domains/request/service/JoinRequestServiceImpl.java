@@ -222,7 +222,8 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPage<JoinRequestResponse> listForGroup(long actorId, long groupId, String cursor, int size) {
+    public CursorPage<JoinRequestResponse> listForGroup(long actorId, long groupId, RequestStatus status, String cursor,
+                                                         int size) {
         GroupEntity group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
         if (!groupAuthorization.isAdminOrOwner(actorId, group)) {
@@ -232,6 +233,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
         List<GroupJoinRequestEntity> rows = groupJoinRequestRepository.listForGroup(
                 groupId,
+                status,
                 decoded == null ? null : decoded.time(),
                 decoded == null ? null : decoded.id(),
                 PageRequest.of(0, limit + 1));

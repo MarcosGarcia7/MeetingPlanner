@@ -45,3 +45,30 @@ export function formatRelative(iso: string): string {
   }
   return 'just now';
 }
+
+// "Oct 28, 2026, 2:00 PM": an absolute timestamp, safe to render on both server and client.
+export function formatDateTime(iso: string, timeZone?: string): string {
+  return new Intl.DateTimeFormat('en-US', {dateStyle: 'medium', timeStyle: 'short', timeZone})
+    .format(new Date(iso));
+}
+
+// Milliseconds the zone is ahead of UTC at `date`.
+function zoneOffset(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  const wallClock = Date.UTC(value('year'), value('month') - 1, value('day'), value('hour'), value('minute'),
+    value('second'));
+  return wallClock - Math.floor(date.getTime() / 1000) * 1000;
+}
+
+// Reads a <input type="datetime-local"> value ("2026-10-28T14:00") as wall-clock time in `timeZone`
+// (the profile timezone, not the browser's) and returns it as an ISO instant for the API.
+export function zonedTimeToIso(local: string, timeZone: string): string {
+  const asUtc = Date.parse(`${local}:00Z`);
+  const guess = asUtc - zoneOffset(new Date(asUtc), timeZone);
+  // A second pass corrects the offset when the guess lands on the other side of a DST change.
+  return new Date(asUtc - zoneOffset(new Date(guess), timeZone)).toISOString();
+}

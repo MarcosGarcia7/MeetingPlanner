@@ -5,6 +5,7 @@ import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.GroupBanResponse;
 import com.meetingplanner.common.api.dto.GroupCreateRequest;
 import com.meetingplanner.common.api.dto.GroupInviteBatchRequest;
+import com.meetingplanner.common.api.dto.GroupMemberResponse;
 import com.meetingplanner.common.api.dto.GroupResponse;
 import com.meetingplanner.common.api.dto.GroupSummaryResponse;
 import com.meetingplanner.common.api.dto.GroupUpdateRequest;
@@ -401,7 +402,25 @@ class GroupServiceImplTest {
                 () -> service.inviteBatch(1L, 1L, batch("ghost")));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertEquals("Could not invite @ghost: User not found", exception.getReason());
         verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void allRecipientsFailingListsEveryReason() {
+        UserEntity actor = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        prepareAdmin(1L, actor);
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(groupMemberRepository.existsByGroupIdAndUserId(1L, 2L)).thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.inviteBatch(1L, 1L, batch("ghost", "bob")));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertEquals("No invites could be sent. @ghost: User not found; "
+                + "@bob: User is already a member of this group", exception.getReason());
     }
 
     @Test
@@ -430,6 +449,54 @@ class GroupServiceImplTest {
         assertTrue(existing.getTimeSent().isAfter(staleSentAt));
         assertNotNull(existing.getTokenHash());
         verify(notificationService).queueEmailToForUser(eq(bob), eq("bob@example.com"), eq("GROUP_INVITE"), anyMap(), eq("group_invites"));
+    }
+
+    @Test
+    void reinviteAfterRemovalReusesAcceptedInvite() {
+        UserEntity actor = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        prepareAdmin(1L, actor);
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(groupMemberRepository.existsByGroupIdAndUserId(1L, 2L)).thenReturn(false);
+
+        GroupInviteEntity existing = new GroupInviteEntity();
+        existing.setId(5L);
+        existing.setStatus(InviteStatus.ACCEPTED);
+        existing.setRespondedAt(OffsetDateTime.now().minusDays(1));
+        when(groupInviteRepository.findByGroupIdAndRecipientEmail(1L, "bob@example.com"))
+                .thenReturn(Optional.of(existing));
+        when(groupInviteRepository.save(any(GroupInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        InviteBatchResponse response = service.inviteBatch(1L, 1L, batch("bob"));
+
+        assertEquals(1, response.invited().size());
+        assertEquals(5L, response.invited().getFirst().id());
+        assertEquals(InviteStatus.PENDING, existing.getStatus());
+        assertNull(existing.getRespondedAt());
+        verify(notificationService).queueEmailToForUser(eq(bob), eq("bob@example.com"), eq("GROUP_INVITE"), anyMap(), eq("group_invites"));
+    }
+
+    @Test
+    void reinviteWithPendingInviteIsRejected() {
+        UserEntity actor = user(1L, "alice", true);
+        UserEntity bob = user(2L, "bob", true);
+        prepareAdmin(1L, actor);
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(groupMemberRepository.existsByGroupIdAndUserId(1L, 2L)).thenReturn(false);
+
+        GroupInviteEntity existing = new GroupInviteEntity();
+        existing.setId(5L);
+        existing.setStatus(InviteStatus.PENDING);
+        when(groupInviteRepository.findByGroupIdAndRecipientEmail(1L, "bob@example.com"))
+                .thenReturn(Optional.of(existing));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.inviteBatch(1L, 1L, batch("bob")));
+
+        assertEquals("Could not invite @bob: An invite already exists for this email", exception.getReason());
+        verify(groupInviteRepository, never()).save(any(GroupInviteEntity.class));
+        verifyNoInteractions(notificationService);
     }
 
     @Test
@@ -957,6 +1024,7 @@ class GroupServiceImplTest {
         when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
         when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
         when(authorization.isAdminOrOwner(ownerMember, group)).thenReturn(true);
+        when(authorization.canChangeNameOrPrivacy(ownerMember, group)).thenReturn(true);
         when(groupRepository.existsByGroupNameAndIdNot("Renamed", 1L)).thenReturn(false);
         when(groupRepository.saveAndFlush(group)).thenReturn(group);
 
@@ -975,6 +1043,7 @@ class GroupServiceImplTest {
         when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
         when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
         when(authorization.isAdminOrOwner(ownerMember, group)).thenReturn(true);
+        when(authorization.canChangeNameOrPrivacy(ownerMember, group)).thenReturn(true);
         when(groupRepository.existsByGroupNameAndIdNot("Other", 1L)).thenReturn(true);
 
         assertThrows(GroupNameTakenException.class,
@@ -992,6 +1061,7 @@ class GroupServiceImplTest {
         when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
         when(groupMemberRepository.findByGroupIdAndUserId(1L, 1L)).thenReturn(Optional.of(ownerMember));
         when(authorization.isAdminOrOwner(ownerMember, group)).thenReturn(true);
+        when(authorization.canChangeNameOrPrivacy(ownerMember, group)).thenReturn(true);
         when(groupRepository.existsByGroupNameAndIdNot("Other", 1L)).thenReturn(false);
         when(groupRepository.saveAndFlush(group)).thenThrow(new DataIntegrityViolationException("groups_group_name_key"));
 
@@ -1011,6 +1081,111 @@ class GroupServiceImplTest {
         assertThrows(ResourceNotFoundException.class,
                 () -> service.update(2L, 1L, new GroupUpdateRequest("Other", null, null, null, null)));
         verify(groupRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void adminCannotRenameGroup() {
+        UserEntity admin = user(2L, "bob", true);
+        GroupEntity group = ownedGroup(1L, user(1L, "alice", true));
+        GroupMemberEntity adminMember = member(group, admin, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(adminMember));
+        when(authorization.isAdminOrOwner(adminMember, group)).thenReturn(true);
+        when(authorization.canChangeNameOrPrivacy(adminMember, group)).thenReturn(false);
+
+        assertThrows(ForbiddenException.class,
+                () -> service.update(2L, 1L, new GroupUpdateRequest("Renamed", null, null, null, null)));
+        assertEquals("Team", group.getGroupName());
+        verify(groupRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void adminCannotChangePrivacy() {
+        UserEntity admin = user(2L, "bob", true);
+        GroupEntity group = ownedGroup(1L, user(1L, "alice", true));
+        GroupMemberEntity adminMember = member(group, admin, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(adminMember));
+        when(authorization.isAdminOrOwner(adminMember, group)).thenReturn(true);
+        when(authorization.canChangeNameOrPrivacy(adminMember, group)).thenReturn(false);
+
+        boolean wasPrivate = group.isPrivate();
+
+        assertThrows(ForbiddenException.class,
+                () -> service.update(2L, 1L, new GroupUpdateRequest(null, !wasPrivate, null, null, null)));
+        assertEquals(wasPrivate, group.isPrivate());
+        verify(groupRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void adminCanChangeMemberPermissionsAndResendUnchangedNameAndPrivacy() {
+        UserEntity admin = user(2L, "bob", true);
+        GroupEntity group = ownedGroup(1L, user(1L, "alice", true));
+        GroupMemberEntity adminMember = member(group, admin, true);
+        when(groupRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(adminMember));
+        when(authorization.isAdminOrOwner(adminMember, group)).thenReturn(true);
+        when(groupRepository.saveAndFlush(group)).thenReturn(group);
+
+        // A settings form sends every field; name and privacy equal to the current values aren't changes.
+        GroupResponse response = service.update(2L, 1L,
+                new GroupUpdateRequest("Team", group.isPrivate(), false, false, false));
+
+        assertFalse(response.membersCanPost());
+        assertFalse(response.commentsEnabled());
+        assertFalse(response.membersCanCreate());
+        verify(authorization, never()).canChangeNameOrPrivacy(any(), any());
+    }
+
+    @Test
+    void getReturnsSettingsMembersAndViewerShareScheduleToMembers() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity viewer = user(2L, "bob", true);
+        viewer.setFirstName("Bob");
+        viewer.setLastName("Builder");
+        viewer.setAvatarColor("#10B981");
+        GroupEntity group = ownedGroup(1L, owner);
+        group.addMember(owner, true);
+        GroupMemberEntity viewerMember = group.addMember(viewer, false);
+        viewerMember.setShareSchedule(false);
+        group.setMembersCanPost(false);
+        when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 2L)).thenReturn(Optional.of(viewerMember));
+        when(groupMemberRepository.countByGroupId(1L)).thenReturn(2L);
+
+        GroupResponse response = service.get(2L, 1L);
+
+        assertEquals(2, response.members().size());
+        GroupMemberResponse bob = response.members().stream()
+                .filter(m -> m.userId() == 2L).findFirst().orElseThrow();
+        assertEquals("Bob", bob.firstName());
+        assertEquals("Builder", bob.lastName());
+        assertEquals("#10B981", bob.avatarColor());
+        assertEquals(Boolean.FALSE, response.viewerShareSchedule());
+        assertFalse(response.membersCanPost());
+        assertEquals(group.isCommentsEnabled(), response.commentsEnabled());
+        assertEquals(group.isMembersCanCreate(), response.membersCanCreate());
+    }
+
+    @Test
+    void getHidesMembersAndViewerSettingsFromNonMembers() {
+        UserEntity owner = user(1L, "alice", true);
+        GroupEntity group = ownedGroup(1L, owner);
+        group.addMember(owner, true);
+        when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByGroupIdAndUserId(1L, 3L)).thenReturn(Optional.empty());
+
+        GroupResponse response = service.get(3L, 1L);
+
+        assertTrue(response.members().isEmpty());
+        assertNull(response.viewerShareSchedule());
+    }
+
+    @Test
+    void getUnknownGroupIsNotFound() {
+        when(groupRepository.findById(9L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.get(1L, 9L));
     }
 
     @Test

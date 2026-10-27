@@ -20,12 +20,14 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
     @Query("""
             select r from GroupJoinRequestEntity r
             where r.group.id = :groupId
+              and (:status is null or r.status = :status)
               and (cast(:cursorTime as OffsetDateTime) is null
                    or r.timeSent < :cursorTime
                    or (r.timeSent = :cursorTime and r.id < :cursorId))
             order by r.timeSent desc, r.id desc
             """)
     List<GroupJoinRequestEntity> listForGroup(@Param("groupId") Long groupId,
+                                              @Param("status") RequestStatus status,
                                               @Param("cursorTime") OffsetDateTime cursorTime,
                                               @Param("cursorId") Long cursorId,
                                               Pageable pageable);

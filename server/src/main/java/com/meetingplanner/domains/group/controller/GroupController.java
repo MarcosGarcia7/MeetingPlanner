@@ -1,6 +1,7 @@
 package com.meetingplanner.domains.group.controller;
 
 import com.meetingplanner.common.api.dto.*;
+import com.meetingplanner.common.api.model.RequestStatus;
 import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.group.service.GroupService;
 import com.meetingplanner.domains.request.service.JoinRequestService;
@@ -91,9 +92,10 @@ public class GroupController {
     @GetMapping("/{groupId}/join-requests")
     public CursorPage<JoinRequestResponse> listJoinRequests(@AuthenticationPrincipal Jwt jwt,
                                                             @PathVariable long groupId,
+                                                            @RequestParam(required = false) RequestStatus status,
                                                             @RequestParam(required = false) String cursor,
                                                             @RequestParam(defaultValue = "20") int size) {
-        return joinRequestService.listForGroup(CurrentUser.from(jwt).id(), groupId, cursor, size);
+        return joinRequestService.listForGroup(CurrentUser.from(jwt).id(), groupId, status, cursor, size);
     }
 
     @PostMapping("/{groupId}/invites")

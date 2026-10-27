@@ -102,12 +102,13 @@ public class GroupEntity {
         this.members = members;
     }
 
-    public void addMember(UserEntity user, boolean isAdmin) {
+    public GroupMemberEntity addMember(UserEntity user, boolean isAdmin) {
         GroupMemberEntity member = new GroupMemberEntity();
         member.setGroup(this);
         member.setUser(user);
         member.setAdmin(isAdmin);
         this.members.add(member);
+        return member;
     }
 
     public void removeMember(UserEntity user) {
