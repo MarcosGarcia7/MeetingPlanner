@@ -15,7 +15,7 @@ public interface JoinRequestService {
 
     CursorPage<JoinRequestResponse> listForGroup(long actorId, long groupId, RequestStatus status, String cursor, int size);
 
-    CursorPage<JoinRequestResponse> listForMeeting(long actorId, long meetingId, String cursor, int size);
+    CursorPage<JoinRequestResponse> listForMeeting(long actorId, long meetingId, RequestStatus status, String cursor, int size);
 
     JoinRequestResponse approveGroup(long actorId, long requestId);
 

@@ -28,6 +28,9 @@ public interface GroupMemberRepository extends JpaRepository<GroupMemberEntity, 
     @Query("select m.group.id from GroupMemberEntity m where m.user.id = :userId")
     Set<Long> findGroupIdsByUserId(@Param("userId") Long userId);
 
+    @Query("select m.group.id from GroupMemberEntity m where m.user.id = :userId and m.isAdmin = true")
+    Set<Long> findAdminGroupIdsByUserId(@Param("userId") Long userId);
+
     interface GroupCount {
         Long getGroupId();
 

@@ -2,10 +2,12 @@ package com.meetingplanner.it;
 
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.JoinRequestResponse;
+import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.PostResponse;
 import com.meetingplanner.common.api.dto.TimeChangeProposalResponse;
 import com.meetingplanner.common.api.dto.UserSearchResult;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.MeetingTimeframe;
 import com.meetingplanner.common.api.model.RequestStatus;
 import com.meetingplanner.common.api.model.TargetKind;
 import com.meetingplanner.common.api.model.UserRelationship;
@@ -27,6 +29,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /** Checks the cross-group JPQL behind the dashboard against real Postgres. */
 class DashboardQueriesIT extends AbstractPostgresIT {
@@ -93,7 +96,9 @@ class DashboardQueriesIT extends AbstractPostgresIT {
         insertPost(books, alice, "mine", OffsetDateTime.now());
 
         assertDoesNotThrow(() -> postService.list(alice, books, null, 5));
-        assertDoesNotThrow(() -> meetingService.listMine(alice, null, null, 5));
+        assertDoesNotThrow(() -> meetingService.listMine(alice, null, null, null, 5));
+        assertDoesNotThrow(() -> meetingService.listMine(alice, null, MeetingTimeframe.UPCOMING, null, 5));
+        assertDoesNotThrow(() -> meetingService.listMine(alice, null, MeetingTimeframe.PAST, null, 5));
         assertDoesNotThrow(() -> inviteService.listMine(alice, null, null, null, 5));
         assertDoesNotThrow(() -> inviteService.listMine(alice, InviteStatus.PENDING, TargetKind.GROUP, null, 5));
         assertDoesNotThrow(() -> friendshipService.listIncomingRequests(alice, null, 5));
@@ -102,8 +107,35 @@ class DashboardQueriesIT extends AbstractPostgresIT {
         assertDoesNotThrow(() -> groupService.listMine(alice, null, 5));
         assertDoesNotThrow(() -> joinRequestService.listMine(alice, null, null, null, 5));
         assertDoesNotThrow(() -> joinRequestService.listMine(alice, RequestStatus.PENDING, TargetKind.GROUP, null, 5));
+        long meeting = insertMeeting(null, alice, OffsetDateTime.now().plusDays(1));
+        assertDoesNotThrow(() -> joinRequestService.listForMeeting(alice, meeting, null, null, 5));
+        assertDoesNotThrow(() -> joinRequestService.listForMeeting(alice, meeting, RequestStatus.PENDING, null, 5));
         assertDoesNotThrow(() -> groupService.search(alice, "book", null, 5));
         assertDoesNotThrow(() -> userService.search(alice, "ali", null, 5));
+    }
+
+    @Test
+    void meetingTimeframesSplitAtNowAndPageInTheirOwnOrder() {
+        long alice = insertUser("alice");
+        long bob = insertUser("bob");
+        OffsetDateTime now = OffsetDateTime.now();
+        long lastWeek = insertMeeting(null, alice, now.minusDays(7));
+        long yesterday = insertMeeting(null, bob, now.minusDays(1), alice);
+        long tomorrow = insertMeeting(null, alice, now.plusDays(1));
+        long nextWeek = insertMeeting(null, bob, now.plusDays(7), alice);
+        long later = insertMeeting(null, alice, now.plusDays(14));
+        // Not alice's: never listed.
+        insertMeeting(null, bob, now.plusDays(2));
+
+        CursorPage<MeetingSummaryResponse> upcoming = meetingService.listMine(alice, null, MeetingTimeframe.UPCOMING, null, 2);
+        assertEquals(List.of(tomorrow, nextWeek), upcoming.items().stream().map(MeetingSummaryResponse::id).toList());
+        CursorPage<MeetingSummaryResponse> rest = meetingService.listMine(
+                alice, null, MeetingTimeframe.UPCOMING, upcoming.nextCursor(), 2);
+        assertEquals(List.of(later), rest.items().stream().map(MeetingSummaryResponse::id).toList());
+        assertNull(rest.nextCursor());
+
+        CursorPage<MeetingSummaryResponse> past = meetingService.listMine(alice, null, MeetingTimeframe.PAST, null, 20);
+        assertEquals(List.of(yesterday, lastWeek), past.items().stream().map(MeetingSummaryResponse::id).toList());
     }
 
     @Test

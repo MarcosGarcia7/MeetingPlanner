@@ -103,7 +103,7 @@
 | Method | Path | Handler |
 | --- | --- | --- |
 | POST | `/api/meetings` | `create` |
-| GET | `/api/meetings` | `list` |
+| GET | `/api/meetings` (`?groupId=`, `?when=UPCOMING` or `PAST` optional) | `list` |
 | GET | `/api/meetings/created` | `listCreated` |
 | GET | `/api/meetings/upcoming` | `listUpcoming` |
 | GET | `/api/meetings/{meetingId}` | `get` |
@@ -114,7 +114,7 @@
 | POST | `/api/meetings/{meetingId}/invites` | `invite` |
 | POST | `/api/meetings/{meetingId}/invites/check` | `checkInvites` |
 | POST | `/api/meetings/{meetingId}/join-requests` | `requestJoin` |
-| GET | `/api/meetings/{meetingId}/join-requests` | `listJoinRequests` |
+| GET | `/api/meetings/{meetingId}/join-requests` (`?status=` optional) | `listJoinRequests` |
 
 ## MeetingTimeChangeController (4)
 

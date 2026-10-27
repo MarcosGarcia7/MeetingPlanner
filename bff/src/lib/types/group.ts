@@ -24,6 +24,8 @@ export interface GroupSummaryResponse {
   viewerStatus: GroupViewerStatus | null;
   pendingRequestId: number | null;
   pendingInviteId: number | null;
+  // Whether the viewer may schedule meetings in the group.
+  canCreateMeetings: boolean;
 }
 
 // Mirrors server common/api/dto/GroupMemberResponse.

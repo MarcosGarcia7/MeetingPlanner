@@ -447,6 +447,9 @@ class JoinRequestServiceImplTest {
         assertEquals(2, page.items().size());
         JoinRequestResponse groupItem = page.items().stream().filter(r -> r.kind().equals("GROUP")).findFirst().orElseThrow();
         assertEquals("Team", groupItem.groupName());
+        JoinRequestResponse meetingItem = page.items().stream().filter(r -> r.kind().equals("MEETING")).findFirst().orElseThrow();
+        assertEquals(4L, meetingItem.meetingId());
+        assertEquals("Standup", meetingItem.meetingTitle());
         assertNull(page.nextCursor());
     }
 
@@ -468,6 +471,32 @@ class JoinRequestServiceImplTest {
         service.listMine(2L, null, TargetKind.MEETING, null, 20);
 
         verifyNoInteractions(groupJoinRequestRepository);
+    }
+
+    @Test
+    void listForMeetingPassesStatusFilter() {
+        UserEntity owner = user(1L, "alice");
+        MeetingEntity meeting = meeting(4L, owner, null);
+        when(meetingRepository.findById(4L)).thenReturn(Optional.of(meeting));
+        when(meetingAuthorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingJoinRequestRepository.listForMeeting(eq(4L), eq(1L), eq(RequestStatus.PENDING), any(), any(), any()))
+                .thenReturn(List.of(meetingRequest(11L, meeting, user(2L, "bob"))));
+
+        CursorPage<JoinRequestResponse> page = service.listForMeeting(1L, 4L, RequestStatus.PENDING, null, 20);
+
+        assertEquals(1, page.items().size());
+        assertEquals("bob", page.items().getFirst().requesterUsername());
+    }
+
+    @Test
+    void listForMeetingHidesMeetingFromNonManagers() {
+        MeetingEntity meeting = meeting(4L, user(1L, "alice"), null);
+        when(meetingRepository.findById(4L)).thenReturn(Optional.of(meeting));
+        when(meetingAuthorization.canManage(2L, meeting)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.listForMeeting(2L, 4L, RequestStatus.PENDING, null, 20));
+        verifyNoInteractions(meetingJoinRequestRepository);
     }
 
     @Test

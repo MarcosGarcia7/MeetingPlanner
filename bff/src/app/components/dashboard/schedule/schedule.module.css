@@ -1,0 +1,210 @@
+/* Rules specific to the Schedule tab; shared card primitives live in ../dashboard.module.css. */
+
+.cardHeader {
+  composes: cardHeader from '../dashboard.module.css';
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+/* Overview: shelves side by side on wide screens, stacked on narrow ones. */
+
+.shelves {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+/* A list row with its own buttons (not a link), styled like home's itemCard. */
+.itemRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.weekList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.weekDay {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.weekDay dt {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.today {
+  background: var(--accent-subtle);
+}
+
+.today dt {
+  color: var(--accent);
+}
+
+/* Meetings: Upcoming | Past | Created by me filter, as pill links. */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.filter {
+  padding: 4px 12px;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.filter:hover {
+  color: var(--text-primary);
+}
+
+.currentFilter {
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.loadMore {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+/* Availability: one row per day (name | time windows | Add hours), stacked on narrow screens. */
+
+.days {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+  list-style: none;
+}
+
+.day {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  align-items: start;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.dayName {
+  padding-top: 6px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.windows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.window {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.window input {
+  width: 130px;
+  min-width: 0;
+}
+
+.unavailable {
+  padding-top: 6px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.iconButton {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--button-secondary-hover);
+  color: var(--text-primary);
+}
+
+.iconButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.status {
+  margin-left: auto;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+@media (width < 768px) {
+  .day {
+    grid-template-columns: 1fr auto;
+  }
+
+  .windows {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .window input {
+    flex: 1;
+    width: auto;
+  }
+}

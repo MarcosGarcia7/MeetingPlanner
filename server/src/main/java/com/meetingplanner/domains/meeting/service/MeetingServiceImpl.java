@@ -19,6 +19,7 @@ import com.meetingplanner.common.api.exceptions.EmailNotVerifiedException;
 import com.meetingplanner.common.api.exceptions.ForbiddenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.MeetingTimeframe;
 import com.meetingplanner.common.security.InviteTokens;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
@@ -37,6 +38,7 @@ import com.meetingplanner.domains.user.service.UserProfileAuthorizationService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -113,10 +115,7 @@ public class MeetingServiceImpl implements MeetingService {
     public MeetingResponse createInGroup(long userId, long groupId, MeetingCreateRequest request) {
         GroupEntity group = groupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group not found"));
-        boolean allowed = group.isMembersCanCreate()
-                ? groupAuthorization.isOwner(userId, group) || groupAuthorization.isMember(userId, group)
-                : groupAuthorization.isAdminOrOwner(userId, group);
-        if (!allowed) {
+        if (!groupAuthorization.canCreateMeetings(userId, group)) {
             throw new ForbiddenException("You cannot create meetings in this group");
         }
         return doCreate(userId, group, request);
@@ -145,7 +144,7 @@ public class MeetingServiceImpl implements MeetingService {
 
         MeetingEntity saved = meetingRepository.save(meeting);
         List<String> warnings = conflictService.availabilityWarnings(userId, saved.getStartTime(), saved.getEndTime());
-        return toResponse(saved, warnings);
+        return toResponse(saved, userId, warnings);
     }
 
     private void validateTimes(OffsetDateTime start, OffsetDateTime end) {
@@ -170,7 +169,7 @@ public class MeetingServiceImpl implements MeetingService {
         if (!authorization.canView(userId, meeting)) {
             throw new ResourceNotFoundException("Meeting not found");
         }
-        return toResponse(meeting);
+        return toResponse(meeting, userId);
     }
 
     @Override
@@ -214,7 +213,7 @@ public class MeetingServiceImpl implements MeetingService {
                 notifyParticipants(meeting, userId, "MEETING_UPDATED", notificationVars(meeting));
             }
             timeChangeService.createProposal(userId, meeting, newStart, newEnd);
-            return toResponse(meeting);
+            return toResponse(meeting, userId);
         }
 
         boolean changed = false;
@@ -234,7 +233,7 @@ public class MeetingServiceImpl implements MeetingService {
         if (changed) {
             notifyParticipants(saved, userId, "MEETING_UPDATED", notificationVars(saved));
         }
-        return toResponse(saved);
+        return toResponse(saved, userId);
     }
 
     private static boolean hasOtherParticipants(MeetingEntity meeting, long actorUserId) {
@@ -292,14 +291,18 @@ public class MeetingServiceImpl implements MeetingService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPage<MeetingSummaryResponse> listMine(long userId, Long groupId, String cursor, int size) {
+    public CursorPage<MeetingSummaryResponse> listMine(long userId, Long groupId, MeetingTimeframe when,
+                                                       String cursor, int size) {
         int limit = CursorCodec.clampSize(size);
         CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
-        List<MeetingEntity> rows = meetingRepository.listMine(
-                userId, groupId,
-                decoded == null ? null : decoded.time(),
-                decoded == null ? null : decoded.id(),
-                PageRequest.of(0, limit + 1));
+        OffsetDateTime cursorTime = decoded == null ? null : decoded.time();
+        Long cursorId = decoded == null ? null : decoded.id();
+        Pageable page = PageRequest.of(0, limit + 1);
+        OffsetDateTime now = OffsetDateTime.now();
+        List<MeetingEntity> rows = when == MeetingTimeframe.UPCOMING
+                ? meetingRepository.listMineUpcoming(userId, groupId, now, cursorTime, cursorId, page)
+                : meetingRepository.listMine(userId, groupId, when == MeetingTimeframe.PAST ? now : null,
+                        cursorTime, cursorId, page);
         return toPage(rows, limit);
     }
 
@@ -383,11 +386,11 @@ public class MeetingServiceImpl implements MeetingService {
         return responseList;
     }
 
-    private MeetingResponse toResponse(MeetingEntity m) {
-        return toResponse(m, List.of());
+    private MeetingResponse toResponse(MeetingEntity m, long viewerId) {
+        return toResponse(m, viewerId, List.of());
     }
 
-    private MeetingResponse toResponse(MeetingEntity m, List<String> warnings) {
+    private MeetingResponse toResponse(MeetingEntity m, long viewerId, List<String> warnings) {
         List<ParticipantResponse> participants = new ArrayList<>();
         for (MeetingParticipantEntity p : m.getParticipants()) {
             participants.add(new ParticipantResponse(p.getUser().getId(), p.getUser().getUsername()));
@@ -395,6 +398,7 @@ public class MeetingServiceImpl implements MeetingService {
         return new MeetingResponse(
                 m.getId(),
                 m.getGroup() == null ? null : m.getGroup().getId(),
+                m.getGroup() == null ? null : m.getGroup().getGroupName(),
                 m.getCreator().getId(),
                 m.getStartTime(),
                 m.getEndTime(),
@@ -404,7 +408,8 @@ public class MeetingServiceImpl implements MeetingService {
                 m.getExternalParticipantNames(),
                 participants,
                 warnings,
-                timeChangeService.pendingSummary(m.getId()).orElse(null));
+                timeChangeService.pendingSummary(m.getId()).orElse(null),
+                authorization.canManage(viewerId, m));
     }
 
     private CursorPage<MeetingSummaryResponse> toPage(List<MeetingEntity> rows, int size) {

@@ -22,7 +22,7 @@ export default function MeetingListItem({meeting, timeZone, showGroup = true}: M
   ].filter(Boolean).join(' · ');
   return (
     <li>
-      <Link href={`/dashboard/schedule?meeting=${meeting.id}`} className={styles.itemCard}>
+      <Link href={`/dashboard/schedule/${meeting.id}`} className={styles.itemCard}>
         <time dateTime={meeting.startTime} className={meetingStyles.date}>{day}</time>
         <div className={styles.itemBody}>
           <span className={styles.itemTitle}>{meeting.title}</span>

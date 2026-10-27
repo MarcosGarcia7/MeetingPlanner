@@ -72,3 +72,18 @@ export function zonedTimeToIso(local: string, timeZone: string): string {
   // A second pass corrects the offset when the guess lands on the other side of a DST change.
   return new Date(asUtc - zoneOffset(new Date(guess), timeZone)).toISOString();
 }
+
+// The inverse of zonedTimeToIso: an ISO instant as a <input type="datetime-local"> value ("2026-10-28T14:00")
+// showing its wall-clock time in `timeZone`.
+export function isoToZonedInput(iso: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(new Date(iso));
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
+  return `${value('year')}-${value('month')}-${value('day')}T${value('hour')}:${value('minute')}`;
+}
+
+// "Tuesday, October 28, 2026": the full date of a meeting's start, for its detail page.
+export function formatLongDate(iso: string, timeZone?: string): string {
+  return new Intl.DateTimeFormat('en-US', {dateStyle: 'full', timeZone}).format(new Date(iso));
+}

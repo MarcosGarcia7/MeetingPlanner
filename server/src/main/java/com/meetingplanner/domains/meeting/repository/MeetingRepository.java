@@ -33,6 +33,8 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
             join m.participants p
             where p.user.id = :userId
               and (:groupId is null or m.group.id = :groupId)
+              and (cast(:endedBefore as OffsetDateTime) is null
+                   or COALESCE(m.endTime, m.startTime) < :endedBefore)
               and (cast(:cursorTime as OffsetDateTime) is null
                    or m.startTime < :cursorTime
                    or (m.startTime = :cursorTime and m.id < :cursorId))
@@ -40,9 +42,29 @@ public interface MeetingRepository extends JpaRepository<MeetingEntity, Long> {
             """)
     List<MeetingEntity> listMine(@Param("userId") Long userId,
                                  @Param("groupId") Long groupId,
+                                 @Param("endedBefore") OffsetDateTime endedBefore,
                                  @Param("cursorTime") OffsetDateTime cursorTime,
                                  @Param("cursorId") Long cursorId,
                                  Pageable pageable);
+
+    // Meetings not over by `now` (in-progress ones included), soonest first.
+    @Query("""
+            select m from MeetingEntity m
+            join m.participants p
+            where p.user.id = :userId
+              and (:groupId is null or m.group.id = :groupId)
+              and COALESCE(m.endTime, m.startTime) >= :now
+              and (cast(:cursorTime as OffsetDateTime) is null
+                   or m.startTime > :cursorTime
+                   or (m.startTime = :cursorTime and m.id > :cursorId))
+            order by m.startTime asc, m.id asc
+            """)
+    List<MeetingEntity> listMineUpcoming(@Param("userId") Long userId,
+                                         @Param("groupId") Long groupId,
+                                         @Param("now") OffsetDateTime now,
+                                         @Param("cursorTime") OffsetDateTime cursorTime,
+                                         @Param("cursorId") Long cursorId,
+                                         Pageable pageable);
 
     @Query("""
             select m from MeetingEntity m

@@ -8,6 +8,7 @@ import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
+import com.meetingplanner.common.api.model.MeetingTimeframe;
 
 import java.util.List;
 
@@ -23,7 +24,7 @@ public interface MeetingService {
 
     void delete(long userId, long meetingId);
 
-    CursorPage<MeetingSummaryResponse> listMine(long userId, Long groupId, String cursor, int size);
+    CursorPage<MeetingSummaryResponse> listMine(long userId, Long groupId, MeetingTimeframe when, String cursor, int size);
 
     CursorPage<MeetingSummaryResponse> search(long viewerId, String query, String cursor, int size);
 

@@ -6,6 +6,7 @@ import java.util.List;
 public record MeetingResponse(
         Long id,
         Long groupId,
+        String groupName,
         Long creatorId,
         OffsetDateTime startTime,
         OffsetDateTime endTime,
@@ -15,6 +16,9 @@ public record MeetingResponse(
         List<String> externalParticipantNames,
         List<ParticipantResponse> participants,
         List<String> warnings,
-        PendingTimeChange pendingTimeChange
+        PendingTimeChange pendingTimeChange,
+        // Whether the viewer may edit, delete, invite to, and remove people from the meeting: its creator,
+        // or an owner/admin of its group.
+        boolean canManage
 ) {
 }

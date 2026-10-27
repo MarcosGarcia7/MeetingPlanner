@@ -182,6 +182,7 @@ public class GroupServiceImpl implements GroupService {
         }
         List<Long> groupIds = groups.stream().map(GroupEntity::getId).toList();
         Set<Long> memberOf = groupMemberRepository.findGroupIdsByUserId(viewerId);
+        Set<Long> adminOf = groupMemberRepository.findAdminGroupIdsByUserId(viewerId);
         Map<Long, Long> memberCounts = toCountMap(groupMemberRepository.countByGroupIds(groupIds));
         Map<Long, Long> friendCounts = toCountMap(groupMemberRepository.countFriendMembersByGroupIds(viewerId, groupIds));
         Set<Long> bannedFrom = groupBanRepository.findBannedGroupIds(viewerId, groupIds);
@@ -197,8 +198,9 @@ public class GroupServiceImpl implements GroupService {
 
         return groups.stream().map(group -> {
             Long id = group.getId();
+            boolean owner = Objects.equals(group.getOwner().getId(), viewerId);
             GroupViewerStatus status;
-            if (memberOf.contains(id) || Objects.equals(group.getOwner().getId(), viewerId)) {
+            if (memberOf.contains(id) || owner) {
                 status = GroupViewerStatus.MEMBER;
             } else if (bannedFrom.contains(id)) {
                 status = GroupViewerStatus.BANNED;
@@ -218,7 +220,8 @@ public class GroupServiceImpl implements GroupService {
                     friendCounts.getOrDefault(id, 0L).intValue(),
                     status,
                     status == GroupViewerStatus.REQUESTED ? requestIds.get(id) : null,
-                    status == GroupViewerStatus.INVITED ? inviteIds.get(id) : null);
+                    status == GroupViewerStatus.INVITED ? inviteIds.get(id) : null,
+                    GroupAuthorizationService.canCreateMeetings(group, owner, adminOf.contains(id), memberOf.contains(id)));
         }).toList();
     }
 

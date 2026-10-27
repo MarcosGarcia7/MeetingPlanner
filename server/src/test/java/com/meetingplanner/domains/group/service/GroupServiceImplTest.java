@@ -225,6 +225,29 @@ class GroupServiceImplTest {
     }
 
     @Test
+    void summaryReportsWhetherViewerCanCreateMeetings() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity viewer = user(9L, "dave", true);
+        GroupEntity owned = ownedGroup(2L, viewer);
+        owned.setMembersCanCreate(false);
+        GroupEntity adminOf = ownedGroup(3L, owner);
+        adminOf.setMembersCanCreate(false);
+        GroupEntity restricted = ownedGroup(4L, owner);
+        restricted.setMembersCanCreate(false);
+        GroupEntity open = ownedGroup(5L, owner);
+        GroupEntity notMember = ownedGroup(6L, owner);
+        when(groupRepository.search("%tea%", null, null, PageRequest.of(0, 21)))
+                .thenReturn(List.of(owned, adminOf, restricted, open, notMember));
+        when(groupMemberRepository.findGroupIdsByUserId(9L)).thenReturn(Set.of(2L, 3L, 4L, 5L));
+        when(groupMemberRepository.findAdminGroupIdsByUserId(9L)).thenReturn(Set.of(3L));
+
+        List<GroupSummaryResponse> items = service.search(9L, "tea", null, 20).items();
+
+        assertEquals(List.of(true, true, false, true, false),
+                items.stream().map(GroupSummaryResponse::canCreateMeetings).toList());
+    }
+
+    @Test
     void listMineEncodesIdCursorItCanDecode() {
         UserEntity owner = user(1L, "alice", true);
         List<GroupEntity> rows = new ArrayList<>();

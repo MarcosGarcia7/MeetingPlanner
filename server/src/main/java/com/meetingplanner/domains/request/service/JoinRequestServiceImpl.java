@@ -249,7 +249,8 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPage<JoinRequestResponse> listForMeeting(long actorId, long meetingId, String cursor, int size) {
+    public CursorPage<JoinRequestResponse> listForMeeting(long actorId, long meetingId, RequestStatus status,
+                                                         String cursor, int size) {
         MeetingEntity meeting = meetingRepository.findById(meetingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
         if (!meetingAuthorization.canManage(actorId, meeting)) {
@@ -258,7 +259,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         int limit = CursorCodec.clampSize(size);
         CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
         List<MeetingJoinRequestEntity> rows = meetingJoinRequestRepository.listForMeeting(
-                meetingId, actorId,
+                meetingId, actorId, status,
                 decoded == null ? null : decoded.time(),
                 decoded == null ? null : decoded.id(),
                 PageRequest.of(0, limit + 1));
@@ -515,6 +516,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
                 request.getGroup() == null ? null : request.getGroup().getId(),
                 request.getGroup() == null ? null : request.getGroup().getGroupName(),
                 null,
+                null,
                 request.getTimeSent(),
                 request.getRespondedAt());
     }
@@ -530,6 +532,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
                 null,
                 null,
                 request.getMeeting() == null ? null : request.getMeeting().getId(),
+                request.getMeeting() == null ? null : request.getMeeting().getTitle(),
                 request.getTimeSent(),
                 request.getRespondedAt());
     }

@@ -38,11 +38,11 @@ export default function WelcomeHeader({username, profile, unread}: WelcomeHeader
         </p>
       </div>
       <nav className={styles.headerActions} aria-label='Quick actions'>
-        <Link href='/dashboard/schedule' className={styles.actionLink}>
+        <Link href='/dashboard/schedule/meetings?new=1' className={styles.actionLink}>
           <CalendarDaysIcon className={styles.actionIcon}/>
           New meeting
         </Link>
-        <Link href='/dashboard/groups' className={styles.actionLink}>
+        <Link href='/dashboard/groups/mine?new=1' className={styles.actionLink}>
           <UserGroupIcon className={styles.actionIcon}/>
           New group
         </Link>

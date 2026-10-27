@@ -13,6 +13,7 @@ public record JoinRequestResponse(
         Long groupId,
         String groupName,
         Long meetingId,
+        String meetingTitle,
         OffsetDateTime timeSent,
         OffsetDateTime respondedAt
 ) {

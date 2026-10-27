@@ -19,6 +19,7 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
     @Query("""
             select r from MeetingJoinRequestEntity r
             where r.meeting.id = :meetingId
+              and (:status is null or r.status = :status)
               and not exists (
                   select 1 from FriendshipEntity f
                   where f.status = 'BLOCKED'
@@ -31,6 +32,7 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
             """)
     List<MeetingJoinRequestEntity> listForMeeting(@Param("meetingId") Long meetingId,
                                                   @Param("viewerId") Long viewerId,
+                                                  @Param("status") RequestStatus status,
                                                   @Param("cursorTime") OffsetDateTime cursorTime,
                                                   @Param("cursorId") Long cursorId,
                                                   Pageable pageable);

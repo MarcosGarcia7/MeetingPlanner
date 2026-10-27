@@ -5,9 +5,11 @@ import com.meetingplanner.common.api.dto.InviteBatchResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteRequest;
+import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.MeetingTimeframe;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.repository.GroupRepository;
@@ -38,6 +40,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -45,6 +48,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
@@ -133,6 +137,64 @@ class MeetingServiceImplTest {
         assertEquals(1L, result.creatorId());
         assertEquals(0, result.participantCount());
         assertNull(page.nextCursor());
+    }
+
+    @Test
+    void listMineUpcomingUsesAscendingQueryFromNow() {
+        OffsetDateTime before = OffsetDateTime.now();
+        when(meetingRepository.listMineUpcoming(eq(1L), isNull(), any(OffsetDateTime.class), isNull(), isNull(),
+                eq(PageRequest.of(0, 21)))).thenReturn(List.of());
+
+        service.listMine(1L, null, MeetingTimeframe.UPCOMING, null, 20);
+
+        verify(meetingRepository).listMineUpcoming(eq(1L), isNull(),
+                argThat(now -> !now.isBefore(before)), isNull(), isNull(), eq(PageRequest.of(0, 21)));
+        verify(meetingRepository, never()).listMine(anyLong(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void listMinePastBoundsByNowAndDefaultListsEverything() {
+        when(meetingRepository.listMine(eq(1L), eq(5L), any(), isNull(), isNull(), eq(PageRequest.of(0, 21))))
+                .thenReturn(List.of());
+
+        service.listMine(1L, 5L, MeetingTimeframe.PAST, null, 20);
+        service.listMine(1L, 5L, null, null, 20);
+
+        verify(meetingRepository).listMine(eq(1L), eq(5L), any(OffsetDateTime.class), isNull(), isNull(),
+                eq(PageRequest.of(0, 21)));
+        verify(meetingRepository).listMine(eq(1L), eq(5L), isNull(), isNull(), isNull(), eq(PageRequest.of(0, 21)));
+        verify(meetingRepository, never()).listMineUpcoming(anyLong(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void getReportsGroupNameAndWhetherViewerCanManage() {
+        UserEntity creator = user(1L, "alice");
+        UserEntity viewer = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, creator, creator, viewer);
+        GroupEntity group = new GroupEntity();
+        group.setId(5L);
+        group.setGroupName("Book club");
+        meeting.setGroup(group);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(authorization.canView(2L, meeting)).thenReturn(true);
+        when(authorization.canManage(2L, meeting)).thenReturn(false);
+        when(authorization.canView(1L, meeting)).thenReturn(true);
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+
+        MeetingResponse asParticipant = service.get(2L, 10L);
+        MeetingResponse asCreator = service.get(1L, 10L);
+
+        assertEquals("Book club", asParticipant.groupName());
+        assertFalse(asParticipant.canManage());
+        assertTrue(asCreator.canManage());
+    }
+
+    @Test
+    void getHidesMeetingViewerCannotSee() {
+        MeetingEntity meeting = meeting(10L, user(1L, "alice"));
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+
+        assertThrows(ResourceNotFoundException.class, () -> service.get(3L, 10L));
     }
 
     @Test

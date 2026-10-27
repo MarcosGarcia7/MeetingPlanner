@@ -10,6 +10,8 @@ import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
 import com.meetingplanner.common.api.dto.ParticipantResponse;
+import com.meetingplanner.common.api.model.MeetingTimeframe;
+import com.meetingplanner.common.api.model.RequestStatus;
 import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.meeting.service.MeetingService;
 import com.meetingplanner.domains.request.service.JoinRequestService;
@@ -50,9 +52,10 @@ public class MeetingController {
     @GetMapping
     public CursorPage<MeetingSummaryResponse> list(@AuthenticationPrincipal Jwt jwt,
                                                     @RequestParam(required = false) Long groupId,
+                                                    @RequestParam(required = false) MeetingTimeframe when,
                                                     @RequestParam(required = false) String cursor,
                                                     @RequestParam(defaultValue = "20") int size) {
-        return meetingService.listMine(CurrentUser.from(jwt).id(), groupId, cursor, size);
+        return meetingService.listMine(CurrentUser.from(jwt).id(), groupId, when, cursor, size);
     }
 
     @GetMapping("/created")
@@ -119,8 +122,9 @@ public class MeetingController {
     @GetMapping("/{meetingId}/join-requests")
     public CursorPage<JoinRequestResponse> listJoinRequests(@AuthenticationPrincipal Jwt jwt,
                                                             @PathVariable long meetingId,
+                                                            @RequestParam(required = false) RequestStatus status,
                                                             @RequestParam(required = false) String cursor,
                                                             @RequestParam(defaultValue = "20") int size) {
-        return joinRequestService.listForMeeting(CurrentUser.from(jwt).id(), meetingId, cursor, size);
+        return joinRequestService.listForMeeting(CurrentUser.from(jwt).id(), meetingId, status, cursor, size);
     }
 }

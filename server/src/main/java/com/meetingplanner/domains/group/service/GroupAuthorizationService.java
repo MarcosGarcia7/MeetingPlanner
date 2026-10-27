@@ -50,6 +50,16 @@ public class GroupAuthorizationService {
         return groupMemberRepository.existsByGroupIdAndUserId(group.getId(), userId);
     }
 
+    public boolean canCreateMeetings(Long userId, GroupEntity group) {
+        return canCreateMeetings(group, isOwner(userId, group), isAdmin(userId, group), isMember(userId, group));
+    }
+
+    // The owner and admins always can; other members only when the group allows it. Static so callers
+    // that already know the viewer's role (e.g. a batch of group summaries) can apply it without queries.
+    public static boolean canCreateMeetings(GroupEntity group, boolean isOwner, boolean isAdmin, boolean isMember) {
+        return isOwner || isAdmin || (isMember && group.isMembersCanCreate());
+    }
+
     public boolean isBanned(Long userId, GroupEntity group) {
         return groupBanRepository.existsByGroupIdAndUserId(group.getId(), userId);
     }

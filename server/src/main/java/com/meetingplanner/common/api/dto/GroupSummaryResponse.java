@@ -11,6 +11,8 @@ public record GroupSummaryResponse(
         int friendMemberCount,
         GroupViewerStatus viewerStatus,
         Long pendingRequestId,
-        Long pendingInviteId
+        Long pendingInviteId,
+        // Whether the viewer may schedule meetings in the group.
+        boolean canCreateMeetings
 ) {
 }

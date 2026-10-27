@@ -1,7 +1,7 @@
 'use client';
 
 import {useState} from 'react';
-import {useForm} from 'react-hook-form';
+import {useForm, useWatch} from 'react-hook-form';
 import {useRouter} from 'next/navigation';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {z} from 'zod';
@@ -9,13 +9,15 @@ import type {InviteBatchResponse} from '@/lib/types/invite';
 import type {MeetingCreateRequest, MeetingInviteBatchRequest, MeetingResponse} from '@/lib/types/meeting';
 import {sendJson} from '@/lib/send-json';
 import {zonedTimeToIso} from '@/app/components/dashboard/home/format';
-import InviteeInput, {toInviteRequest} from './invitee-input';
+import InviteeInput, {toInviteRequest} from '@/app/components/dashboard/groups/invitee-input';
 import authStyles from '@/app/components/auth/auth.module.css';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
-import styles from './groups.module.css';
+import styles from './meetings.module.css';
 
 const meetingSchema = z.object({
   title: z.string().trim().min(1, 'Give the meeting a title').max(100, 'Title cannot exceed 100 characters'),
+  // A group id, or '' for a meeting outside any group.
+  groupId: z.string(),
   start: z.string().min(1, 'Pick a start time'),
   end: z.string(),
   location: z.string().trim().max(500, 'Location cannot exceed 500 characters'),
@@ -31,33 +33,47 @@ export interface InviteOutcome {
   warnings: string[];
 }
 
+export interface GroupOption {
+  id: number;
+  name: string;
+}
+
 function describe(failure: { username: string | null; email: string | null; reason: string | null }) {
   const who = failure.username ? `@${failure.username}` : failure.email;
   return `${who}: ${failure.reason ?? 'not invited'}`;
 }
 
 interface MeetingFormProps {
-  groupId: number;
+  // Schedules in this group (a group's Meetings tab). Without it, the form offers `groups` to choose from,
+  // defaulting to no group.
+  groupId?: number;
+  groups?: GroupOption[];
   // Profile timezone: the times typed in are read in it, matching how the dashboard displays them.
   timeZone: string;
-  // Usernames suggested in the invite field (the group's other members).
-  memberUsernames: string[];
+  // Usernames suggested in the invite field (a group's other members, or friends).
+  suggestions: string[];
+  // Told when the chosen group changes (null: no group), e.g. to suggest that group's members instead.
+  onGroupChange?: (groupId: number | null) => void;
   onCreated: (meeting: MeetingResponse, invites: InviteOutcome | null) => void;
   onCancel: () => void;
 }
 
-// Schedules a meeting in a group, then invites the chosen people in a second request. The API rejects
-// times in the past and clashes with the creator's schedule (409); both come back as messages shown here.
-// Once the meeting exists, invite failures are reported to the caller rather than keeping the form open,
-// so a retry can't create the meeting twice.
-export default function MeetingForm({groupId, timeZone, memberUsernames, onCreated, onCancel}: MeetingFormProps) {
+// Schedules a meeting, in a group or on its own, then invites the chosen people in a second request. The
+// API rejects times in the past, clashes with the creator's schedule (409), and groups where the creator
+// may not schedule (403); each comes back as a message shown here. Once the meeting exists, invite
+// failures are reported to the caller rather than keeping the form open, so a retry can't create the
+// meeting twice.
+export default function MeetingForm({groupId, groups = [], timeZone, suggestions, onGroupChange, onCreated,
+                                      onCancel}: MeetingFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [invitees, setInvitees] = useState<string[]>([]);
-  const {register, handleSubmit, formState: {errors, isSubmitting}} = useForm<MeetingFormData>({
+  const {register, handleSubmit, control, formState: {errors, isSubmitting}} = useForm<MeetingFormData>({
     resolver: zodResolver(meetingSchema),
-    defaultValues: {title: '', start: '', end: '', location: '', isPrivate: false},
+    defaultValues: {title: '', groupId: groupId ? String(groupId) : '', start: '', end: '', location: '',
+      isPrivate: false},
   });
+  const inGroup = useWatch({control, name: 'groupId'}) !== '';
 
   const onSubmit = async (data: MeetingFormData) => {
     setError(null);
@@ -68,7 +84,8 @@ export default function MeetingForm({groupId, timeZone, memberUsernames, onCreat
       location: data.location || undefined,
       isPrivate: data.isPrivate,
     };
-    const result = await sendJson<MeetingResponse>(`/api/groups/${groupId}/meetings`, 'POST', body);
+    const url = data.groupId ? `/api/groups/${data.groupId}/meetings` : '/api/meetings';
+    const result = await sendJson<MeetingResponse>(url, 'POST', body);
     if (!result.ok) {
       if (result.unauthenticated) {
         router.push('/login');
@@ -106,6 +123,17 @@ export default function MeetingForm({groupId, timeZone, memberUsernames, onCreat
         <input type='text' maxLength={100} autoFocus {...register('title')} className={authStyles.input}/>
         {errors.title && <span className={authStyles.error} role='alert'>{errors.title.message}</span>}
       </label>
+      {!groupId && groups.length > 0 && (
+        <label className={authStyles.field}>
+          <span className={authStyles.label}>Group (optional)</span>
+          <select {...register('groupId', {
+            onChange: (event) => onGroupChange?.(event.target.value ? Number(event.target.value) : null),
+          })} className={authStyles.input}>
+            <option value=''>No group</option>
+            {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+          </select>
+        </label>
+      )}
       <div className={styles.formRow}>
         <label className={authStyles.field}>
           <span className={authStyles.label}>Starts</span>
@@ -124,10 +152,12 @@ export default function MeetingForm({groupId, timeZone, memberUsernames, onCreat
         <input type='text' maxLength={500} {...register('location')} className={authStyles.input}/>
         {errors.location && <span className={authStyles.error} role='alert'>{errors.location.message}</span>}
       </label>
-      <InviteeInput value={invitees} onChange={setInvitees} suggestions={memberUsernames} disabled={isSubmitting}/>
+      <InviteeInput value={invitees} onChange={setInvitees} suggestions={suggestions} disabled={isSubmitting}/>
       <label className={styles.checkboxField}>
         <input type='checkbox' {...register('isPrivate')}/>
-        Private: only participants and group admins can see it
+        {inGroup
+          ? 'Private: only participants and group admins can see it'
+          : 'Private: only participants can see it'}
       </label>
       {error && <p className={authStyles.error} role='alert'>{error}</p>}
       <div className={styles.formFooter}>

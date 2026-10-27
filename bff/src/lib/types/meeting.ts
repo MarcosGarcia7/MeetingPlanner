@@ -73,6 +73,7 @@ export interface PendingTimeChange {
 export interface MeetingResponse {
   id: number | null;
   groupId: number | null;
+  groupName: string | null;
   creatorId: number | null;
   startTime: string | null;
   endTime: string | null;
@@ -83,6 +84,18 @@ export interface MeetingResponse {
   participants: ParticipantResponse[] | null;
   warnings: string[] | null;
   pendingTimeChange: PendingTimeChange | null;
+  // Whether the viewer may edit, delete, invite to, and remove people from the meeting.
+  canManage: boolean;
+}
+
+// Mirrors server common/api/dto/MeetingUpdateRequest. Omitted/null fields are left unchanged. A time
+// change on a meeting with other participants becomes a proposal they vote on.
+export interface MeetingUpdateRequest {
+  startTime?: string | null;
+  endTime?: string | null;
+  location?: string | null;
+  title?: string | null;
+  isPrivate?: boolean | null;
 }
 
 // Mirrors server common/api/dto/MeetingInviteRequest. Exactly one of username or email.

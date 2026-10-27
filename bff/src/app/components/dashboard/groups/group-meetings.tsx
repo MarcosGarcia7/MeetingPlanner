@@ -5,14 +5,14 @@ import type {CursorPage} from '@/lib/types/api';
 import type {MeetingResponse, MeetingSummaryResponse} from '@/lib/types/meeting';
 import {useCursorList} from '@/app/components/dashboard/use-cursor-list';
 import MeetingListItem from '@/app/components/dashboard/home/meeting-list-item';
-import MeetingForm, {type InviteOutcome} from './meeting-form';
+import MeetingForm, {type InviteOutcome} from '@/app/components/dashboard/meetings/meeting-form';
+import {creationNotes, toSummary} from '@/app/components/dashboard/meetings/summary';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import homeStyles from '@/app/components/dashboard/home/home.module.css';
 import styles from './groups.module.css';
 
 interface GroupMeetingsProps {
   groupId: number;
-  groupName: string | null;
   initial: CursorPage<MeetingSummaryResponse> | null;
   timeZone: string;
   memberUsernames: string[];
@@ -20,23 +20,8 @@ interface GroupMeetingsProps {
   canCreate: boolean;
 }
 
-function toSummary(meeting: MeetingResponse, groupName: string | null): MeetingSummaryResponse {
-  return {
-    id: meeting.id!,
-    groupId: meeting.groupId,
-    groupName,
-    creatorId: meeting.creatorId!,
-    startTime: meeting.startTime!,
-    endTime: meeting.endTime,
-    location: meeting.location,
-    title: meeting.title ?? '',
-    isPrivate: meeting.isPrivate,
-    participantCount: meeting.participants?.length ?? 1,
-  };
-}
-
 // The group's meetings, latest start first (past ones included), and the form to schedule one.
-export default function GroupMeetings({groupId, groupName, initial, timeZone, memberUsernames,
+export default function GroupMeetings({groupId, initial, timeZone, memberUsernames,
                                         canCreate}: GroupMeetingsProps) {
   const meetings = useCursorList(`/api/groups/${groupId}/meetings`, initial, 'Couldn’t load meetings.');
   const [creating, setCreating] = useState(false);
@@ -46,12 +31,10 @@ export default function GroupMeetings({groupId, groupName, initial, timeZone, me
 
   function onCreated(meeting: MeetingResponse, invites: InviteOutcome | null) {
     setCreating(false);
-    const created = invites && invites.invited > 0
-      ? `Meeting scheduled. Invited ${invites.invited} ${invites.invited === 1 ? 'person' : 'people'}.`
-      : 'Meeting scheduled.';
-    setNotes([created, ...(meeting.warnings ?? []), ...(invites?.warnings ?? [])]);
-    setFailures(invites?.failed.length ? ['Some invites weren’t sent:', ...invites.failed] : []);
-    const summary = toSummary(meeting, groupName);
+    const outcome = creationNotes(meeting, invites);
+    setNotes(outcome.notes);
+    setFailures(outcome.failures);
+    const summary = toSummary(meeting);
     meetings.setItems((current) => {
       const index = current.findIndex((m) => Date.parse(m.startTime) < Date.parse(summary.startTime));
       // Past the loaded range: it shows up when the page it belongs to loads.
@@ -69,7 +52,7 @@ export default function GroupMeetings({groupId, groupName, initial, timeZone, me
           <div className={dashboardStyles.cardHeader}>
             <h2 className={dashboardStyles.cardTitle}>New meeting</h2>
           </div>
-          <MeetingForm groupId={groupId} timeZone={timeZone} memberUsernames={memberUsernames} onCreated={onCreated}
+          <MeetingForm groupId={groupId} timeZone={timeZone} suggestions={memberUsernames} onCreated={onCreated}
                        onCancel={() => setCreating(false)}/>
         </section>
       )}

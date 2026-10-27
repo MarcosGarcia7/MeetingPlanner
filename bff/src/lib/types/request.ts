@@ -11,6 +11,7 @@ export interface JoinRequestResponse {
   groupId: number | null;
   groupName: string | null;
   meetingId: number | null;
+  meetingTitle: string | null;
   timeSent: string | null;
   respondedAt: string | null;
 }

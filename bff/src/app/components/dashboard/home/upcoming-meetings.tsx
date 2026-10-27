@@ -19,7 +19,7 @@ export default function UpcomingMeetings({meetings, timeZone}: UpcomingMeetingsP
         <p className={dashboardStyles.error}>Couldn’t load your meetings.</p>
       ) : meetings.length === 0 ? (
         <p className={dashboardStyles.empty}>
-          Nothing scheduled. <Link href='/dashboard/schedule' className={dashboardStyles.cardLink}>Plan one</Link>
+          Nothing scheduled. <Link href='/dashboard/schedule/meetings?new=1' className={dashboardStyles.cardLink}>Plan one</Link>
         </p>
       ) : (
         <ul className={styles.cardList}>

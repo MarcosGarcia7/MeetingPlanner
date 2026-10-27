@@ -26,6 +26,18 @@ export interface InviteFailure {
   reason: string | null;
 }
 
+// Mirrors server common/api/dto/InviteCheckResult.
+export interface InviteCheckResult {
+  username: string | null;
+  email: string | null;
+  warnings: string[] | null;
+}
+
+// Mirrors server common/api/dto/InviteCheckResponse.
+export interface InviteCheckResponse {
+  recipients: InviteCheckResult[] | null;
+}
+
 // Mirrors server common/api/dto/InviteBatchResponse. The API answers 400 instead when every recipient failed (its message lists each recipient's reason).
 export interface InviteBatchResponse {
   invited: InviteResponse[];

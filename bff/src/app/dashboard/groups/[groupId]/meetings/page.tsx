@@ -30,7 +30,7 @@ export default async function GroupMeetingsPage({params}: PageProps<'/dashboard/
   }
 
   return (
-    <GroupMeetings groupId={Number(groupId)} groupName={group.groupName} initial={valueOrNull(results[0])}
+    <GroupMeetings groupId={Number(groupId)} initial={valueOrNull(results[0])}
                    timeZone={valueOrNull(results[1])?.timezone ?? 'UTC'}
                    canCreate={role !== 'MEMBER' || group.membersCanCreate}
                    memberUsernames={(group.members ?? []).flatMap((member) =>

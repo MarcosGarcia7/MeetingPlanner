@@ -108,12 +108,6 @@
   font-size: 1.375rem;
 }
 
-.formRow {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
 .textarea {
   composes: input from '../../auth/auth.module.css';
   height: auto;
