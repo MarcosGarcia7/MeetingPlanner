@@ -72,6 +72,9 @@ export interface PendingTimeChange {
   proposedEndTime: string | null;
 }
 
+// Mirrors server common/api/model/MeetingViewerStatus.
+export type MeetingViewerStatus = 'PARTICIPANT' | 'INVITED' | 'REQUESTED' | 'CAN_REQUEST' | 'UNAVAILABLE';
+
 // Mirrors server common/api/dto/MeetingResponse.
 export interface MeetingResponse {
   id: number | null;
@@ -89,6 +92,10 @@ export interface MeetingResponse {
   pendingTimeChange: PendingTimeChange | null;
   // Whether the viewer may edit, delete, invite to, and remove people from the meeting.
   canManage: boolean;
+  viewerStatus: MeetingViewerStatus | null;
+  // Set only when viewerStatus is REQUESTED / INVITED.
+  pendingRequestId: number | null;
+  pendingInviteId: number | null;
 }
 
 // Mirrors server common/api/dto/MeetingUpdateRequest. Omitted/null fields are left unchanged. A time

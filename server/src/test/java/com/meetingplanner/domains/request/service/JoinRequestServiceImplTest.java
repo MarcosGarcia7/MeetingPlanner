@@ -100,10 +100,12 @@ class JoinRequestServiceImplTest {
         meeting.setCreator(creator);
         meeting.setGroup(group);
         meeting.setPrivate(false);
+        meeting.setStartTime(OffsetDateTime.now().plusDays(1));
 
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
         when(groupRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(group));
         when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(meetingAuthorization.canView(2L, meeting)).thenReturn(true);
         when(meetingAuthorization.isParticipantOrCreator(2L, meeting)).thenReturn(false);
         when(blockService.isBlocked(2L, 1L)).thenReturn(true);
 
@@ -170,10 +172,12 @@ class JoinRequestServiceImplTest {
         meeting.setCreator(creator);
         meeting.setGroup(group);
         meeting.setPrivate(false);
+        meeting.setStartTime(OffsetDateTime.now().plusDays(1));
 
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
         when(groupRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(group));
         when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(meetingAuthorization.canView(2L, meeting)).thenReturn(true);
         when(groupAuthorization.isBanned(2L, group)).thenReturn(true);
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
@@ -379,6 +383,7 @@ class JoinRequestServiceImplTest {
         when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
         when(groupRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(group));
         when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(meetingAuthorization.canView(2L, meeting)).thenReturn(true);
         when(meetingJoinRequestRepository.existsByMeetingIdAndRequesterIdAndStatus(10L, 2L, RequestStatus.PENDING))
                 .thenReturn(false);
         when(userRepository.findById(2L)).thenReturn(Optional.of(user(2L, "bob")));
@@ -393,6 +398,64 @@ class JoinRequestServiceImplTest {
         order.verify(groupRepository).findByIdForUpdate(5L);
         order.verify(meetingRepository).findByIdForUpdate(10L);
         verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void requestMeetingJoinRejectsEndedMeeting() {
+        UserEntity creator = user(1L, "alice");
+        GroupEntity group = group(5L, creator);
+        MeetingEntity meeting = meeting(10L, creator, group);
+        group.setPrivate(false);
+        meeting.setStartTime(OffsetDateTime.now().minusHours(2));
+        meeting.setEndTime(OffsetDateTime.now().minusHours(1));
+
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(groupRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(group));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(meetingAuthorization.canView(2L, meeting)).thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.requestMeetingJoin(2L, 10L));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verify(meetingJoinRequestRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void requestMeetingJoinForMeetingViewerCannotSeeIsNotFound() {
+        UserEntity creator = user(1L, "alice");
+        GroupEntity group = group(5L, creator);
+        MeetingEntity meeting = meeting(10L, creator, group);
+        meeting.setPrivate(true);
+
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(groupRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(group));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(meetingAuthorization.canView(2L, meeting)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.requestMeetingJoin(2L, 10L));
+        verify(meetingJoinRequestRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void requestMeetingJoinAllowedForMemberOfPrivateGroup() {
+        UserEntity creator = user(1L, "alice");
+        GroupEntity group = group(5L, creator);
+        group.setPrivate(true);
+        MeetingEntity meeting = meeting(10L, creator, group);
+
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(groupRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(group));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(meetingAuthorization.canView(2L, meeting)).thenReturn(true);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user(2L, "bob")));
+
+        JoinRequestResponse response = service.requestMeetingJoin(2L, 10L);
+
+        assertEquals(10L, response.meetingId());
+        verify(meetingJoinRequestRepository).saveAndFlush(any());
+        verify(notificationService).push(eq(1L), eq("MEETING_JOIN_REQUEST"), anyString(), eq("MEETING_JOIN_REQUEST"),
+                anyMap());
     }
 
     @Test

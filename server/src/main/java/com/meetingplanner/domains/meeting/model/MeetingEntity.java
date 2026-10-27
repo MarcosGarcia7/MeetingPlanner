@@ -87,6 +87,12 @@ public class MeetingEntity {
         this.endTime = endTime;
     }
 
+    // A meeting without an end time is over once it starts, matching COALESCE(endTime, startTime) in queries.
+    public boolean hasEnded() {
+        OffsetDateTime end = endTime != null ? endTime : startTime;
+        return end.isBefore(OffsetDateTime.now());
+    }
+
     public String getLocation() {
         return location;
     }

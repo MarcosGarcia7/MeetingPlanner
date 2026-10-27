@@ -10,13 +10,17 @@ import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.common.api.model.MeetingTimeframe;
+import com.meetingplanner.common.api.model.MeetingViewerStatus;
+import com.meetingplanner.common.api.model.RequestStatus;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.repository.GroupRepository;
 import com.meetingplanner.domains.group.service.GroupAuthorizationService;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
 import com.meetingplanner.domains.meeting.model.MeetingInviteEntity;
+import com.meetingplanner.domains.meeting.model.MeetingJoinRequestEntity;
 import com.meetingplanner.domains.meeting.repository.MeetingInviteRepository;
+import com.meetingplanner.domains.meeting.repository.MeetingJoinRequestRepository;
 import com.meetingplanner.domains.meeting.repository.MeetingParticipantRepository;
 import com.meetingplanner.domains.meeting.repository.MeetingRepository;
 import com.meetingplanner.domains.notification.service.NotificationService;
@@ -73,6 +77,8 @@ class MeetingServiceImplTest {
     private MeetingParticipantRepository meetingParticipantRepository;
     @Mock
     private MeetingInviteRepository meetingInviteRepository;
+    @Mock
+    private MeetingJoinRequestRepository meetingJoinRequestRepository;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -187,6 +193,120 @@ class MeetingServiceImplTest {
         assertEquals("Book club", asParticipant.groupName());
         assertFalse(asParticipant.canManage());
         assertTrue(asCreator.canManage());
+    }
+
+    // A public meeting in a public group that bob (2) can view but isn't in.
+    private MeetingEntity publicGroupMeeting(GroupEntity group) {
+        MeetingEntity meeting = meeting(10L, user(1L, "alice"), user(1L, "alice"));
+        meeting.setGroup(group);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(authorization.canView(2L, meeting)).thenReturn(true);
+        return meeting;
+    }
+
+    private static GroupEntity group(long id) {
+        GroupEntity group = new GroupEntity();
+        group.setId(id);
+        group.setGroupName("Book club");
+        group.setPrivate(false);
+        return group;
+    }
+
+    @Test
+    void getReportsParticipantWithoutLookingUpInvitesOrRequests() {
+        UserEntity creator = user(1L, "alice");
+        UserEntity viewer = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, creator, creator, viewer);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(authorization.canView(2L, meeting)).thenReturn(true);
+
+        MeetingResponse response = service.get(2L, 10L);
+
+        assertEquals(MeetingViewerStatus.PARTICIPANT, response.viewerStatus());
+        assertNull(response.pendingRequestId());
+        assertNull(response.pendingInviteId());
+        verifyNoInteractions(meetingInviteRepository, meetingJoinRequestRepository, blockService);
+    }
+
+    @Test
+    void getReportsPendingInvite() {
+        publicGroupMeeting(group(5L));
+        MeetingInviteEntity invite = new MeetingInviteEntity();
+        invite.setId(30L);
+        when(meetingInviteRepository.findFirstByMeetingIdAndRecipientIdAndStatus(10L, 2L, InviteStatus.PENDING))
+                .thenReturn(Optional.of(invite));
+
+        MeetingResponse response = service.get(2L, 10L);
+
+        assertEquals(MeetingViewerStatus.INVITED, response.viewerStatus());
+        assertEquals(30L, response.pendingInviteId());
+        assertNull(response.pendingRequestId());
+        verifyNoInteractions(meetingJoinRequestRepository);
+    }
+
+    @Test
+    void getReportsPendingRequest() {
+        publicGroupMeeting(group(5L));
+        MeetingJoinRequestEntity request = new MeetingJoinRequestEntity();
+        request.setId(40L);
+        when(meetingJoinRequestRepository.findFirstByMeetingIdAndRequesterIdAndStatus(10L, 2L, RequestStatus.PENDING))
+                .thenReturn(Optional.of(request));
+
+        MeetingResponse response = service.get(2L, 10L);
+
+        assertEquals(MeetingViewerStatus.REQUESTED, response.viewerStatus());
+        assertEquals(40L, response.pendingRequestId());
+        assertNull(response.pendingInviteId());
+    }
+
+    @Test
+    void getReportsCanRequestForPublicMeetingInPublicGroup() {
+        publicGroupMeeting(group(5L));
+
+        assertEquals(MeetingViewerStatus.CAN_REQUEST, service.get(2L, 10L).viewerStatus());
+    }
+
+    @Test
+    void getReportsCanRequestForVisiblePrivateMeeting() {
+        MeetingEntity meeting = publicGroupMeeting(group(5L));
+        meeting.setPrivate(true);
+
+        assertEquals(MeetingViewerStatus.CAN_REQUEST, service.get(2L, 10L).viewerStatus());
+    }
+
+    @Test
+    void getReportsCanRequestForMeetingInPrivateGroup() {
+        GroupEntity group = group(5L);
+        group.setPrivate(true);
+        publicGroupMeeting(group);
+
+        assertEquals(MeetingViewerStatus.CAN_REQUEST, service.get(2L, 10L).viewerStatus());
+    }
+
+    @Test
+    void getReportsUnavailableForEndedMeeting() {
+        MeetingEntity meeting = publicGroupMeeting(group(5L));
+        meeting.setStartTime(OffsetDateTime.now().minusHours(2));
+        meeting.setEndTime(OffsetDateTime.now().minusHours(1));
+
+        assertEquals(MeetingViewerStatus.UNAVAILABLE, service.get(2L, 10L).viewerStatus());
+    }
+
+    @Test
+    void getReportsUnavailableWhenBannedFromGroup() {
+        GroupEntity group = group(5L);
+        publicGroupMeeting(group);
+        when(groupAuthorization.isBanned(2L, group)).thenReturn(true);
+
+        assertEquals(MeetingViewerStatus.UNAVAILABLE, service.get(2L, 10L).viewerStatus());
+    }
+
+    @Test
+    void getReportsUnavailableWhenBlockedWithCreator() {
+        publicGroupMeeting(group(5L));
+        when(blockService.isBlocked(2L, 1L)).thenReturn(true);
+
+        assertEquals(MeetingViewerStatus.UNAVAILABLE, service.get(2L, 10L).viewerStatus());
     }
 
     @Test

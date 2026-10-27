@@ -141,8 +141,12 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         GroupEntity group = groupRepository.findByIdForUpdate(meeting.getGroup().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
         meeting = lockMeeting(meetingId);
-        if (meeting.isPrivate() || group.isPrivate()) {
+        // Anyone who can see the meeting may ask to join it; to everyone else it doesn't exist.
+        if (!meetingAuthorization.canView(userId, meeting)) {
             throw new ResourceNotFoundException("Meeting not found");
+        }
+        if (meeting.hasEnded()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This meeting has already ended");
         }
         if (groupAuthorization.isBanned(userId, group)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot request to join this meeting");

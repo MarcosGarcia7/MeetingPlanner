@@ -20,6 +20,8 @@ import com.meetingplanner.common.api.exceptions.ForbiddenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.common.api.model.MeetingTimeframe;
+import com.meetingplanner.common.api.model.MeetingViewerStatus;
+import com.meetingplanner.common.api.model.RequestStatus;
 import com.meetingplanner.common.security.InviteTokens;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
@@ -27,8 +29,10 @@ import com.meetingplanner.domains.group.repository.GroupRepository;
 import com.meetingplanner.domains.group.service.GroupAuthorizationService;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
 import com.meetingplanner.domains.meeting.model.MeetingInviteEntity;
+import com.meetingplanner.domains.meeting.model.MeetingJoinRequestEntity;
 import com.meetingplanner.domains.meeting.model.MeetingParticipantEntity;
 import com.meetingplanner.domains.meeting.repository.MeetingInviteRepository;
+import com.meetingplanner.domains.meeting.repository.MeetingJoinRequestRepository;
 import com.meetingplanner.domains.meeting.repository.MeetingParticipantRepository;
 import com.meetingplanner.domains.meeting.repository.MeetingRepository;
 import com.meetingplanner.domains.notification.service.NotificationService;
@@ -53,6 +57,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 
@@ -65,6 +70,7 @@ public class MeetingServiceImpl implements MeetingService {
     private final MeetingRepository meetingRepository;
     private final MeetingParticipantRepository meetingParticipantRepository;
     private final MeetingInviteRepository meetingInviteRepository;
+    private final MeetingJoinRequestRepository meetingJoinRequestRepository;
     private final UserRepository userRepository;
     private final UserProfileAuthorizationService userProfileAuthorization;
     private final NotificationService notificationService;
@@ -84,6 +90,7 @@ public class MeetingServiceImpl implements MeetingService {
                               MeetingRepository meetingRepository,
                               MeetingParticipantRepository meetingParticipantRepository,
                               MeetingInviteRepository meetingInviteRepository,
+                              MeetingJoinRequestRepository meetingJoinRequestRepository,
                               UserRepository userRepository,
                               UserProfileAuthorizationService userProfileAuthorization,
                               NotificationService notificationService,
@@ -96,6 +103,7 @@ public class MeetingServiceImpl implements MeetingService {
         this.meetingRepository = meetingRepository;
         this.meetingParticipantRepository = meetingParticipantRepository;
         this.meetingInviteRepository = meetingInviteRepository;
+        this.meetingJoinRequestRepository = meetingJoinRequestRepository;
         this.userRepository = userRepository;
         this.userProfileAuthorization = userProfileAuthorization;
         this.notificationService = notificationService;
@@ -392,9 +400,14 @@ public class MeetingServiceImpl implements MeetingService {
 
     private MeetingResponse toResponse(MeetingEntity m, long viewerId, List<String> warnings) {
         List<ParticipantResponse> participants = new ArrayList<>();
+        boolean viewerIsParticipant = m.getCreator().getId().equals(viewerId);
         for (MeetingParticipantEntity p : m.getParticipants()) {
             participants.add(new ParticipantResponse(p.getUser().getId(), p.getUser().getUsername()));
+            viewerIsParticipant |= p.getUser().getId().equals(viewerId);
         }
+        ViewerState viewer = viewerIsParticipant
+                ? new ViewerState(MeetingViewerStatus.PARTICIPANT, null, null)
+                : viewerState(m, viewerId);
         return new MeetingResponse(
                 m.getId(),
                 m.getGroup() == null ? null : m.getGroup().getId(),
@@ -409,7 +422,35 @@ public class MeetingServiceImpl implements MeetingService {
                 participants,
                 warnings,
                 timeChangeService.pendingSummary(m.getId()).orElse(null),
-                authorization.canManage(viewerId, m));
+                authorization.canManage(viewerId, m),
+                viewer.status(),
+                viewer.pendingRequestId(),
+                viewer.pendingInviteId());
+    }
+
+    private record ViewerState(MeetingViewerStatus status, Long pendingRequestId, Long pendingInviteId) {
+    }
+
+    // For a non-participant who can view the meeting: a pending invite wins over a pending request; otherwise
+    // whether JoinRequestServiceImpl.requestMeetingJoin would accept a request from them.
+    private ViewerState viewerState(MeetingEntity m, long viewerId) {
+        Optional<MeetingInviteEntity> invite = meetingInviteRepository.findFirstByMeetingIdAndRecipientIdAndStatus(
+                m.getId(), viewerId, InviteStatus.PENDING);
+        if (invite.isPresent()) {
+            return new ViewerState(MeetingViewerStatus.INVITED, null, invite.get().getId());
+        }
+        Optional<MeetingJoinRequestEntity> request = meetingJoinRequestRepository
+                .findFirstByMeetingIdAndRequesterIdAndStatus(m.getId(), viewerId, RequestStatus.PENDING);
+        if (request.isPresent()) {
+            return new ViewerState(MeetingViewerStatus.REQUESTED, request.get().getId(), null);
+        }
+        GroupEntity group = m.getGroup();
+        boolean canRequest = group != null
+                && !m.hasEnded()
+                && !groupAuthorization.isBanned(viewerId, group)
+                && !blockService.isBlocked(viewerId, m.getCreator().getId());
+        return new ViewerState(canRequest ? MeetingViewerStatus.CAN_REQUEST : MeetingViewerStatus.UNAVAILABLE,
+                null, null);
     }
 
     private CursorPage<MeetingSummaryResponse> toPage(List<MeetingEntity> rows, int size) {

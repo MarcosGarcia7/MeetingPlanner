@@ -51,6 +51,9 @@ public interface MeetingInviteRepository extends JpaRepository<MeetingInviteEnti
 
     boolean existsByMeetingIdAndRecipientId(Long meetingId, Long recipientId);
 
+    Optional<MeetingInviteEntity> findFirstByMeetingIdAndRecipientIdAndStatus(Long meetingId, Long recipientId,
+                                                                              InviteStatus status);
+
     Optional<MeetingInviteEntity> findByTokenHash(String tokenHash);
 
     Optional<MeetingInviteEntity> findByMeetingIdAndRecipientEmail(Long meetingId, String recipientEmail);

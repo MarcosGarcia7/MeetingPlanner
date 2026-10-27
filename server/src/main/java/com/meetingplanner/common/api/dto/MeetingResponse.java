@@ -1,5 +1,7 @@
 package com.meetingplanner.common.api.dto;
 
+import com.meetingplanner.common.api.model.MeetingViewerStatus;
+
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -19,6 +21,10 @@ public record MeetingResponse(
         PendingTimeChange pendingTimeChange,
         // Whether the viewer may edit, delete, invite to, and remove people from the meeting: its creator,
         // or an owner/admin of its group.
-        boolean canManage
+        boolean canManage,
+        // The viewer's relationship to the meeting; the pending ids are set only for INVITED / REQUESTED.
+        MeetingViewerStatus viewerStatus,
+        Long pendingRequestId,
+        Long pendingInviteId
 ) {
 }

@@ -95,6 +95,9 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
 
     boolean existsByMeetingIdAndRequesterIdAndStatus(Long meetingId, Long requesterId, RequestStatus status);
 
+    Optional<MeetingJoinRequestEntity> findFirstByMeetingIdAndRequesterIdAndStatus(Long meetingId, Long requesterId,
+                                                                                   RequestStatus status);
+
     Optional<MeetingJoinRequestEntity> findByIdAndRequesterId(Long id, Long requesterId);
 
     @Query("""
