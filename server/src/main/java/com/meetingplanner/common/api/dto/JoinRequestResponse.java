@@ -11,6 +11,7 @@ public record JoinRequestResponse(
         Long requesterId,
         String requesterUsername,
         Long groupId,
+        String groupName,
         Long meetingId,
         OffsetDateTime timeSent,
         OffsetDateTime respondedAt

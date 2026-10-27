@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/groups")
 public class GroupController {
@@ -42,6 +44,18 @@ public class GroupController {
                                               @RequestParam(required = false) String cursor,
                                               @RequestParam(defaultValue = "20") int size) {
         return groupService.listMine(CurrentUser.from(jwt).id(), cursor, size);
+    }
+
+    @GetMapping("/suggested")
+    public List<GroupSummaryResponse> listSuggested(@AuthenticationPrincipal Jwt jwt,
+                                                    @RequestParam(defaultValue = "10") int limit) {
+        return groupService.listSuggested(CurrentUser.from(jwt).id(), limit);
+    }
+
+    @GetMapping("/popular")
+    public List<GroupSummaryResponse> listPopular(@AuthenticationPrincipal Jwt jwt,
+                                                  @RequestParam(defaultValue = "10") int limit) {
+        return groupService.listPopular(CurrentUser.from(jwt).id(), limit);
     }
 
     @GetMapping("/{groupId}")

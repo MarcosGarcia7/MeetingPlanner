@@ -1,7 +1,10 @@
 package com.meetingplanner.domains.request.service;
 
+import com.meetingplanner.common.api.dto.CursorPage;
+import com.meetingplanner.common.api.dto.JoinRequestResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.RequestStatus;
+import com.meetingplanner.common.api.model.TargetKind;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupJoinRequestEntity;
@@ -34,6 +37,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -425,6 +429,45 @@ class JoinRequestServiceImplTest {
         order.verify(meetingJoinRequestRepository).transitionStatus(eq(12L), eq(RequestStatus.PENDING),
                 eq(RequestStatus.APPROVED), any(OffsetDateTime.class));
         order.verify(meetingParticipantRepository).saveAndFlush(any());
+    }
+
+    @Test
+    void listMinePassesStatusFilterToBothSources() {
+        UserEntity owner = user(1L, "alice");
+        UserEntity requester = user(2L, "bob");
+        GroupEntity group = group(3L, owner);
+        MeetingEntity meeting = meeting(4L, owner, null);
+        when(groupJoinRequestRepository.listForRequester(eq(2L), eq(RequestStatus.PENDING), eq("GROUP"),
+                any(), any(), any(), any())).thenReturn(List.of(groupRequest(10L, group, requester)));
+        when(meetingJoinRequestRepository.listForRequester(eq(2L), eq(RequestStatus.PENDING), eq("MEETING"),
+                any(), any(), any(), any())).thenReturn(List.of(meetingRequest(11L, meeting, requester)));
+
+        CursorPage<JoinRequestResponse> page = service.listMine(2L, RequestStatus.PENDING, null, null, 20);
+
+        assertEquals(2, page.items().size());
+        JoinRequestResponse groupItem = page.items().stream().filter(r -> r.kind().equals("GROUP")).findFirst().orElseThrow();
+        assertEquals("Team", groupItem.groupName());
+        assertNull(page.nextCursor());
+    }
+
+    @Test
+    void listMineWithGroupKindSkipsMeetingQuery() {
+        when(groupJoinRequestRepository.listForRequester(eq(2L), eq(null), eq("GROUP"),
+                any(), any(), any(), any())).thenReturn(List.of());
+
+        service.listMine(2L, null, TargetKind.GROUP, null, 20);
+
+        verifyNoInteractions(meetingJoinRequestRepository);
+    }
+
+    @Test
+    void listMineWithMeetingKindSkipsGroupQuery() {
+        when(meetingJoinRequestRepository.listForRequester(eq(2L), eq(null), eq("MEETING"),
+                any(), any(), any(), any())).thenReturn(List.of());
+
+        service.listMine(2L, null, TargetKind.MEETING, null, 20);
+
+        verifyNoInteractions(groupJoinRequestRepository);
     }
 
     private static GroupEntity group(long id, UserEntity owner) {

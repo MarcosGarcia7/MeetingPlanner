@@ -2,6 +2,8 @@ package com.meetingplanner.domains.group.service;
 
 import com.meetingplanner.common.api.dto.*;
 
+import java.util.List;
+
 public interface GroupService {
 
     GroupResponse create(long userId, GroupCreateRequest request);
@@ -11,6 +13,10 @@ public interface GroupService {
     CursorPage<GroupSummaryResponse> listMine(long userId, String cursor, int size);
 
     CursorPage<GroupSummaryResponse> search(long viewerId, String query, String cursor, int size);
+
+    List<GroupSummaryResponse> listSuggested(long viewerId, int limit);
+
+    List<GroupSummaryResponse> listPopular(long viewerId, int limit);
 
     GroupResponse update(long userId, long groupId, GroupUpdateRequest request);
 

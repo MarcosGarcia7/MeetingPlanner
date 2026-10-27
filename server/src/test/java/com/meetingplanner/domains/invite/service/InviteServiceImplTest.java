@@ -4,6 +4,7 @@ import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.TargetKind;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
@@ -352,7 +353,7 @@ class InviteServiceImplTest {
         when(meetingInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(InviteStatus.PENDING),
                 eq("MEETING"), any(), any(), any(), any())).thenReturn(List.of(meetingInvite));
 
-        CursorPage<InviteResponse> page = service.listMine(2L, InviteStatus.PENDING, null, 20);
+        CursorPage<InviteResponse> page = service.listMine(2L, InviteStatus.PENDING, null, null, 20);
 
         assertEquals(2, page.items().size());
         InviteResponse groupItem = page.items().stream().filter(i -> i.kind().equals("GROUP")).findFirst().orElseThrow();
@@ -360,5 +361,29 @@ class InviteServiceImplTest {
         assertEquals("Book club", groupItem.groupName());
         assertEquals("Standup", meetingItem.meetingTitle());
         assertNull(page.nextCursor());
+    }
+
+    @Test
+    void listMineWithGroupKindSkipsMeetingInvites() {
+        UserEntity recipient = user(2L, "recipient");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
+        when(groupInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(null),
+                eq("GROUP"), any(), any(), any(), any())).thenReturn(List.of());
+
+        service.listMine(2L, null, TargetKind.GROUP, null, 20);
+
+        verifyNoInteractions(meetingInviteRepository);
+    }
+
+    @Test
+    void listMineWithMeetingKindSkipsGroupInvites() {
+        UserEntity recipient = user(2L, "recipient");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
+        when(meetingInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(null),
+                eq("MEETING"), any(), any(), any(), any())).thenReturn(List.of());
+
+        service.listMine(2L, null, TargetKind.MEETING, null, 20);
+
+        verifyNoInteractions(groupInviteRepository);
     }
 }

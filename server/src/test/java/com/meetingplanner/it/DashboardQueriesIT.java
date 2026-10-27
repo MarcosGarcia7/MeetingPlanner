@@ -1,10 +1,13 @@
 package com.meetingplanner.it;
 
 import com.meetingplanner.common.api.dto.CursorPage;
+import com.meetingplanner.common.api.dto.JoinRequestResponse;
 import com.meetingplanner.common.api.dto.PostResponse;
 import com.meetingplanner.common.api.dto.TimeChangeProposalResponse;
 import com.meetingplanner.common.api.dto.UserSearchResult;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.RequestStatus;
+import com.meetingplanner.common.api.model.TargetKind;
 import com.meetingplanner.common.api.model.UserRelationship;
 import com.meetingplanner.domains.friend.service.FriendshipService;
 import com.meetingplanner.domains.group.service.GroupService;
@@ -13,6 +16,7 @@ import com.meetingplanner.domains.invite.service.InviteService;
 import com.meetingplanner.domains.meeting.service.MeetingService;
 import com.meetingplanner.domains.meeting.service.MeetingTimeChangeService;
 import com.meetingplanner.domains.notification.service.NotificationFeedService;
+import com.meetingplanner.domains.request.service.JoinRequestService;
 import com.meetingplanner.domains.user.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +47,8 @@ class DashboardQueriesIT extends AbstractPostgresIT {
     private GroupService groupService;
     @Autowired
     private UserService userService;
+    @Autowired
+    private JoinRequestService joinRequestService;
 
     private long insertPost(long groupId, long authorId, String body, OffsetDateTime createdAt) {
         return jdbc.queryForObject(
@@ -88,14 +94,37 @@ class DashboardQueriesIT extends AbstractPostgresIT {
 
         assertDoesNotThrow(() -> postService.list(alice, books, null, 5));
         assertDoesNotThrow(() -> meetingService.listMine(alice, null, null, 5));
-        assertDoesNotThrow(() -> inviteService.listMine(alice, null, null, 5));
-        assertDoesNotThrow(() -> inviteService.listMine(alice, InviteStatus.PENDING, null, 5));
+        assertDoesNotThrow(() -> inviteService.listMine(alice, null, null, null, 5));
+        assertDoesNotThrow(() -> inviteService.listMine(alice, InviteStatus.PENDING, TargetKind.GROUP, null, 5));
         assertDoesNotThrow(() -> friendshipService.listIncomingRequests(alice, null, 5));
         assertDoesNotThrow(() -> friendshipService.listFriends(alice, null, 5));
         assertDoesNotThrow(() -> notificationFeedService.list(alice, null, 5));
         assertDoesNotThrow(() -> groupService.listMine(alice, null, 5));
+        assertDoesNotThrow(() -> joinRequestService.listMine(alice, null, null, null, 5));
+        assertDoesNotThrow(() -> joinRequestService.listMine(alice, RequestStatus.PENDING, TargetKind.GROUP, null, 5));
         assertDoesNotThrow(() -> groupService.search(alice, "book", null, 5));
         assertDoesNotThrow(() -> userService.search(alice, "ali", null, 5));
+    }
+
+    @Test
+    void joinRequestListFiltersByStatusAndKind() {
+        long alice = insertUser("alice");
+        long bob = insertUser("bob");
+        long pendingGroup = insertGroup("Pending", bob, true);
+        long declinedGroup = insertGroup("Declined", bob, true);
+        long meeting = insertMeeting(null, bob, OffsetDateTime.now().plusDays(1));
+        long pendingId = jdbc.queryForObject(
+                "insert into group_join_requests (requester_id, group_id) values (?, ?) returning id",
+                Long.class, alice, pendingGroup);
+        jdbc.update("insert into group_join_requests (requester_id, group_id, status) values (?, ?, 'DECLINED')",
+                alice, declinedGroup);
+        jdbc.update("insert into meeting_join_requests (requester_id, meeting_id) values (?, ?)", alice, meeting);
+
+        assertEquals(3, joinRequestService.listMine(alice, null, null, null, 20).items().size());
+        assertEquals(2, joinRequestService.listMine(alice, RequestStatus.PENDING, null, null, 20).items().size());
+        assertEquals(List.of(pendingId), joinRequestService
+                .listMine(alice, RequestStatus.PENDING, TargetKind.GROUP, null, 20)
+                .items().stream().map(JoinRequestResponse::id).toList());
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.exceptions.InvalidTokenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.TargetKind;
 import com.meetingplanner.common.security.InviteTokens;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
@@ -83,7 +84,8 @@ public class InviteServiceImpl implements InviteService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPage<InviteResponse> listMine(long userId, InviteStatus status, String cursor, int size) {
+    public CursorPage<InviteResponse> listMine(long userId, InviteStatus status, TargetKind kind,
+                                               String cursor, int size) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -93,12 +95,17 @@ public class InviteServiceImpl implements InviteService {
         String cursorKind = decoded == null ? null : decoded.kind();
         Long cursorId = decoded == null ? null : decoded.id();
 
-        List<GroupInviteEntity> groupInvites = groupInviteRepository.listForRecipient(
-                userId, user.getEmail(), status, "GROUP", cursorTime, cursorKind, cursorId,
-                PageRequest.of(0, limit + 1));
-        List<MeetingInviteEntity> meetingInvites = meetingInviteRepository.listForRecipient(
-                userId, user.getEmail(), status, "MEETING", cursorTime, cursorKind, cursorId,
-                PageRequest.of(0, limit + 1));
+        // A kind filter skips the other source entirely; the merged keyset order still holds for one source.
+        List<GroupInviteEntity> groupInvites = kind == null || kind == TargetKind.GROUP
+                ? groupInviteRepository.listForRecipient(
+                        userId, user.getEmail(), status, "GROUP", cursorTime, cursorKind, cursorId,
+                        PageRequest.of(0, limit + 1))
+                : List.of();
+        List<MeetingInviteEntity> meetingInvites = kind == null || kind == TargetKind.MEETING
+                ? meetingInviteRepository.listForRecipient(
+                        userId, user.getEmail(), status, "MEETING", cursorTime, cursorKind, cursorId,
+                        PageRequest.of(0, limit + 1))
+                : List.of();
 
         List<FeedEntry> entries = new ArrayList<>();
         for (GroupInviteEntity invite : groupInvites) {

@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,6 +33,7 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
     @Query("""
             select r from GroupJoinRequestEntity r
             where r.requester.id = :requesterId
+              and (:status is null or r.status = :status)
               and (cast(:cursorTime as OffsetDateTime) is null
                    or r.timeSent < :cursorTime
                    or (r.timeSent = :cursorTime
@@ -40,6 +42,7 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
             order by r.timeSent desc, r.id desc
             """)
     List<GroupJoinRequestEntity> listForRequester(@Param("requesterId") Long requesterId,
+                                                  @Param("status") RequestStatus status,
                                                   @Param("sourceKind") String sourceKind,
                                                   @Param("cursorTime") OffsetDateTime cursorTime,
                                                   @Param("cursorKind") String cursorKind,
@@ -49,6 +52,10 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
     boolean existsByGroupIdAndRequesterIdAndStatus(Long groupId, Long requesterId, RequestStatus status);
 
     Optional<GroupJoinRequestEntity> findByIdAndRequesterId(Long id, Long requesterId);
+
+    List<GroupJoinRequestEntity> findByRequesterIdAndStatusAndGroupIdIn(Long requesterId,
+                                                                       RequestStatus status,
+                                                                       Collection<Long> groupIds);
 
     @Modifying(flushAutomatically = true)
     @Query("""

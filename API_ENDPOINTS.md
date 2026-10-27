@@ -1,6 +1,6 @@
 # Server API Endpoints
 
-99 endpoints across 15 controllers, generated from the Spring controllers in
+101 endpoints across 15 controllers, generated from the Spring controllers in
 `server/src/main/java/com/meetingplanner/domains/*/controller`.
 
 ## AuthController (9)
@@ -32,12 +32,14 @@
 | POST | `/api/users/me/friends/blocked` | `block` |
 | DELETE | `/api/users/me/friends/blocked/{username}` | `unblock` |
 
-## GroupController (18)
+## GroupController (20)
 
 | Method | Path | Handler |
 | --- | --- | --- |
 | POST | `/api/groups` | `create` |
 | GET | `/api/groups` | `listMine` |
+| GET | `/api/groups/suggested` | `listSuggested` |
+| GET | `/api/groups/popular` | `listPopular` |
 | GET | `/api/groups/{groupId}` | `get` |
 | PATCH | `/api/groups/{groupId}` | `update` |
 | DELETE | `/api/groups/{groupId}` | `delete` |

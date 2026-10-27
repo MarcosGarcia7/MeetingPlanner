@@ -2,6 +2,8 @@ package com.meetingplanner.domains.request.service;
 
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.JoinRequestResponse;
+import com.meetingplanner.common.api.model.RequestStatus;
+import com.meetingplanner.common.api.model.TargetKind;
 
 public interface JoinRequestService {
 
@@ -9,7 +11,7 @@ public interface JoinRequestService {
 
     JoinRequestResponse requestMeetingJoin(long userId, long meetingId);
 
-    CursorPage<JoinRequestResponse> listMine(long userId, String cursor, int size);
+    CursorPage<JoinRequestResponse> listMine(long userId, RequestStatus status, TargetKind kind, String cursor, int size);
 
     CursorPage<JoinRequestResponse> listForGroup(long actorId, long groupId, String cursor, int size);
 

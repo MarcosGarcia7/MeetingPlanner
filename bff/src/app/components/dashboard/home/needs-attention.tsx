@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type {CursorPage} from '@/lib/types/api';
 import type {FriendshipResponse} from '@/lib/types/friend';
 import type {InviteResponse} from '@/lib/types/invite';
-import {usePostAction} from './use-post-action';
+import {usePostAction} from '@/app/components/dashboard/use-post-action';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './home.module.css';
 

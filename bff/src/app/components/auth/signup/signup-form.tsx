@@ -162,7 +162,7 @@ export default function SignupForm() {
             )}
 
             <label className={authStyles.field}>
-              <span className={authStyles.label}>Username (can\'t be changed later)</span>
+              <span className={authStyles.label}>Username (can&#39;t be changed later)</span>
               <input
                 type='text'
                 autoComplete='username'

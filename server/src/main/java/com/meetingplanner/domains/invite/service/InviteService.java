@@ -3,10 +3,11 @@ package com.meetingplanner.domains.invite.service;
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.TargetKind;
 
 public interface InviteService {
 
-    CursorPage<InviteResponse> listMine(long userId, InviteStatus status, String cursor, int size);
+    CursorPage<InviteResponse> listMine(long userId, InviteStatus status, TargetKind kind, String cursor, int size);
 
     InviteResponse acceptGroupInvite(long userId, long inviteId);
 

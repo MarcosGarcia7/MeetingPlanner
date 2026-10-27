@@ -37,7 +37,7 @@
   padding: 0 16px;
   border: none;
   border-radius: 8px;
-  background: var(--accent);
+  background: var(--button-primary);
   color: var(--text-on-accent);
   font-size: 14px;
   font-weight: 600;

@@ -51,4 +51,39 @@ public interface GroupRepository extends JpaRepository<GroupEntity, Long> {
                              @Param("cursorValue") String cursorValue,
                              @Param("cursorId") Long cursorId,
                              Pageable pageable);
+
+    // Browse shelves leave out groups the viewer already belongs to, is banned from, or whose owner is in a
+    // block with the viewer (a join request would reach that owner).
+    @Query("""
+            select g.id from GroupEntity g
+            join GroupMemberEntity m on m.group = g
+            join FriendshipEntity f on f.status = 'ACCEPTED'
+                 and ((f.user.id = :viewerId and f.friend.id = m.user.id)
+                      or (f.friend.id = :viewerId and f.user.id = m.user.id))
+            where g.owner.id <> :viewerId
+              and not exists (select 1 from GroupMemberEntity vm where vm.group = g and vm.user.id = :viewerId)
+              and not exists (select 1 from GroupBanEntity b where b.group = g and b.user.id = :viewerId)
+              and not exists (select 1 from FriendshipEntity bf
+                              where bf.status = 'BLOCKED'
+                                and ((bf.user.id = :viewerId and bf.friend.id = g.owner.id)
+                                     or (bf.friend.id = :viewerId and bf.user.id = g.owner.id)))
+            group by g.id
+            order by count(m) desc, g.id desc
+            """)
+    List<Long> findSuggestedIds(@Param("viewerId") Long viewerId, Pageable pageable);
+
+    @Query("""
+            select g.id from GroupEntity g
+            join GroupMemberEntity m on m.group = g
+            where g.owner.id <> :viewerId
+              and not exists (select 1 from GroupMemberEntity vm where vm.group = g and vm.user.id = :viewerId)
+              and not exists (select 1 from GroupBanEntity b where b.group = g and b.user.id = :viewerId)
+              and not exists (select 1 from FriendshipEntity bf
+                              where bf.status = 'BLOCKED'
+                                and ((bf.user.id = :viewerId and bf.friend.id = g.owner.id)
+                                     or (bf.friend.id = :viewerId and bf.user.id = g.owner.id)))
+            group by g.id
+            order by count(m) desc, g.id desc
+            """)
+    List<Long> findPopularIds(@Param("viewerId") Long viewerId, Pageable pageable);
 }

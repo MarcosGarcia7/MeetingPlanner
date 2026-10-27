@@ -45,7 +45,7 @@
 .itemCard:hover,
 .itemCard:focus-visible {
   border-color: var(--accent);
-  background: var(--surface);
+  background: var(--button-secondary-hover);
 }
 
 .itemCard:focus-visible {

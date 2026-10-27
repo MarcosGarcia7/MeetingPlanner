@@ -10,14 +10,14 @@ interface ActionError {
 }
 
 // POSTs to a BFF route for one list item, then re-renders the server page so every card reflects
-// the change. `key` identifies the item so its error shows next to it.
+// the change. `key` identifies the item so its error shows next to it. Resolves to whether it succeeded.
 export function usePostAction() {
   const router = useRouter();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<ActionError | null>(null);
   const [isRefreshing, startTransition] = useTransition();
 
-  async function run(key: string, url: string, body?: object) {
+  async function run(key: string, url: string, body?: object): Promise<boolean> {
     setPendingKey(key);
     setError(null);
     try {
@@ -30,14 +30,16 @@ export function usePostAction() {
         const apiError = await readApiError(response);
         if (apiError?.error === 'unauthenticated') {
           router.push('/login');
-          return;
+          return false;
         }
         setError({key, message: apiError?.message ?? 'Something went wrong. Please try again.'});
-        return;
+        return false;
       }
       startTransition(() => router.refresh());
+      return true;
     } catch {
       setError({key, message: 'Couldn’t reach the server. Please try again.'});
+      return false;
     } finally {
       setPendingKey(null);
     }

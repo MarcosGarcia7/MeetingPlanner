@@ -3,6 +3,7 @@ package com.meetingplanner.domains.invite.controller;
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.TargetKind;
 import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.invite.service.InviteService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,9 +28,10 @@ public class InviteController {
     @GetMapping
     public CursorPage<InviteResponse> listMine(@AuthenticationPrincipal Jwt jwt,
                                                @RequestParam(required = false) InviteStatus status,
+                                               @RequestParam(required = false) TargetKind kind,
                                                @RequestParam(required = false) String cursor,
                                                @RequestParam(defaultValue = "20") int size) {
-        return inviteService.listMine(CurrentUser.from(jwt).id(), status, cursor, size);
+        return inviteService.listMine(CurrentUser.from(jwt).id(), status, kind, cursor, size);
     }
 
     @PostMapping("/group/{inviteId}/accept")

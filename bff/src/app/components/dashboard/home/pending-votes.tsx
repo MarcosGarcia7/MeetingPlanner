@@ -2,7 +2,7 @@
 
 import type {TimeChangeProposalResponse, TimeChangeVoteRequest} from '@/lib/types/meeting';
 import {formatMeetingTime} from './format';
-import {usePostAction} from './use-post-action';
+import {usePostAction} from '@/app/components/dashboard/use-post-action';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './home.module.css';
 

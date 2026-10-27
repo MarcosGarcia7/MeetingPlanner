@@ -8,7 +8,9 @@ import com.meetingplanner.common.api.exceptions.EmailNotVerifiedException;
 import com.meetingplanner.common.api.exceptions.ForbiddenException;
 import com.meetingplanner.common.api.exceptions.GroupNameTakenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
+import com.meetingplanner.common.api.model.GroupViewerStatus;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.RequestStatus;
 import com.meetingplanner.common.security.InviteTokens;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupBanEntity;
@@ -36,6 +38,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.function.Function;
 
 @Service
 public class GroupServiceImpl implements GroupService {
@@ -125,7 +128,7 @@ public class GroupServiceImpl implements GroupService {
                 decoded == null ? null : decoded.id(),
                 PageRequest.of(0, limit + 1));
 
-        return toPage(userId, rows, limit);
+        return toPage(userId, rows, limit, last -> CursorCodec.encodeId(last.getId()));
     }
 
     @Override
@@ -140,30 +143,86 @@ public class GroupServiceImpl implements GroupService {
                 decoded == null ? null : decoded.id(),
                 PageRequest.of(0, limit + 1));
 
-        return toPage(viewerId, rows, limit);
+        return toPage(viewerId, rows, limit,
+                last -> SearchCursorCodec.encode(last.getGroupName().toLowerCase(Locale.ROOT), last.getId()));
     }
 
-    private CursorPage<GroupSummaryResponse> toPage(long viewerId, List<GroupEntity> rows, int size) {
+    @Override
+    @Transactional(readOnly = true)
+    public List<GroupSummaryResponse> listSuggested(long viewerId, int limit) {
+        List<Long> ids = groupRepository.findSuggestedIds(viewerId, PageRequest.of(0, CursorCodec.clampSize(limit)));
+        return toSummaries(viewerId, findInOrder(ids));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<GroupSummaryResponse> listPopular(long viewerId, int limit) {
+        List<Long> ids = groupRepository.findPopularIds(viewerId, PageRequest.of(0, CursorCodec.clampSize(limit)));
+        return toSummaries(viewerId, findInOrder(ids));
+    }
+
+    private List<GroupEntity> findInOrder(List<Long> ids) {
+        Map<Long, GroupEntity> byId = new HashMap<>();
+        groupRepository.findAllById(ids).forEach(group -> byId.put(group.getId(), group));
+        return ids.stream().map(byId::get).filter(Objects::nonNull).toList();
+    }
+
+    private CursorPage<GroupSummaryResponse> toPage(long viewerId, List<GroupEntity> rows, int size,
+                                                    Function<GroupEntity, String> cursorOf) {
         boolean hasMore = rows.size() > size;
         List<GroupEntity> page = hasMore ? rows.subList(0, size) : rows;
-        Set<Long> viewerGroupIds = groupMemberRepository.findGroupIdsByUserId(viewerId);
-        List<GroupSummaryResponse> items = page.stream()
-                .map(group -> toGroupSummary(group, viewerGroupIds))
-                .toList();
-        String nextCursor = hasMore && !page.isEmpty()
-                ? SearchCursorCodec.encode(page.getLast().getGroupName().toLowerCase(Locale.ROOT), page.getLast().getId())
-                : null;
-        return new CursorPage<>(items, nextCursor);
+        String nextCursor = hasMore && !page.isEmpty() ? cursorOf.apply(page.getLast()) : null;
+        return new CursorPage<>(toSummaries(viewerId, page), nextCursor);
     }
 
-    private GroupSummaryResponse toGroupSummary(GroupEntity group, Set<Long> viewerGroupIds) {
-        return new GroupSummaryResponse(
-                group.getId(),
-                group.getGroupName(),
-                group.getOwner().getId(),
-                group.isPrivate(),
-                (int) groupMemberRepository.countByGroupId(group.getId()),
-                viewerGroupIds.contains(group.getId()));
+    // Resolves counts and the viewer's relationship for the whole page in a fixed number of queries.
+    private List<GroupSummaryResponse> toSummaries(long viewerId, List<GroupEntity> groups) {
+        if (groups.isEmpty()) {
+            return List.of();
+        }
+        List<Long> groupIds = groups.stream().map(GroupEntity::getId).toList();
+        Set<Long> memberOf = groupMemberRepository.findGroupIdsByUserId(viewerId);
+        Map<Long, Long> memberCounts = toCountMap(groupMemberRepository.countByGroupIds(groupIds));
+        Map<Long, Long> friendCounts = toCountMap(groupMemberRepository.countFriendMembersByGroupIds(viewerId, groupIds));
+        Set<Long> bannedFrom = groupBanRepository.findBannedGroupIds(viewerId, groupIds);
+        Map<Long, Long> requestIds = new HashMap<>();
+        groupJoinRequestRepository.findByRequesterIdAndStatusAndGroupIdIn(viewerId, RequestStatus.PENDING, groupIds)
+                .forEach(request -> requestIds.put(request.getGroup().getId(), request.getId()));
+        Map<Long, Long> inviteIds = new HashMap<>();
+        groupInviteRepository.findByRecipientIdAndStatusAndGroupIdIn(viewerId, InviteStatus.PENDING, groupIds)
+                .forEach(invite -> inviteIds.put(invite.getGroup().getId(), invite.getId()));
+
+        return groups.stream().map(group -> {
+            Long id = group.getId();
+            GroupViewerStatus status;
+            if (memberOf.contains(id) || Objects.equals(group.getOwner().getId(), viewerId)) {
+                status = GroupViewerStatus.MEMBER;
+            } else if (bannedFrom.contains(id)) {
+                status = GroupViewerStatus.BANNED;
+            } else if (inviteIds.containsKey(id)) {
+                status = GroupViewerStatus.INVITED;
+            } else if (requestIds.containsKey(id)) {
+                status = GroupViewerStatus.REQUESTED;
+            } else {
+                status = GroupViewerStatus.NONE;
+            }
+            return new GroupSummaryResponse(
+                    id,
+                    group.getGroupName(),
+                    group.getOwner().getId(),
+                    group.isPrivate(),
+                    memberCounts.getOrDefault(id, 0L).intValue(),
+                    friendCounts.getOrDefault(id, 0L).intValue(),
+                    status,
+                    status == GroupViewerStatus.REQUESTED ? requestIds.get(id) : null,
+                    status == GroupViewerStatus.INVITED ? inviteIds.get(id) : null);
+        }).toList();
+    }
+
+    private static Map<Long, Long> toCountMap(List<GroupMemberRepository.GroupCount> counts) {
+        Map<Long, Long> map = new HashMap<>();
+        counts.forEach(count -> map.put(count.getGroupId(), count.getCount()));
+        return map;
     }
 
     private GroupResponse toGroupResponse(GroupEntity group, boolean includeMembers) {

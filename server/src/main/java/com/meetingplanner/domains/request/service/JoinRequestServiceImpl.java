@@ -5,6 +5,7 @@ import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.JoinRequestResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.RequestStatus;
+import com.meetingplanner.common.api.model.TargetKind;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupJoinRequestEntity;
@@ -177,17 +178,23 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPage<JoinRequestResponse> listMine(long userId, String cursor, int size) {
+    public CursorPage<JoinRequestResponse> listMine(long userId, RequestStatus status, TargetKind kind,
+                                                    String cursor, int size) {
         int limit = CursorCodec.clampSize(size);
         CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
         OffsetDateTime cursorTime = decoded == null ? null : decoded.time();
         String cursorKind = decoded == null ? null : decoded.kind();
         Long cursorId = decoded == null ? null : decoded.id();
 
-        List<GroupJoinRequestEntity> groupRows = groupJoinRequestRepository.listForRequester(
-                userId, KIND_GROUP, cursorTime, cursorKind, cursorId, PageRequest.of(0, limit + 1));
-        List<MeetingJoinRequestEntity> meetingRows = meetingJoinRequestRepository.listForRequester(
-                userId, KIND_MEETING, cursorTime, cursorKind, cursorId, PageRequest.of(0, limit + 1));
+        // A kind filter skips the other source entirely; the merged keyset order still holds for one source.
+        List<GroupJoinRequestEntity> groupRows = kind == null || kind == TargetKind.GROUP
+                ? groupJoinRequestRepository.listForRequester(
+                        userId, status, KIND_GROUP, cursorTime, cursorKind, cursorId, PageRequest.of(0, limit + 1))
+                : List.of();
+        List<MeetingJoinRequestEntity> meetingRows = kind == null || kind == TargetKind.MEETING
+                ? meetingJoinRequestRepository.listForRequester(
+                        userId, status, KIND_MEETING, cursorTime, cursorKind, cursorId, PageRequest.of(0, limit + 1))
+                : List.of();
 
         List<FeedEntry> entries = new ArrayList<>();
         for (GroupJoinRequestEntity request : groupRows) {
@@ -504,6 +511,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
                 requester.getId(),
                 requester.getUsername(),
                 request.getGroup() == null ? null : request.getGroup().getId(),
+                request.getGroup() == null ? null : request.getGroup().getGroupName(),
                 null,
                 request.getTimeSent(),
                 request.getRespondedAt());
@@ -517,6 +525,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
                 request.getStatus(),
                 requester.getId(),
                 requester.getUsername(),
+                null,
                 null,
                 request.getMeeting() == null ? null : request.getMeeting().getId(),
                 request.getTimeSent(),

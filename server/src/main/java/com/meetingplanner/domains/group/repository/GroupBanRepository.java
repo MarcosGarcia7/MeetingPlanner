@@ -9,8 +9,10 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface GroupBanRepository extends JpaRepository<GroupBanEntity, GroupBanId> {
@@ -18,6 +20,9 @@ public interface GroupBanRepository extends JpaRepository<GroupBanEntity, GroupB
     boolean existsByGroupIdAndUserId(Long groupId, Long userId);
 
     Optional<GroupBanEntity> findByGroupIdAndUserId(Long groupId, Long userId);
+
+    @Query("select b.group.id from GroupBanEntity b where b.user.id = :userId and b.group.id in :groupIds")
+    Set<Long> findBannedGroupIds(@Param("userId") Long userId, @Param("groupIds") Collection<Long> groupIds);
 
     @Query("""
             select b from GroupBanEntity b

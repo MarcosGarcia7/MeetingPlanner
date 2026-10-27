@@ -30,9 +30,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #2c2b2b;
+    --surface-muted: #171a20;
     --surface: #232222;
-    --surface-muted: #2e3947;
+    --background: #101417;
     --input-background: #2f2f30;
 
     --text-primary: #e2e8f0;
@@ -40,8 +40,9 @@
     --text-muted: #64748b;
     --text-on-accent: #c1cee8;
 
+    --button-primary: #2746b1;
     --button-primary-hover: #cbd5e1;
-    --button-secondary-hover: #1e293b;
+    --button-secondary-hover: #303f59;
     --button-secondary-border: #2a3650;
     --button-neutral: #94a3b8;
 
@@ -50,7 +51,7 @@
     --nav-hover-background: #201f1f;
     --nav-hover-text: #f1f5f9;
 
-    --accent: #2353c3;
+    --accent: #415280;
     --danger: #f87171;
     --border: #5c5f65;
     --card-shadow: 0 12px 32px rgb(0 0 0 / 45%);

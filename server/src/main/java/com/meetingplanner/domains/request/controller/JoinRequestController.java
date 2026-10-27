@@ -2,6 +2,8 @@ package com.meetingplanner.domains.request.controller;
 
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.JoinRequestResponse;
+import com.meetingplanner.common.api.model.RequestStatus;
+import com.meetingplanner.common.api.model.TargetKind;
 import com.meetingplanner.common.security.CurrentUser;
 import com.meetingplanner.domains.request.service.JoinRequestService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,9 +27,11 @@ public class JoinRequestController {
 
     @GetMapping
     public CursorPage<JoinRequestResponse> listMine(@AuthenticationPrincipal Jwt jwt,
+                                                    @RequestParam(required = false) RequestStatus status,
+                                                    @RequestParam(required = false) TargetKind kind,
                                                     @RequestParam(required = false) String cursor,
                                                     @RequestParam(defaultValue = "20") int size) {
-        return joinRequestService.listMine(CurrentUser.from(jwt).id(), cursor, size);
+        return joinRequestService.listMine(CurrentUser.from(jwt).id(), status, kind, cursor, size);
     }
 
     @PostMapping("/group/{requestId}/approve")

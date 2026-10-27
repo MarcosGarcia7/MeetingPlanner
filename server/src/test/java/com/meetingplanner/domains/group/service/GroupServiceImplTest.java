@@ -1,5 +1,6 @@
 package com.meetingplanner.domains.group.service;
 
+import com.meetingplanner.common.api.CursorCodec;
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.GroupBanResponse;
 import com.meetingplanner.common.api.dto.GroupCreateRequest;
@@ -12,11 +13,14 @@ import com.meetingplanner.common.api.dto.MemberUsernameRequest;
 import com.meetingplanner.common.api.exceptions.ForbiddenException;
 import com.meetingplanner.common.api.exceptions.GroupNameTakenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
+import com.meetingplanner.common.api.model.GroupViewerStatus;
 import com.meetingplanner.common.api.model.InviteStatus;
+import com.meetingplanner.common.api.model.RequestStatus;
 import com.meetingplanner.domains.friend.service.BlockService;
 import com.meetingplanner.domains.group.model.GroupBanEntity;
 import com.meetingplanner.domains.group.model.GroupEntity;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
+import com.meetingplanner.domains.group.model.GroupJoinRequestEntity;
 import com.meetingplanner.domains.group.model.GroupMemberEntity;
 import com.meetingplanner.domains.group.repository.GroupBanRepository;
 import com.meetingplanner.domains.group.repository.GroupInviteRepository;
@@ -40,6 +44,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -108,6 +113,26 @@ class GroupServiceImplTest {
         return group;
     }
 
+    private static GroupEntity ownedGroup(long id, UserEntity owner) {
+        GroupEntity group = group(id);
+        group.setOwner(owner);
+        return group;
+    }
+
+    private static GroupMemberRepository.GroupCount count(long groupId, long count) {
+        return new GroupMemberRepository.GroupCount() {
+            @Override
+            public Long getGroupId() {
+                return groupId;
+            }
+
+            @Override
+            public long getCount() {
+                return count;
+            }
+        };
+    }
+
     private static GroupInviteBatchRequest batch(String... usernames) {
         return new GroupInviteBatchRequest(
                 Arrays.stream(usernames).map(MemberUsernameRequest::new).toList());
@@ -139,7 +164,8 @@ class GroupServiceImplTest {
         when(groupRepository.search("%tea%", null, null, PageRequest.of(0, 21)))
                 .thenReturn(List.of(group));
         when(groupMemberRepository.findGroupIdsByUserId(9L)).thenReturn(Set.of(1L));
-        when(groupMemberRepository.countByGroupId(1L)).thenReturn(3L);
+        when(groupMemberRepository.countByGroupIds(List.of(1L))).thenReturn(List.of(count(1L, 3)));
+        when(groupMemberRepository.countFriendMembersByGroupIds(9L, List.of(1L))).thenReturn(List.of(count(1L, 2)));
 
         CursorPage<GroupSummaryResponse> page = service.search(9L, " TEA ", null, 20);
 
@@ -149,8 +175,79 @@ class GroupServiceImplTest {
         assertEquals("Team", result.groupName());
         assertEquals(1L, result.ownerId());
         assertEquals(3, result.memberCount());
-        assertTrue(result.viewerIsMember());
+        assertEquals(2, result.friendMemberCount());
+        assertEquals(GroupViewerStatus.MEMBER, result.viewerStatus());
         assertNull(page.nextCursor());
+    }
+
+    @Test
+    void summaryResolvesViewerStatusForEachRelationship() {
+        UserEntity owner = user(1L, "alice", true);
+        UserEntity viewer = user(9L, "dave", true);
+        GroupEntity owned = ownedGroup(2L, viewer);
+        GroupEntity banned = ownedGroup(3L, owner);
+        GroupEntity invited = ownedGroup(4L, owner);
+        GroupEntity requested = ownedGroup(5L, owner);
+        GroupEntity none = ownedGroup(6L, owner);
+        List<Long> ids = List.of(2L, 3L, 4L, 5L, 6L);
+        when(groupRepository.search("%tea%", null, null, PageRequest.of(0, 21)))
+                .thenReturn(List.of(owned, banned, invited, requested, none));
+        when(groupBanRepository.findBannedGroupIds(9L, ids)).thenReturn(Set.of(3L));
+        GroupInviteEntity invite = new GroupInviteEntity();
+        invite.setId(40L);
+        invite.setGroup(invited);
+        when(groupInviteRepository.findByRecipientIdAndStatusAndGroupIdIn(9L, InviteStatus.PENDING, ids)).thenReturn(List.of(invite));
+        GroupJoinRequestEntity request = new GroupJoinRequestEntity();
+        request.setId(50L);
+        request.setGroup(requested);
+        when(groupJoinRequestRepository.findByRequesterIdAndStatusAndGroupIdIn(9L, RequestStatus.PENDING, ids))
+                .thenReturn(List.of(request));
+
+        List<GroupSummaryResponse> items = service.search(9L, "tea", null, 20).items();
+
+        assertEquals(GroupViewerStatus.MEMBER, items.get(0).viewerStatus());
+        assertEquals(GroupViewerStatus.BANNED, items.get(1).viewerStatus());
+        assertEquals(GroupViewerStatus.INVITED, items.get(2).viewerStatus());
+        assertEquals(40L, items.get(2).pendingInviteId());
+        assertNull(items.get(2).pendingRequestId());
+        assertEquals(GroupViewerStatus.REQUESTED, items.get(3).viewerStatus());
+        assertEquals(50L, items.get(3).pendingRequestId());
+        assertEquals(GroupViewerStatus.NONE, items.get(4).viewerStatus());
+        assertEquals(0, items.get(4).memberCount());
+    }
+
+    @Test
+    void listMineEncodesIdCursorItCanDecode() {
+        UserEntity owner = user(1L, "alice", true);
+        List<GroupEntity> rows = new ArrayList<>();
+        for (long id = 30; id > 9; id--) {
+            rows.add(ownedGroup(id, owner));
+        }
+        when(groupRepository.listMine(1L, null, PageRequest.of(0, 21))).thenReturn(rows);
+
+        CursorPage<GroupSummaryResponse> page = service.listMine(1L, null, 20);
+
+        assertEquals(20, page.items().size());
+        assertEquals(11L, CursorCodec.decode(page.nextCursor()).id());
+    }
+
+    @Test
+    void suggestedKeepsRankedOrder() {
+        UserEntity owner = user(1L, "alice", true);
+        when(groupRepository.findSuggestedIds(9L, PageRequest.of(0, 10))).thenReturn(List.of(3L, 1L));
+        when(groupRepository.findAllById(List.of(3L, 1L)))
+                .thenReturn(List.of(ownedGroup(1L, owner), ownedGroup(3L, owner)));
+
+        List<GroupSummaryResponse> items = service.listSuggested(9L, 10);
+
+        assertEquals(List.of(3L, 1L), items.stream().map(GroupSummaryResponse::id).toList());
+    }
+
+    @Test
+    void popularClampsLimitAndHandlesEmpty() {
+        when(groupRepository.findPopularIds(9L, PageRequest.of(0, 20))).thenReturn(List.of());
+
+        assertTrue(service.listPopular(9L, 0).isEmpty());
     }
 
     @Test
