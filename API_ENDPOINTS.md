@@ -1,6 +1,6 @@
 # Server API Endpoints
 
-101 endpoints across 15 controllers, generated from the Spring controllers in
+103 endpoints across 15 controllers, generated from the Spring controllers in
 `server/src/main/java/com/meetingplanner/domains/*/controller`.
 
 ## AuthController (9)
@@ -86,11 +86,12 @@
 | POST | `/api/invite-links/meeting/{token}/decline` | `declineMeeting` |
 | POST | `/api/invite-links/meeting/{token}/leave` | `leaveMeeting` |
 
-## JoinRequestController (7)
+## JoinRequestController (8)
 
 | Method | Path | Handler |
 | --- | --- | --- |
-| GET | `/api/requests` | `listMine` |
+| GET | `/api/requests` (`?status=`, `?kind=` optional) | `listMine` |
+| GET | `/api/requests/incoming` (`?status=`, `?kind=` optional) | `listIncoming` |
 | POST | `/api/requests/group/{requestId}/approve` | `approveGroup` |
 | POST | `/api/requests/group/{requestId}/decline` | `declineGroup` |
 | POST | `/api/requests/group/{requestId}/cancel` | `cancelGroup` |
@@ -116,11 +117,12 @@
 | POST | `/api/meetings/{meetingId}/join-requests` | `requestJoin` |
 | GET | `/api/meetings/{meetingId}/join-requests` (`?status=` optional) | `listJoinRequests` |
 
-## MeetingTimeChangeController (4)
+## MeetingTimeChangeController (5)
 
 | Method | Path | Handler |
 | --- | --- | --- |
 | GET | `/api/meetings/time-changes/pending` | `listAwaitingVote` |
+| GET | `/api/meetings/time-changes` (`?role=PROPOSER` or `VOTER`, `?status=` optional) | `list` |
 | GET | `/api/meetings/{meetingId}/time-change` | `get` |
 | POST | `/api/meetings/{meetingId}/time-change/{proposalId}/vote` | `vote` |
 | POST | `/api/meetings/{meetingId}/time-change/{proposalId}/cancel` | `cancel` |

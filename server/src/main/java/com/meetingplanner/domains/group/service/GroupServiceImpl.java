@@ -437,7 +437,11 @@ public class GroupServiceImpl implements GroupService {
         notificationService.queueEmailToForUser(recipient, recipientEmail, "GROUP_INVITE", Map.of(
                 "name", recipient.getUsername(),
                 "sender", sender.getUsername(),
+                "group", group.getGroupName(),
                 "link", link), "group_invites");
+        notificationService.pushInApp(recipient.getId(), "GROUP_INVITE", "group_invites", Map.of(
+                "sender", sender.getUsername(),
+                "group", group.getGroupName()));
 
         return toInviteResponse(invite);
     }

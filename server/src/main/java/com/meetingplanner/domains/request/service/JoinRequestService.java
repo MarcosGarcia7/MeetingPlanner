@@ -13,6 +13,8 @@ public interface JoinRequestService {
 
     CursorPage<JoinRequestResponse> listMine(long userId, RequestStatus status, TargetKind kind, String cursor, int size);
 
+    CursorPage<JoinRequestResponse> listIncoming(long userId, RequestStatus status, TargetKind kind, String cursor, int size);
+
     CursorPage<JoinRequestResponse> listForGroup(long actorId, long groupId, RequestStatus status, String cursor, int size);
 
     CursorPage<JoinRequestResponse> listForMeeting(long actorId, long meetingId, RequestStatus status, String cursor, int size);

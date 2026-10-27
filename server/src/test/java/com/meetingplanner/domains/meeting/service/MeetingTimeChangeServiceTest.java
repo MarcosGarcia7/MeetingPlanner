@@ -1,7 +1,9 @@
 package com.meetingplanner.domains.meeting.service;
 
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.TimeChangeProposalResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
+import com.meetingplanner.common.api.model.ProposalRole;
 import com.meetingplanner.common.api.model.ProposalStatus;
 import com.meetingplanner.common.api.model.VoteStatus;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
@@ -30,6 +32,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -341,5 +344,37 @@ class MeetingTimeChangeServiceTest {
 
         assertEquals(List.of(), service.listAwaitingVote(2L));
         verifyNoInteractions(conflictService);
+    }
+
+    @Test
+    void listAsProposerQueriesOwnProposalsAndPagesWithCursor() {
+        UserEntity alice = user(1L, "alice");
+        MeetingEntity meeting = meeting(10L, alice, alice);
+        MeetingTimeChangeProposalEntity first = proposal(21L, meeting, alice, OffsetDateTime.parse("2026-10-22T10:00:00Z"));
+        MeetingTimeChangeProposalEntity second = proposal(20L, meeting, alice, OffsetDateTime.parse("2026-10-21T10:00:00Z"));
+        when(proposalRepository.listProposedBy(eq(1L), eq(ProposalStatus.PENDING), any(), any(), any()))
+                .thenReturn(List.of(first, second));
+
+        CursorPage<TimeChangeProposalResponse> page = service.list(1L, ProposalRole.PROPOSER, ProposalStatus.PENDING, null, 1);
+
+        assertEquals(1, page.items().size());
+        assertEquals(21L, page.items().getFirst().id());
+        assertNotNull(page.nextCursor());
+        verify(proposalRepository, never()).listVotedOnBy(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void listAsVoterQueriesVotedProposals() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice, alice, bob);
+        MeetingTimeChangeProposalEntity proposal = proposal(20L, meeting, alice, OffsetDateTime.parse("2026-10-21T10:00:00Z"));
+        when(proposalRepository.listVotedOnBy(eq(2L), eq(null), any(), any(), any())).thenReturn(List.of(proposal));
+
+        CursorPage<TimeChangeProposalResponse> page = service.list(2L, ProposalRole.VOTER, null, null, 20);
+
+        assertEquals(1, page.items().size());
+        assertNull(page.nextCursor());
+        verify(proposalRepository, never()).listProposedBy(any(), any(), any(), any(), any());
     }
 }

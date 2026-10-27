@@ -35,6 +35,41 @@ public interface MeetingTimeChangeProposalRepository extends JpaRepository<Meeti
             """)
     List<MeetingTimeChangeProposalEntity> findAwaitingVote(@Param("userId") Long userId, Pageable pageable);
 
+    @Query("""
+            select p from MeetingTimeChangeProposalEntity p
+            join fetch p.meeting
+            left join fetch p.proposedBy
+            where p.proposedBy.id = :userId
+              and (:status is null or p.status = :status)
+              and (cast(:cursorTime as OffsetDateTime) is null
+                   or p.timeSent < :cursorTime
+                   or (p.timeSent = :cursorTime and p.id < :cursorId))
+            order by p.timeSent desc, p.id desc
+            """)
+    List<MeetingTimeChangeProposalEntity> listProposedBy(@Param("userId") Long userId,
+                                                         @Param("status") ProposalStatus status,
+                                                         @Param("cursorTime") OffsetDateTime cursorTime,
+                                                         @Param("cursorId") Long cursorId,
+                                                         Pageable pageable);
+
+    @Query("""
+            select p from MeetingTimeChangeProposalEntity p
+            join fetch p.meeting
+            left join fetch p.proposedBy
+            where exists (select 1 from MeetingTimeChangeVoteEntity v
+                          where v.proposal = p and v.user.id = :userId)
+              and (:status is null or p.status = :status)
+              and (cast(:cursorTime as OffsetDateTime) is null
+                   or p.timeSent < :cursorTime
+                   or (p.timeSent = :cursorTime and p.id < :cursorId))
+            order by p.timeSent desc, p.id desc
+            """)
+    List<MeetingTimeChangeProposalEntity> listVotedOnBy(@Param("userId") Long userId,
+                                                        @Param("status") ProposalStatus status,
+                                                        @Param("cursorTime") OffsetDateTime cursorTime,
+                                                        @Param("cursorId") Long cursorId,
+                                                        Pageable pageable);
+
     @Modifying(flushAutomatically = true)
     @Query("""
             update MeetingTimeChangeProposalEntity p

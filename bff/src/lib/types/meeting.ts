@@ -15,6 +15,9 @@ export interface MeetingSummaryResponse {
 // Mirrors server common/api/model/ProposalStatus.
 export type ProposalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
 
+// Mirrors server common/api/model/ProposalRole: the `?role=` filter on GET /api/meetings/time-changes.
+export type ProposalRole = 'PROPOSER' | 'VOTER';
+
 // Mirrors server common/api/model/VoteStatus.
 export type VoteStatus = 'PENDING' | 'APPROVED' | 'DECLINED';
 

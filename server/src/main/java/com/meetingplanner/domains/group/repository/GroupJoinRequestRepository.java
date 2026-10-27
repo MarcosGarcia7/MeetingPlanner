@@ -52,6 +52,29 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
                                                   @Param("cursorId") Long cursorId,
                                                   Pageable pageable);
 
+    // Requests to groups the manager owns or administers; same merged-feed keyset as listForRequester.
+    @Query("""
+            select r from GroupJoinRequestEntity r
+            where (r.group.owner.id = :managerId
+                   or exists (select 1 from GroupMemberEntity m
+                              where m.group = r.group and m.user.id = :managerId and m.isAdmin = true))
+              and r.requester.id <> :managerId
+              and (:status is null or r.status = :status)
+              and (cast(:cursorTime as OffsetDateTime) is null
+                   or r.timeSent < :cursorTime
+                   or (r.timeSent = :cursorTime
+                       and (:cursorKind > :sourceKind
+                            or (:cursorKind = :sourceKind and r.id < :cursorId))))
+            order by r.timeSent desc, r.id desc
+            """)
+    List<GroupJoinRequestEntity> listForManager(@Param("managerId") Long managerId,
+                                                @Param("status") RequestStatus status,
+                                                @Param("sourceKind") String sourceKind,
+                                                @Param("cursorTime") OffsetDateTime cursorTime,
+                                                @Param("cursorKind") String cursorKind,
+                                                @Param("cursorId") Long cursorId,
+                                                Pageable pageable);
+
     boolean existsByGroupIdAndRequesterIdAndStatus(Long groupId, Long requesterId, RequestStatus status);
 
     Optional<GroupJoinRequestEntity> findByIdAndRequesterId(Long id, Long requesterId);

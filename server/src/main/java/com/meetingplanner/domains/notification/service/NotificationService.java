@@ -43,13 +43,31 @@ public class NotificationService {
     @Transactional
     public void push(long userId, String type, String category, String template, Map<String, String> vars) {
         NotificationPreferenceEntity prefs = preferencesFor(userId);
+        UserEntity user = saveInApp(prefs, userId, type, category, vars);
+        if (user != null && prefs.isEmailEnabled()) {
+            queueEmail(user, template, vars);
+        }
+    }
+
+    /**
+     * In-app notification only, for callers that queue their own email (invites, whose email link carries a
+     * raw token that must not be stored in the notification payload).
+     */
+    @Transactional
+    public void pushInApp(long userId, String type, String category, Map<String, String> vars) {
+        saveInApp(preferencesFor(userId), userId, type, category, vars);
+    }
+
+    // Saves the notification row unless the category is muted; returns the user, or null when nothing was saved.
+    private UserEntity saveInApp(NotificationPreferenceEntity prefs, long userId, String type, String category,
+                                 Map<String, String> vars) {
         if (!categoryEnabled(prefs, category)) {
-            return;
+            return null;
         }
 
         UserEntity user = userRepository.findById(userId).orElse(null);
         if (user == null) {
-            return;
+            return null;
         }
 
         NotificationEntity notification = new NotificationEntity();
@@ -57,10 +75,7 @@ public class NotificationService {
         notification.setType(type);
         notification.setPayload(json(vars));
         notificationRepository.save(notification);
-
-        if (prefs.isEmailEnabled()) {
-            queueEmail(user, template, vars);
-        }
+        return user;
     }
 
     @Transactional

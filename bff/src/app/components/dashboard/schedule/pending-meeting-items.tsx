@@ -5,7 +5,6 @@ import type {JoinRequestResponse} from '@/lib/types/request';
 import {usePostAction} from '@/app/components/dashboard/use-post-action';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import homeStyles from '@/app/components/dashboard/home/home.module.css';
-import styles from './schedule.module.css';
 
 interface PendingMeetingItemsProps {
   invites: InviteResponse[];
@@ -26,7 +25,7 @@ export default function PendingMeetingItems({invites, requests}: PendingMeetingI
           const key = `invite-${invite.id}`;
           const error = errorFor(key);
           return (
-            <li key={key} className={styles.itemRow}>
+            <li key={key} className={dashboardStyles.itemRow}>
               <div className={homeStyles.itemBody}>
                 <span className={homeStyles.itemTitle}>{invite.meetingTitle}</span>
                 <span className={dashboardStyles.meta}>@{invite.senderUsername} invited you</span>
@@ -50,7 +49,7 @@ export default function PendingMeetingItems({invites, requests}: PendingMeetingI
           const key = `request-${request.id}`;
           const error = errorFor(key);
           return (
-            <li key={key} className={styles.itemRow}>
+            <li key={key} className={dashboardStyles.itemRow}>
               <div className={homeStyles.itemBody}>
                 <span className={homeStyles.itemTitle}>{request.meetingTitle}</span>
                 <span className={dashboardStyles.meta}>Waiting for the organizer to approve your request</span>

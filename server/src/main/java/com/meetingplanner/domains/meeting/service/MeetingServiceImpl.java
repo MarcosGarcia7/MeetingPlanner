@@ -626,6 +626,11 @@ public class MeetingServiceImpl implements MeetingService {
                 "title", meeting.getTitle(),
                 "details", details,
                 "link", link), "meeting_invites");
+        if (recipient != null) {
+            notificationService.pushInApp(recipient.getId(), "MEETING_INVITE", "meeting_invites", Map.of(
+                    "sender", sender.getUsername(),
+                    "title", meeting.getTitle()));
+        }
 
         return toInviteResponse(invite, recipientWarnings(sender, recipient, meeting));
     }

@@ -99,12 +99,12 @@ export default function ScheduleMeetings({view, initial, timeZone, groups, frien
       )}
       <section className={dashboardStyles.card}>
         <div className={styles.cardHeader}>
-          <nav className={styles.filters} aria-label='Which meetings'>
+          <nav className={dashboardStyles.filters} aria-label='Which meetings'>
             {VIEWS.map((v) => (
               <Link key={v.view} href={v.view === 'upcoming' ? '/dashboard/schedule/meetings'
                 : `/dashboard/schedule/meetings?view=${v.view}`}
                     aria-current={v.view === view ? 'page' : undefined}
-                    className={clsx(styles.filter, {[styles.currentFilter]: v.view === view})}>
+                    className={clsx(dashboardStyles.filter, {[dashboardStyles.currentFilter]: v.view === view})}>
                 {v.label}
               </Link>
             ))}

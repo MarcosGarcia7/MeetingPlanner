@@ -1,9 +1,12 @@
 package com.meetingplanner.domains.meeting.service;
 
+import com.meetingplanner.common.api.CursorCodec;
+import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.PendingTimeChange;
 import com.meetingplanner.common.api.dto.TimeChangeConflict;
 import com.meetingplanner.common.api.dto.TimeChangeProposalResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
+import com.meetingplanner.common.api.model.ProposalRole;
 import com.meetingplanner.common.api.model.ProposalStatus;
 import com.meetingplanner.common.api.model.VoteStatus;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
@@ -241,6 +244,27 @@ public class MeetingTimeChangeService {
         return proposalRepository.findAwaitingVote(userId, PageRequest.of(0, AWAITING_VOTE_LIMIT)).stream()
                 .map(proposal -> toResponse(proposal, userId))
                 .toList();
+    }
+
+    /** Proposals the user made (PROPOSER) or was asked to vote on (VOTER), newest first. */
+    @Transactional(readOnly = true)
+    public CursorPage<TimeChangeProposalResponse> list(long userId, ProposalRole role, ProposalStatus status,
+                                                       String cursor, int size) {
+        int limit = CursorCodec.clampSize(size);
+        CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
+        OffsetDateTime cursorTime = decoded == null ? null : decoded.time();
+        Long cursorId = decoded == null ? null : decoded.id();
+        PageRequest page = PageRequest.of(0, limit + 1);
+        List<MeetingTimeChangeProposalEntity> rows = role == ProposalRole.PROPOSER
+                ? proposalRepository.listProposedBy(userId, status, cursorTime, cursorId, page)
+                : proposalRepository.listVotedOnBy(userId, status, cursorTime, cursorId, page);
+
+        boolean hasMore = rows.size() > limit;
+        List<MeetingTimeChangeProposalEntity> items = hasMore ? rows.subList(0, limit) : rows;
+        String nextCursor = hasMore && !items.isEmpty()
+                ? CursorCodec.encode(items.getLast().getTimeSent(), items.getLast().getId())
+                : null;
+        return new CursorPage<>(items.stream().map(proposal -> toResponse(proposal, userId)).toList(), nextCursor);
     }
 
     private TimeChangeProposalResponse toResponse(MeetingTimeChangeProposalEntity proposal, long viewerId) {

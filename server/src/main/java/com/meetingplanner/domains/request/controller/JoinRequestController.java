@@ -34,6 +34,16 @@ public class JoinRequestController {
         return joinRequestService.listMine(CurrentUser.from(jwt).id(), status, kind, cursor, size);
     }
 
+    // Requests to groups the user owns/administers and meetings they can manage.
+    @GetMapping("/incoming")
+    public CursorPage<JoinRequestResponse> listIncoming(@AuthenticationPrincipal Jwt jwt,
+                                                        @RequestParam(required = false) RequestStatus status,
+                                                        @RequestParam(required = false) TargetKind kind,
+                                                        @RequestParam(required = false) String cursor,
+                                                        @RequestParam(defaultValue = "20") int size) {
+        return joinRequestService.listIncoming(CurrentUser.from(jwt).id(), status, kind, cursor, size);
+    }
+
     @PostMapping("/group/{requestId}/approve")
     public JoinRequestResponse approveGroup(@AuthenticationPrincipal Jwt jwt, @PathVariable long requestId) {
         return joinRequestService.approveGroup(CurrentUser.from(jwt).id(), requestId);

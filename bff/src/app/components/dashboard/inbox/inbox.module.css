@@ -1,0 +1,119 @@
+/* Rules specific to the Inbox tab; shared card primitives live in ../dashboard.module.css. */
+
+.cardHeader {
+  composes: cardHeader from '../dashboard.module.css';
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+/* Overview: one count tile per tab, wrapping to a column on narrow screens. */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.summaryTile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  color: inherit;
+  transition: border-color 0.2s;
+}
+
+.summaryTile:hover,
+.summaryTile:focus-visible {
+  border-color: var(--accent);
+}
+
+.summaryCount {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.summaryLabel {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.rowTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Small label in front of a row title: Group / Meeting / Friend, or a past item's status. */
+.chip {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.statusChip {
+  composes: chip;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.history summary {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.history[open] summary {
+  margin-bottom: 12px;
+}
+
+.historyBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loadMore {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+/* Activity feed rows: unread ones get the accent edge. */
+.activity {
+  border-left: 3px solid transparent;
+}
+
+.unread {
+  border-left-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.activityLink {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.activityText {
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.activityLink:hover .activityText {
+  color: var(--accent);
+}

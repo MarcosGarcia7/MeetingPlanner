@@ -60,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -318,6 +319,9 @@ class GroupServiceImplTest {
         verify(groupInviteRepository, times(1))
                 .findByGroupIdAndRecipientEmail(1L, "bob@example.com");
         verify(notificationService).queueEmailToForUser(eq(bob), eq("bob@example.com"), eq("GROUP_INVITE"), anyMap(), eq("group_invites"));
+        // The in-app copy never carries the tokenized invite link.
+        verify(notificationService).pushInApp(eq(bob.getId()), eq("GROUP_INVITE"), eq("group_invites"),
+                argThat(vars -> vars.containsKey("group") && !vars.containsKey("link")));
     }
 
     @Test

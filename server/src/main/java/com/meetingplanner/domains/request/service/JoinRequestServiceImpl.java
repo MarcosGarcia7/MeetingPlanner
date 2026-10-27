@@ -28,6 +28,7 @@ import com.meetingplanner.domains.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -180,6 +181,33 @@ public class JoinRequestServiceImpl implements JoinRequestService {
     @Transactional(readOnly = true)
     public CursorPage<JoinRequestResponse> listMine(long userId, RequestStatus status, TargetKind kind,
                                                     String cursor, int size) {
+        return mergedFeed(kind, cursor, size,
+                (cursorTime, cursorKind, cursorId, page) -> groupJoinRequestRepository.listForRequester(
+                        userId, status, KIND_GROUP, cursorTime, cursorKind, cursorId, page),
+                (cursorTime, cursorKind, cursorId, page) -> meetingJoinRequestRepository.listForRequester(
+                        userId, status, KIND_MEETING, cursorTime, cursorKind, cursorId, page));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CursorPage<JoinRequestResponse> listIncoming(long userId, RequestStatus status, TargetKind kind,
+                                                        String cursor, int size) {
+        return mergedFeed(kind, cursor, size,
+                (cursorTime, cursorKind, cursorId, page) -> groupJoinRequestRepository.listForManager(
+                        userId, status, KIND_GROUP, cursorTime, cursorKind, cursorId, page),
+                (cursorTime, cursorKind, cursorId, page) -> meetingJoinRequestRepository.listForManager(
+                        userId, status, KIND_MEETING, cursorTime, cursorKind, cursorId, page));
+    }
+
+    @FunctionalInterface
+    private interface FeedSource<T> {
+        List<T> fetch(OffsetDateTime cursorTime, String cursorKind, Long cursorId, Pageable page);
+    }
+
+    // Merges group and meeting requests into one keyset feed ordered by (timeSent, kind, id) descending.
+    private CursorPage<JoinRequestResponse> mergedFeed(TargetKind kind, String cursor, int size,
+                                                       FeedSource<GroupJoinRequestEntity> groups,
+                                                       FeedSource<MeetingJoinRequestEntity> meetings) {
         int limit = CursorCodec.clampSize(size);
         CursorCodec.Cursor decoded = CursorCodec.decode(cursor);
         OffsetDateTime cursorTime = decoded == null ? null : decoded.time();
@@ -188,12 +216,10 @@ public class JoinRequestServiceImpl implements JoinRequestService {
 
         // A kind filter skips the other source entirely; the merged keyset order still holds for one source.
         List<GroupJoinRequestEntity> groupRows = kind == null || kind == TargetKind.GROUP
-                ? groupJoinRequestRepository.listForRequester(
-                        userId, status, KIND_GROUP, cursorTime, cursorKind, cursorId, PageRequest.of(0, limit + 1))
+                ? groups.fetch(cursorTime, cursorKind, cursorId, PageRequest.of(0, limit + 1))
                 : List.of();
         List<MeetingJoinRequestEntity> meetingRows = kind == null || kind == TargetKind.MEETING
-                ? meetingJoinRequestRepository.listForRequester(
-                        userId, status, KIND_MEETING, cursorTime, cursorKind, cursorId, PageRequest.of(0, limit + 1))
+                ? meetings.fetch(cursorTime, cursorKind, cursorId, PageRequest.of(0, limit + 1))
                 : List.of();
 
         List<FeedEntry> entries = new ArrayList<>();

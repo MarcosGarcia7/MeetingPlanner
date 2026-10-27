@@ -156,6 +156,54 @@
   color: var(--danger);
 }
 
+/* A list row with its own buttons (not a link), styled like home's itemCard. */
+.itemRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+/* Segmented filter, as pill links or buttons (Schedule meetings views, Inbox history). */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.filter {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.filter:hover {
+  color: var(--text-primary);
+}
+
+.currentFilter {
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* Labeled on/off switch rows (profile privacy, schedule availability). */
 
 .setting {

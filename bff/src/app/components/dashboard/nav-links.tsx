@@ -12,6 +12,9 @@ import {
   UserIcon
 } from '@heroicons/react/24/solid';
 import {usePathname} from 'next/navigation';
+import {useEffect, useState} from 'react';
+import type {UnreadCountResponse} from '@/lib/types/notification';
+import {sendJson} from '@/lib/send-json';
 import CountBadge from '@/app/components/dashboard/count-badge';
 import styles from './sidenav.module.css';
 import clsx from 'clsx';
@@ -64,8 +67,44 @@ function isCurrent(pathname: string, href: string) {
   return pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
 }
 
-export default function NavLinks({unread}: { unread: number }) {
+// The layout's server-rendered count only changes on router.refresh(); layouts don't re-render on navigation.
+// So the badge also refetches on every page change and whenever the tab regains focus. No timer: every /api
+// call slides the session's idle TTL, and polling would keep an abandoned tab signed in.
+function useUnreadCount(initial: number, pathname: string) {
+  const [count, setCount] = useState(initial);
+  const [lastInitial, setLastInitial] = useState(initial);
+  if (initial !== lastInitial) {
+    setLastInitial(initial);
+    setCount(initial);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refresh() {
+      const result = await sendJson<UnreadCountResponse>('/api/users/me/notifications/unread-count');
+      if (!cancelled && result.ok) {
+        setCount(result.data.unread);
+      }
+    }
+    function onVisible() {
+      if (document.visibilityState === 'visible') {
+        void refresh();
+      }
+    }
+    void refresh();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [pathname]);
+
+  return count;
+}
+
+export default function NavLinks({unread: initialUnread}: { unread: number }) {
   const pathname = usePathname();
+  const unread = useUnreadCount(initialUnread, pathname);
 
   return (
     <>

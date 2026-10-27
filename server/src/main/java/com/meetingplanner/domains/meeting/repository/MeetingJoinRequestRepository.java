@@ -61,6 +61,38 @@ public interface MeetingJoinRequestRepository extends JpaRepository<MeetingJoinR
                                                     @Param("cursorId") Long cursorId,
                                                     Pageable pageable);
 
+    // Requests to meetings the manager can approve (creator, or owner/admin of the meeting's group), mirroring
+    // MeetingAuthorizationService.canManage; same merged-feed keyset as listForRequester.
+    @Query("""
+            select r from MeetingJoinRequestEntity r
+            join r.meeting mt
+            left join mt.group g
+            where (mt.creator.id = :managerId
+                   or g.owner.id = :managerId
+                   or exists (select 1 from GroupMemberEntity m
+                              where m.group = g and m.user.id = :managerId and m.isAdmin = true))
+              and r.requester.id <> :managerId
+              and (:status is null or r.status = :status)
+              and not exists (
+                  select 1 from FriendshipEntity f
+                  where f.status = 'BLOCKED'
+                    and ((f.user.id = :managerId and f.friend.id = r.requester.id)
+                         or (f.friend.id = :managerId and f.user.id = r.requester.id)))
+              and (cast(:cursorTime as OffsetDateTime) is null
+                   or r.timeSent < :cursorTime
+                   or (r.timeSent = :cursorTime
+                       and (:cursorKind > :sourceKind
+                            or (:cursorKind = :sourceKind and r.id < :cursorId))))
+            order by r.timeSent desc, r.id desc
+            """)
+    List<MeetingJoinRequestEntity> listForManager(@Param("managerId") Long managerId,
+                                                  @Param("status") RequestStatus status,
+                                                  @Param("sourceKind") String sourceKind,
+                                                  @Param("cursorTime") OffsetDateTime cursorTime,
+                                                  @Param("cursorKind") String cursorKind,
+                                                  @Param("cursorId") Long cursorId,
+                                                  Pageable pageable);
+
     boolean existsByMeetingIdAndRequesterIdAndStatus(Long meetingId, Long requesterId, RequestStatus status);
 
     Optional<MeetingJoinRequestEntity> findByIdAndRequesterId(Long id, Long requesterId);

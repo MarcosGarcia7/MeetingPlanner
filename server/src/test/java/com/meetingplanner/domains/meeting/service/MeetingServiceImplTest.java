@@ -392,6 +392,32 @@ class MeetingServiceImplTest {
         assertEquals(InviteStatus.PENDING, existing.getStatus());
         assertNull(existing.getRespondedAt());
         verify(notificationService).queueEmailToForUser(eq(bob), eq("bob@example.com"), eq("MEETING_INVITE"), anyMap(), eq("meeting_invites"));
+        // The in-app copy never carries the tokenized invite link.
+        verify(notificationService).pushInApp(eq(2L), eq("MEETING_INVITE"), eq("meeting_invites"),
+                argThat(vars -> "alice".equals(vars.get("sender")) && !vars.containsKey("link")));
+    }
+
+    @Test
+    void emailInviteToUnregisteredAddressSendsNoInAppNotification() {
+        UserEntity alice = user(1L, "alice");
+        MeetingEntity meeting = meeting(10L, alice);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByEmail("dave@example.com")).thenReturn(Optional.empty());
+        when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "dave@example.com"))
+                .thenReturn(Optional.empty());
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        service.inviteBatch(1L, 10L, new MeetingInviteBatchRequest(
+                List.of(new MeetingInviteRequest(null, "dave@example.com"))));
+
+        verify(notificationService).queueEmailToForUser(isNull(), eq("dave@example.com"), eq("MEETING_INVITE"),
+                anyMap(), eq("meeting_invites"));
+        verify(notificationService, never()).pushInApp(anyLong(), anyString(), anyString(), anyMap());
     }
 
     @Test

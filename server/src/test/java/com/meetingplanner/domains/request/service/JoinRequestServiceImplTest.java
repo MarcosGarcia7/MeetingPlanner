@@ -474,6 +474,35 @@ class JoinRequestServiceImplTest {
     }
 
     @Test
+    void listIncomingMergesManagedGroupAndMeetingRequests() {
+        UserEntity owner = user(1L, "alice");
+        UserEntity requester = user(2L, "bob");
+        GroupEntity group = group(3L, owner);
+        MeetingEntity meeting = meeting(4L, owner, null);
+        when(groupJoinRequestRepository.listForManager(eq(1L), eq(RequestStatus.PENDING), eq("GROUP"),
+                any(), any(), any(), any())).thenReturn(List.of(groupRequest(10L, group, requester)));
+        when(meetingJoinRequestRepository.listForManager(eq(1L), eq(RequestStatus.PENDING), eq("MEETING"),
+                any(), any(), any(), any())).thenReturn(List.of(meetingRequest(11L, meeting, requester)));
+
+        CursorPage<JoinRequestResponse> page = service.listIncoming(1L, RequestStatus.PENDING, null, null, 20);
+
+        assertEquals(2, page.items().size());
+        assertEquals("bob", page.items().getFirst().requesterUsername());
+        assertNull(page.nextCursor());
+        verify(groupJoinRequestRepository, never()).listForRequester(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void listIncomingWithGroupKindSkipsMeetingQuery() {
+        when(groupJoinRequestRepository.listForManager(eq(1L), eq(null), eq("GROUP"),
+                any(), any(), any(), any())).thenReturn(List.of());
+
+        service.listIncoming(1L, null, TargetKind.GROUP, null, 20);
+
+        verifyNoInteractions(meetingJoinRequestRepository);
+    }
+
+    @Test
     void listForMeetingPassesStatusFilter() {
         UserEntity owner = user(1L, "alice");
         MeetingEntity meeting = meeting(4L, owner, null);
