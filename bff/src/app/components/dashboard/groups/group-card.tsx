@@ -9,6 +9,8 @@ import styles from './groups.module.css';
 
 interface GroupCardProps {
   group: GroupSummaryResponse;
+  // Signed-in user's id; when it matches ownerId the card shows an Owner badge.
+  viewerId?: number;
   // Called after a successful action, for lists the server page refresh doesn't cover (search results).
   onChanged?: () => void;
 }
@@ -17,7 +19,7 @@ function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? '' : 's'}`;
 }
 
-export default function GroupCard({group, onChanged}: GroupCardProps) {
+export default function GroupCard({group, viewerId, onChanged}: GroupCardProps) {
   const {run, busy, errorFor} = usePostAction();
   const key = `group-${group.id}`;
   const error = errorFor(key);
@@ -32,7 +34,7 @@ export default function GroupCard({group, onChanged}: GroupCardProps) {
     switch (group.viewerStatus) {
       case 'MEMBER':
         return (
-          <Link href={`/dashboard/groups?group=${group.id}`} className={dashboardStyles.buttonSecondary}>
+          <Link href={`/dashboard/groups/${group.id}`} className={dashboardStyles.buttonSecondary}>
             Open
           </Link>
         );
@@ -81,6 +83,9 @@ export default function GroupCard({group, onChanged}: GroupCardProps) {
       <div className={styles.groupBody}>
         <span className={styles.groupName}>
           {group.groupName}
+          {viewerId !== undefined && group.ownerId === viewerId && (
+            <span className={styles.ownerBadge}>Owner</span>
+          )}
           {group.isPrivate && (
             <span className={styles.privateBadge}>
               <LockClosedIcon className={styles.badgeIcon} aria-hidden/>

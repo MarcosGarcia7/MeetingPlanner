@@ -59,6 +59,11 @@ const links = [
   }
 ]
 
+// Home matches only itself; other sections stay highlighted on their sub-pages (e.g. /dashboard/groups/mine).
+function isCurrent(pathname: string, href: string) {
+  return pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
+}
+
 export default function NavLinks({unread}: { unread: number }) {
   const pathname = usePathname();
 
@@ -73,7 +78,7 @@ export default function NavLinks({unread}: { unread: number }) {
             <Link
               key={link.name}
               href={link.href}
-              className={clsx(styles.navLink, {[styles.currentNavLink]: pathname === link.href})}
+              className={clsx(styles.navLink, {[styles.currentNavLink]: isCurrent(pathname, link.href)})}
             >
               <LinkIcon className={styles.linkIcon}/>
               <p className={styles.name}>{link.name}</p>

@@ -8,6 +8,7 @@ const config = {
     // CSS Modules use camelCase class names.
     'selector-class-pattern': null,
     'property-no-unknown': [true, {ignoreProperties: ['composes']}],
+    'value-keyword-case': ['lower', {ignoreProperties: ['composes']}],
     // Tokens in globals.css are grouped with blank lines.
     'custom-property-empty-line-before': null,
     // Allow placeholder modules for components that aren't styled yet.

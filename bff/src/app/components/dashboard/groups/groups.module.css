@@ -55,11 +55,41 @@
   font-weight: 600;
 }
 
+.ownerBadge {
+  composes: privateBadge;
+}
+
 .badgeIcon {
   width: 12px;
   height: 12px;
 }
 
 .searchResults {
+  margin-top: 12px;
+}
+
+/* My groups: list header with the New group button, and the create form. */
+.listHeader {
+  composes: cardHeader from '../dashboard.module.css';
+  justify-content: space-between;
+}
+
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.formFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.loadMore {
+  display: flex;
+  justify-content: center;
   margin-top: 12px;
 }

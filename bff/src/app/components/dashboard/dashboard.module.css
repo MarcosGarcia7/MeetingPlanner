@@ -142,6 +142,36 @@
   opacity: 1;
 }
 
+/* Section sub-navigation (Tabs). Scrolls sideways on its own rather than widening the page. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab {
+  flex-shrink: 0;
+  margin-bottom: 0;
+  padding: 8px 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.currentTab {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* Phones: the side nav becomes a bottom tab bar (see sidenav.module.css). */
 @media (width < 768px) {
   .layoutContainer {

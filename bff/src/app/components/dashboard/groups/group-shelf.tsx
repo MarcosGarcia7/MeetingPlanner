@@ -1,3 +1,4 @@
+import type {ReactNode} from 'react';
 import type {GroupSummaryResponse} from '@/lib/types/group';
 import GroupCard from './group-card';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
@@ -7,10 +8,13 @@ interface GroupShelfProps {
   title: string;
   groups: GroupSummaryResponse[] | null;
   empty: string;
+  viewerId?: number;
+  // Footer content, e.g. a "See all" link.
+  footer?: ReactNode;
 }
 
 // One titled card of groups; `groups` is null when its request failed.
-export default function GroupShelf({title, groups, empty}: GroupShelfProps) {
+export default function GroupShelf({title, groups, empty, viewerId, footer}: GroupShelfProps) {
   return (
     <section className={dashboardStyles.card}>
       <div className={dashboardStyles.cardHeader}>
@@ -22,9 +26,10 @@ export default function GroupShelf({title, groups, empty}: GroupShelfProps) {
         <p className={dashboardStyles.empty}>{empty}</p>
       ) : (
         <ul className={styles.groupList}>
-          {groups.map((group) => <GroupCard key={group.id} group={group}/>)}
+          {groups.map((group) => <GroupCard key={group.id} group={group} viewerId={viewerId}/>)}
         </ul>
       )}
+      {footer && <div className={dashboardStyles.cardFooter}>{footer}</div>}
     </section>
   );
 }
