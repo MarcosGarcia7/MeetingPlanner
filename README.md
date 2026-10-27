@@ -86,6 +86,30 @@ SELECT payload->>'link' FROM email_outbox WHERE template = 'EMAIL_VERIFY' ORDER 
 Open the link to verify the account. Make sure `APP_BASE_URL=https://localhost` in `.env` so the link
 points at the local stack.
 
+### Email in production (Resend over SMTP)
+
+1. Create a Resend account, add a sending domain, and add the DNS records
+   it shows (SPF/MX + DKIM). Wait until the domain is "Verified".
+2. Add a DMARC record: `_dmarc.yourdomain.com` TXT `v=DMARC1; p=none; rua=mailto:you@yourdomain.com`.
+3. Create an API key with "Sending access" only.
+4. Set in `.env`:
+
+   ```
+   EMAIL_ENABLED=true
+   MAIL_SMTP_HOST=smtp.resend.com
+   MAIL_SMTP_PORT=587
+   MAIL_SMTP_USERNAME=resend
+   MAIL_SMTP_PASSWORD=<api key>
+   MAIL_FROM=MeetingPlanner <no-reply@mail.yourdomain.com>
+   APP_BASE_URL=https://yourdomain.com
+   ```
+
+   If your host blocks outbound port 587, use `2587`. Any other SMTP provider (Postmark, SES, …) works
+   by changing these values only.
+5. Check delivery with
+   `SELECT status, attempts, last_error FROM email_outbox ORDER BY created_at DESC LIMIT 5;`. Failures
+   are also logged as `event=email_send_failed`.
+
 ### Notes
 
 - The API runs Flyway on startup, so the schema is created the first time the stack starts.
