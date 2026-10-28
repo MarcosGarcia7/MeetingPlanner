@@ -9,6 +9,8 @@ import com.meetingplanner.common.api.dto.InviteCheckResult;
 import com.meetingplanner.common.api.dto.InviteFailure;
 import com.meetingplanner.common.api.dto.InviteResponse;
 import com.meetingplanner.common.api.dto.MeetingCreateRequest;
+import com.meetingplanner.common.api.dto.MeetingDraftCheckRequest;
+import com.meetingplanner.common.api.dto.MeetingDraftCheckResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingInviteRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
@@ -165,9 +167,43 @@ public class MeetingServiceImpl implements MeetingService {
     }
 
     private static String scheduleConflictMessage(List<MeetingEntity> conflicts) {
-        MeetingEntity first = conflicts.getFirst();
-        return "Conflicts with an existing meeting: \"" + first.getTitle() + "\" at "
-                + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(first.getStartTime());
+        return scheduleConflictMessage(conflicts.getFirst());
+    }
+
+    private static String scheduleConflictMessage(MeetingEntity conflict) {
+        return "Conflicts with an existing meeting: \"" + conflict.getTitle() + "\" at "
+                + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(conflict.getStartTime());
+    }
+
+    // Previews what creating a meeting at these times would run into, before it exists: the creator's own
+    // clashes (which create rejects with 409), the creator's availability, and each invitee's clashes
+    // where the creator may see their schedule. Invitees who can't be invited (the creator, blocked users)
+    // get no warnings, so the check reveals nothing about them.
+    @Override
+    @Transactional(readOnly = true)
+    public MeetingDraftCheckResponse checkDraft(long userId, MeetingDraftCheckRequest request) {
+        UserEntity creator = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        validateTimes(request.startTime(), request.endTime());
+
+        List<String> conflicts = conflictService.findScheduleConflicts(
+                        userId, request.startTime(), request.endTime(), null).stream()
+                .map(MeetingServiceImpl::scheduleConflictMessage)
+                .toList();
+        List<String> warnings = conflictService.availabilityWarnings(userId, request.startTime(), request.endTime());
+
+        List<MeetingInviteRequest> recipients = request.recipients() != null ? request.recipients() : List.of();
+        List<InviteCheckResult> results = new ArrayList<>();
+        for (MeetingInviteRequest recipient : recipients) {
+            UserEntity target = resolveRecipient(recipient);
+            boolean checkable = target != null && !target.getId().equals(userId)
+                    && !blockService.isBlocked(userId, target.getId());
+            List<String> recipientWarnings = checkable
+                    ? recipientWarnings(creator, target, request.startTime(), request.endTime())
+                    : List.of();
+            results.add(new InviteCheckResult(recipient.username(), recipient.email(), recipientWarnings));
+        }
+        return new MeetingDraftCheckResponse(conflicts, warnings, results);
     }
 
     @Override
@@ -679,14 +715,17 @@ public class MeetingServiceImpl implements MeetingService {
     }
 
     private List<String> recipientWarnings(UserEntity sender, UserEntity recipient, MeetingEntity meeting) {
+        return recipientWarnings(sender, recipient, meeting.getStartTime(), meeting.getEndTime());
+    }
+
+    private List<String> recipientWarnings(UserEntity sender, UserEntity recipient,
+                                           OffsetDateTime start, OffsetDateTime end) {
         if (recipient == null) {
             return List.of();
         }
         List<String> warnings = new ArrayList<>();
-        warnings.addAll(conflictService.scheduleWarningsForViewer(
-                sender.getId(), recipient.getId(), meeting.getStartTime(), meeting.getEndTime()));
-        warnings.addAll(conflictService.availabilityWarningsForViewer(
-                sender.getId(), recipient.getId(), meeting.getStartTime(), meeting.getEndTime()));
+        warnings.addAll(conflictService.scheduleWarningsForViewer(sender.getId(), recipient.getId(), start, end));
+        warnings.addAll(conflictService.availabilityWarningsForViewer(sender.getId(), recipient.getId(), start, end));
         return warnings;
     }
 

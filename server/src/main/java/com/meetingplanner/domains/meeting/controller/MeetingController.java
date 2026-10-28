@@ -5,6 +5,8 @@ import com.meetingplanner.common.api.dto.InviteBatchResponse;
 import com.meetingplanner.common.api.dto.InviteCheckResponse;
 import com.meetingplanner.common.api.dto.JoinRequestResponse;
 import com.meetingplanner.common.api.dto.MeetingCreateRequest;
+import com.meetingplanner.common.api.dto.MeetingDraftCheckRequest;
+import com.meetingplanner.common.api.dto.MeetingDraftCheckResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
@@ -47,6 +49,12 @@ public class MeetingController {
     @PostMapping
     public MeetingResponse create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody MeetingCreateRequest request) {
         return meetingService.create(CurrentUser.from(jwt).id(), request);
+    }
+
+    @PostMapping("/check")
+    public MeetingDraftCheckResponse checkDraft(@AuthenticationPrincipal Jwt jwt,
+                                                @Valid @RequestBody MeetingDraftCheckRequest request) {
+        return meetingService.checkDraft(CurrentUser.from(jwt).id(), request);
     }
 
     @GetMapping

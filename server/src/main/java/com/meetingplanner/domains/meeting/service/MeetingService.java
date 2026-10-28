@@ -4,6 +4,8 @@ import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteBatchResponse;
 import com.meetingplanner.common.api.dto.InviteCheckResponse;
 import com.meetingplanner.common.api.dto.MeetingCreateRequest;
+import com.meetingplanner.common.api.dto.MeetingDraftCheckRequest;
+import com.meetingplanner.common.api.dto.MeetingDraftCheckResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
@@ -17,6 +19,8 @@ public interface MeetingService {
     MeetingResponse create(long userId, MeetingCreateRequest request);
 
     MeetingResponse createInGroup(long userId, long groupId, MeetingCreateRequest request);
+
+    MeetingDraftCheckResponse checkDraft(long userId, MeetingDraftCheckRequest request);
 
     MeetingResponse get(long userId, long meetingId);
 

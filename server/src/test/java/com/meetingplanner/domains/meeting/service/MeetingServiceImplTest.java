@@ -2,6 +2,8 @@ package com.meetingplanner.domains.meeting.service;
 
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteBatchResponse;
+import com.meetingplanner.common.api.dto.MeetingDraftCheckRequest;
+import com.meetingplanner.common.api.dto.MeetingDraftCheckResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteRequest;
@@ -789,5 +791,83 @@ class MeetingServiceImplTest {
 
         assertThrows(ResourceNotFoundException.class, () -> service.removeParticipant(3L, 10L, 1L));
         verify(meetingParticipantRepository, never()).deleteByMeetingIdAndUserId(anyLong(), anyLong());
+    }
+
+    @Test
+    void checkDraftReportsCreatorConflictsAndAvailability() {
+        UserEntity alice = user(1L, "alice");
+        MeetingEntity existing = meeting(10L, alice, alice);
+        existing.setTitle("Standup");
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1);
+        OffsetDateTime end = start.plusHours(1);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(conflictService.findScheduleConflicts(1L, start, end, null)).thenReturn(List.of(existing));
+        when(conflictService.availabilityWarnings(1L, start, end)).thenReturn(List.of("Outside alice's stated availability"));
+
+        MeetingDraftCheckResponse response = service.checkDraft(1L, new MeetingDraftCheckRequest(start, end, null));
+
+        assertEquals(1, response.conflicts().size());
+        assertTrue(response.conflicts().getFirst().contains("Standup"));
+        assertEquals(List.of("Outside alice's stated availability"), response.warnings());
+        assertTrue(response.recipients().isEmpty());
+    }
+
+    @Test
+    void checkDraftReportsRecipientWarnings() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = verifiedUser(2L, "bob");
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(bob));
+        when(conflictService.scheduleWarningsForViewer(1L, 2L, start, null)).thenReturn(List.of("bob may be busy"));
+        when(conflictService.availabilityWarningsForViewer(1L, 2L, start, null)).thenReturn(List.of());
+
+        MeetingDraftCheckResponse response = service.checkDraft(1L,
+                new MeetingDraftCheckRequest(start, null, List.of(new MeetingInviteRequest("bob", null))));
+
+        assertEquals(1, response.recipients().size());
+        assertEquals("bob", response.recipients().getFirst().username());
+        assertEquals(List.of("bob may be busy"), response.recipients().getFirst().warnings());
+    }
+
+    @Test
+    void checkDraftGivesNoWarningsForUnknownSelfOrBlockedRecipients() {
+        UserEntity alice = verifiedUser(1L, "alice");
+        UserEntity carol = verifiedUser(3L, "carol");
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(alice));
+        when(userRepository.findByUsername("carol")).thenReturn(Optional.of(carol));
+        when(blockService.isBlocked(1L, 3L)).thenReturn(true);
+
+        MeetingDraftCheckResponse response = service.checkDraft(1L, new MeetingDraftCheckRequest(start, null, List.of(
+                new MeetingInviteRequest("ghost", null),
+                new MeetingInviteRequest("alice", null),
+                new MeetingInviteRequest("carol", null))));
+
+        assertEquals(3, response.recipients().size());
+        assertTrue(response.recipients().stream().allMatch(r -> r.warnings().isEmpty()));
+        verify(conflictService, never()).scheduleWarningsForViewer(anyLong(), anyLong(), any(), any());
+    }
+
+    @Test
+    void checkDraftRejectsEndBeforeStart() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "alice")));
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.checkDraft(1L, new MeetingDraftCheckRequest(start, start.minusHours(1), null)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verifyNoInteractions(conflictService);
+    }
+
+    @Test
+    void checkDraftForUnknownUserIsNotFound() {
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.checkDraft(1L,
+                new MeetingDraftCheckRequest(OffsetDateTime.now().plusDays(1), null, null)));
     }
 }

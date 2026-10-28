@@ -1,3 +1,5 @@
+import type {InviteCheckResult} from './invite';
+
 // Mirrors server common/api/dto/MeetingSummaryResponse.
 export interface MeetingSummaryResponse {
   id: number;
@@ -117,4 +119,19 @@ export interface MeetingInviteRequest {
 // Mirrors server common/api/dto/MeetingInviteBatchRequest.
 export interface MeetingInviteBatchRequest {
   recipients: MeetingInviteRequest[];
+}
+
+// Mirrors server common/api/dto/MeetingDraftCheckRequest: previews a meeting that doesn't exist yet.
+export interface MeetingDraftCheckRequest {
+  startTime: string;
+  endTime?: string | null;
+  recipients?: MeetingInviteRequest[] | null;
+}
+
+// Mirrors server common/api/dto/MeetingDraftCheckResponse. `conflicts` are the creator's own clashes
+// (creating would be rejected); `warnings` are the creator's availability.
+export interface MeetingDraftCheckResponse {
+  conflicts: string[] | null;
+  warnings: string[] | null;
+  recipients: InviteCheckResult[] | null;
 }
