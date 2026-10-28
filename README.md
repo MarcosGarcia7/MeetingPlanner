@@ -11,23 +11,7 @@ Meeting planner web app.
 Copy `.env.example` to `.env`. It already defaults to a local HTTPS setup (`https://localhost`); the
 production values are included commented out in the file.
 
-### 1. Start the database
-
-```bash
-docker compose up db
-```
-
-In a separate terminal, open a `psql` session inside the running container and create the database:
-
-```bash
-docker exec -it postgres_db psql -U postgres
-```
-
-```sql
-CREATE DATABASE meeting_planner_db;
-```
-
-### 2. Generate local TLS certificates
+### 1. Generate local TLS certificates
 
 The `proxy` service uses `Caddyfile.local`, which serves `certs/localhost.pem` and
 `certs/localhost-key.pem`. That folder is gitignored, so generate the certificate once from the repo
@@ -39,18 +23,24 @@ mkdir certs
 mkcert -cert-file certs/localhost.pem -key-file certs/localhost-key.pem localhost 127.0.0.1 ::1
 ```
 
-### 3. Start the app
+### 2. Start the app
 
 ```bash
 docker compose up --build
 ```
 
-This builds and starts the API, BFF, Redis, and TLS proxy. On startup Flyway applies the migrations
-in `server/src/main/resources/db/migration`, creating the schema.
+This builds and starts Postgres, Redis, the API, the BFF, and the TLS proxy. On first start with an
+empty `pgdata` volume, the Postgres image creates the `DB_NAME` database itself; then Flyway applies
+the migrations in `server/src/main/resources/db/migration`, creating the schema.
+
+If the API logs `database "meeting_planner_db" does not exist`, the `pgdata` volume was initialized
+earlier under a different `DB_NAME`. Either create it with
+`docker exec -it postgres_db psql -U postgres -c "CREATE DATABASE meeting_planner_db;"` or reset the
+volume with `docker compose down -v` (this deletes all data).
 
 Open https://localhost.
 
-### 4. Seed the database
+### 3. Seed the database
 
 Seed **after** the app has started and the migrations have run (so the schema exists and `pgcrypto`
 is installed). Open a `psql` session against the created database and run/paste in `seed-dev.sql`:
@@ -130,7 +120,8 @@ Ubuntu 24.04 is enough.
    production block (`APP_DOMAIN`, `JWT_ISSUER`, `APP_BASE_URL`, `CADDYFILE=./Caddyfile.production`),
    drop the `COMPOSE_*` lines, generate fresh secrets (`openssl rand -base64 48`), and configure
    email as described above.
-4. Start the stack and create the database the first time, as in local steps 1 and 3:
+4. Start the stack. The database and schema are created automatically on first start (see local
+   step 2):
 
    ```bash
    docker compose up -d --build
