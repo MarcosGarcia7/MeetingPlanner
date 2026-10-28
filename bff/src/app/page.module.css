@@ -1,97 +1,331 @@
+/* body doesn't scroll (see globals.css), so the page is its own scroll container. */
 .page {
   display: flex;
   flex: 1;
   flex-direction: column;
-  align-items: start;
-  justify-content: start;
+  min-height: 0;
+  overflow-y: auto;
   font-family: var(--font-geist-sans);
-  background-color: var(--background);
+  background: var(--background);
 }
 
 .main {
   display: flex;
-  flex: 1;
-  width: 100%;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  background-color: var(--background);
-  padding: 0;
-}
-
-.banner {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
+  gap: 72px;
   width: 100%;
-  text-align: left;
-  gap: 24px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 64px 24px;
 }
 
-.intro {
+/* Hero */
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  gap: 48px;
+}
+
+.heroText {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 24px;
+  gap: 20px;
 }
 
-.banner h1 {
-  max-width: 320px;
-  font-size: 35px;
-  font-weight: 600;
-  padding: 10px 10px 10px 0;
-  line-height: 48px;
-  letter-spacing: -2.4px;
+.headline {
+  font-family: var(--font-instrument-serif);
+  font-size: 56px;
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.5px;
   text-wrap: balance;
   color: var(--text-primary);
 }
 
-.intro p {
-  max-width: 440px;
+.lede {
+  max-width: 480px;
   font-size: 18px;
-  line-height: 32px;
-  text-wrap: balance;
+  line-height: 1.6;
   color: var(--text-secondary);
 }
 
-.intro a {
-  font-weight: 500;
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+/* Hero mock meeting card */
+
+.mock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+.mockHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mockTitle {
+  font-size: 18px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
-a.primary {
-  background: var(--text-primary);
-  color: var(--background);
+.mockGroup {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent-subtle);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mockTime {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.avatars {
+  display: flex;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: -8px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-on-accent);
+}
+
+.avatar:first-child {
+  margin-left: 0;
+}
+
+.conflict {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  font-size: 13px;
+  color: var(--danger);
 }
 
-a.secondary {
-  border-color: var(--button-secondary-border);
+.conflictIcon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
 }
 
-/* Enable hover only on non-touch devices */
-@media (hover: hover) and (pointer: fine) {
-  a.primary:hover {
-    background: var(--button-primary-hover);
-    border-color: transparent;
+.vote {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.voteLabel {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.voteCount {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.voteBar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.voteFill {
+  display: block;
+  width: 75%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+/* Sections */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sectionTitle {
+  font-family: var(--font-instrument-serif);
+  font-size: 36px;
+  font-weight: 400;
+  line-height: 1.15;
+  text-wrap: balance;
+  color: var(--text-primary);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.cardTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cardBody {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  list-style: none;
+}
+
+.step {
+  composes: card;
+}
+
+.stepNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: var(--accent-subtle);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  list-style: none;
+}
+
+.featureIcon {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+
+.privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 28px;
+  border-radius: 12px;
+  background: var(--accent-subtle);
+}
+
+.privacyIcon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  color: var(--accent);
+}
+
+.privacy .cardTitle {
+  margin-bottom: 6px;
+}
+
+/* Closing CTA + footer */
+
+.cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 48px 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.ctaTitle {
+  composes: sectionTitle;
+}
+
+.footer {
+  flex-shrink: 0;
+  padding: 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+@media (width <= 800px) {
+  .hero {
+    grid-template-columns: 1fr;
   }
 
-  a.secondary:hover {
-    background: var(--button-secondary-hover);
-    border-color: transparent;
+  .headline {
+    font-size: 44px;
   }
 }
 
 @media (width <= 600px) {
   .main {
-    padding: 48px 24px;
+    gap: 56px;
+    padding: 40px 16px;
+  }
+
+  .headline {
+    font-size: 38px;
+  }
+
+  .sectionTitle {
+    font-size: 30px;
+  }
+
+  .privacy {
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
   }
 }
-
-@media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
-  }
-}
-
