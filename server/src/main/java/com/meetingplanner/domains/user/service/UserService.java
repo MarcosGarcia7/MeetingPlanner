@@ -16,6 +16,4 @@ public interface UserService {
     CursorPage<UserSearchResult> search(long userId, String query, String cursor, int size);
 
     long resolveUserId(String username);
-
-    void deleteMe(long userId);
 }

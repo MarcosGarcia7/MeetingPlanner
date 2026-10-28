@@ -26,6 +26,11 @@ export interface UserProfileUpdateRequest {
   pendingEmail?: string | null;
 }
 
+// Mirrors server common/api/dto/DeleteAccountRequest.
+export interface DeleteAccountRequest {
+  currentPassword: string;
+}
+
 // Mirrors server common/api/dto/ChangePasswordRequest.
 export interface ChangePasswordRequest {
   currentPassword: string;

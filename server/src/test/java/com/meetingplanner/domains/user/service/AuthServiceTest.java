@@ -199,6 +199,53 @@ class AuthServiceTest {
     }
 
     @Test
+    void deleteAccountRevokesSessionsAndDeletesUser() {
+        UserEntity user = existingUser();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
+
+        service.deleteAccount(1L, "current-password", "1.2.3.4");
+
+        verify(jtiStorageService).revokeAllJtis("1");
+        verify(userRepository).delete(user);
+    }
+
+    @Test
+    void deleteAccountRejectsWrongPasswordWithoutDeleting() {
+        UserEntity user = existingUser();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", "old-hash")).thenReturn(false);
+
+        assertThrows(IncorrectPasswordException.class,
+                () -> service.deleteAccount(1L, "wrong-password", "1.2.3.4"));
+
+        verify(userRepository, never()).delete(any(UserEntity.class));
+        verify(jtiStorageService, never()).revokeAllJtis(anyString());
+    }
+
+    @Test
+    void deleteAccountForMissingUserIsNotFound() {
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.deleteAccount(1L, "current-password", "1.2.3.4"));
+
+        verify(userRepository, never()).delete(any(UserEntity.class));
+    }
+
+    @Test
+    void deleteAccountIsRateLimitedPerUser() {
+        when(loginAttemptService.isBlocked("rl:delete-account:1", 5)).thenReturn(true);
+        when(loginAttemptService.getRemainingWindowSeconds("rl:delete-account:1")).thenReturn(120L);
+
+        RateLimitExceededException exception = assertThrows(RateLimitExceededException.class,
+                () -> service.deleteAccount(1L, "current-password", "1.2.3.4"));
+
+        assertEquals(120L, exception.getRetryAfterSeconds());
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
     void forgotPasswordQueuesResetEmailWithOneHourToken() {
         UserEntity user = existingUser();
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));

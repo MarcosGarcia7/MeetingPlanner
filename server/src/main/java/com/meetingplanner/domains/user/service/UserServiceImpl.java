@@ -35,18 +35,15 @@ public class UserServiceImpl implements UserService {
     private final FriendshipRepository friendshipRepository;
     private final AccountTokenService accountTokenService;
     private final NotificationService notificationService;
-    private final JtiStorageService jtiStorageService;
 
     public UserServiceImpl(UserRepository userRepository,
                            FriendshipRepository friendshipRepository,
                            AccountTokenService accountTokenService,
-                           NotificationService notificationService,
-                           JtiStorageService jtiStorageService) {
+                           NotificationService notificationService) {
         this.userRepository = userRepository;
         this.friendshipRepository = friendshipRepository;
         this.accountTokenService = accountTokenService;
         this.notificationService = notificationService;
-        this.jtiStorageService = jtiStorageService;
     }
 
     @Value("${app.base-url:https://meetingplanner.example.com}")
@@ -129,14 +126,6 @@ public class UserServiceImpl implements UserService {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"))
                 .getId();
-    }
-
-    @Override
-    @Transactional
-    public void deleteMe(long userId) {
-        UserEntity user = requireUser(userId);
-        jtiStorageService.revokeAllJtis(user.getId().toString());
-        userRepository.delete(user);
     }
 
     private void updatePendingEmail(UserEntity user, String pendingEmail) {

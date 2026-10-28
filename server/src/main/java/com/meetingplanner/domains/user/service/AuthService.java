@@ -90,6 +90,10 @@ public class AuthService {
     private static final int CHANGE_PASSWORD_MAX_PER_USER = 5;
     private static final long CHANGE_PASSWORD_WINDOW_SECONDS = 15 * 60;
 
+    private static final String DELETE_ACCOUNT_RATE_LIMIT_PREFIX = "rl:delete-account:";
+    private static final int DELETE_ACCOUNT_MAX_PER_USER = 5;
+    private static final long DELETE_ACCOUNT_WINDOW_SECONDS = 15 * 60;
+
     private static final String VERIFY_RESEND_PREFIX = "rl:verify-resend:";
     private static final int VERIFY_RESEND_MAX_PER_IP = 5;
     private static final long VERIFY_RESEND_WINDOW_SECONDS = 10 * 60;
@@ -407,6 +411,23 @@ public class AuthService {
         notificationService.queueSecurityEmail(user, "PASSWORD_CHANGED", Map.of("name", displayName(user)));
         auditService.passwordChanged(userId, clientIp);
         return issueTokens(user);
+    }
+
+    @Transactional
+    public void deleteAccount(long userId, String currentPassword, String clientIp) {
+        rateLimit(DELETE_ACCOUNT_RATE_LIMIT_PREFIX, Long.toString(userId), DELETE_ACCOUNT_MAX_PER_USER,
+                DELETE_ACCOUNT_WINDOW_SECONDS, "delete_account");
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            auditService.accountDeletionRejected(userId, clientIp);
+            throw new IncorrectPasswordException();
+        }
+
+        jtiStorageService.revokeAllJtis(user.getId().toString());
+        userRepository.delete(user);
+        auditService.accountDeleted(userId, clientIp);
     }
 
     private TokenResponse issueTokens(UserEntity user) {

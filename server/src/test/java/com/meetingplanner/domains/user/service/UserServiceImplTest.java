@@ -44,8 +44,6 @@ class UserServiceImplTest {
     private AccountTokenService accountTokenService;
     @Mock
     private NotificationService notificationService;
-    @Mock
-    private JtiStorageService jtiStorageService;
 
     @InjectMocks
     private UserServiceImpl service;

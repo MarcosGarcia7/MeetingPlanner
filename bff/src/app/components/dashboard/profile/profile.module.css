@@ -153,23 +153,3 @@
   font-size: 0.8125rem;
   color: var(--text-muted);
 }
-
-/* Email */
-
-.notice {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  padding: 12px;
-  border-radius: 10px;
-  background: var(--accent-subtle);
-  font-size: 0.875rem;
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
-
-.noticeText {
-  flex: 1;
-  min-width: 200px;
-}

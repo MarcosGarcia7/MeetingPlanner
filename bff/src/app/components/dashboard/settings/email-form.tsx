@@ -9,7 +9,7 @@ import {readApiError} from '@/lib/api-error';
 import type {UserProfileResponse, UserProfileUpdateRequest} from '@/lib/types/user';
 import authStyles from '@/app/components/auth/auth.module.css';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
-import styles from './profile.module.css';
+import styles from './settings.module.css';
 
 const emailSchema = z.object({
   newEmail: z

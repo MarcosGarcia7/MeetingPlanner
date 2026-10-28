@@ -178,7 +178,7 @@
 | GET | `/api/users/me` | `getMe` |
 | PATCH | `/api/users/me` | `updateMe` |
 | POST | `/api/users/me/password` | `changePassword` |
-| DELETE | `/api/users/me` | `deleteMe` |
+| DELETE | `/api/users/me` (body: `{ currentPassword }`) | `deleteMe` |
 | GET | `/api/users/{username}` | `getByUsername` |
 | GET | `/api/users/{username}/availability` | `getAvailability` |
 | GET | `/api/users/{username}/schedule` | `getSchedule` |

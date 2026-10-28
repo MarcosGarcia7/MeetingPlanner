@@ -1,0 +1,93 @@
+/* Settings pages: only what the shared dashboard and auth primitives don't cover. */
+
+.page {
+  composes: page from '../dashboard.module.css';
+  max-width: 720px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Two columns that wrap to one on narrow screens. */
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.formFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.status {
+  margin-right: auto;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Email */
+
+.emailLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--accent-subtle);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.noticeText {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Notifications */
+
+.leadSelect {
+  composes: input from '../../auth/auth.module.css';
+  width: auto;
+  flex-shrink: 0;
+}
+
+/* Delete account */
+
+.dangerCard {
+  composes: card from '../dashboard.module.css';
+  border-color: var(--danger);
+}

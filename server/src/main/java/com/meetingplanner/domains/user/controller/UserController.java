@@ -2,6 +2,7 @@ package com.meetingplanner.domains.user.controller;
 
 import com.meetingplanner.common.api.dto.ChangePasswordRequest;
 import com.meetingplanner.common.api.dto.CursorPage;
+import com.meetingplanner.common.api.dto.DeleteAccountRequest;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.TokenResponse;
 import com.meetingplanner.common.api.dto.UserAvailabilityResponse;
@@ -66,8 +67,11 @@ public class UserController {
     }
 
     @DeleteMapping("/me")
-    public ResponseEntity<Void> deleteMe(@AuthenticationPrincipal Jwt jwt) {
-        userService.deleteMe(CurrentUser.from(jwt).id());
+    public ResponseEntity<Void> deleteMe(@AuthenticationPrincipal Jwt jwt,
+                                         @Valid @RequestBody DeleteAccountRequest request,
+                                         HttpServletRequest httpRequest) {
+        authService.deleteAccount(CurrentUser.from(jwt).id(), request.currentPassword(),
+                resolveClientIp(httpRequest));
         return ResponseEntity.noContent().build();
     }
 

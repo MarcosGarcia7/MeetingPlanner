@@ -9,7 +9,7 @@ import {passwordSchema} from '@/lib/password-schema';
 import type {ChangePasswordRequest} from '@/lib/types/user';
 import authStyles from '@/app/components/auth/auth.module.css';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
-import styles from './profile.module.css';
+import styles from './settings.module.css';
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Enter your current password'),

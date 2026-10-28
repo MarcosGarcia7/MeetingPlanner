@@ -78,3 +78,8 @@ export interface LoginRequest {
 export interface LoginResponse {
   user: UserProfileResponse;
 }
+
+// BFF-only: optional body of POST /api/auth/logout (the BFF supplies the refresh token itself).
+export interface LogoutOptions {
+  allSessions?: boolean;
+}
