@@ -8,6 +8,8 @@ voting, invites/join requests, notifications, and email.
 - `server/` — Spring Boot REST API (Java 21, Postgres, Redis). See `server/CLAUDE.md`.
 - `bff/` — Next.js backend-for-frontend + UI. See `bff/CLAUDE.md`.
 - `docker-compose.yml` — full stack: `db` (Postgres 16), `redis`, `api`, `bff`, `proxy` (Caddy TLS).
+- `docker-compose.dev.yml` — publishes Postgres (5434) and Redis (6379) on the host; enabled locally via
+  `COMPOSE_FILE` in `.env`, never in production.
 - `Caddyfile.local` / `Caddyfile.production` — selected via `CADDYFILE` in `.env`.
 - `seed-dev.sql` — manual dev fixtures (alice/bob/unverified, password `Password123!`). Never move it
   into `db/migration`.

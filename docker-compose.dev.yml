@@ -1,0 +1,10 @@
+# Local development only: publishes Postgres and Redis on the host so the server/BFF can run outside
+# Docker. Loaded via COMPOSE_FILE in .env (see .env.example);
+services:
+  db:
+    ports:
+      - "5434:5432"
+
+  redis:
+    ports:
+      - "6379:6379"

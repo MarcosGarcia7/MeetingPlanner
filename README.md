@@ -110,6 +110,40 @@ points at the local stack.
    `SELECT status, attempts, last_error FROM email_outbox ORDER BY created_at DESC LIMIT 5;`. Failures
    are also logged as `event=email_send_failed`.
 
+## Deploying to a VPS
+
+The whole stack runs on one Linux server with Docker Compose; Caddy obtains the TLS certificate
+automatically. A VPS with 2 vCPU / 4 GB RAM (e.g. Hetzner Cloud, DigitalOcean, AWS Lightsail) running
+Ubuntu 24.04 is enough.
+
+1. Point an `A` (and optionally `AAAA`) record for your domain at the server's IP.
+2. Install Docker and allow only SSH, HTTP, and HTTPS through the firewall:
+
+   ```bash
+   curl -fsSL https://get.docker.com | sh
+   ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw enable
+   ```
+
+   Docker-published ports bypass `ufw`, which is why Postgres and Redis are only published by
+   `docker-compose.dev.yml`. Do not set `COMPOSE_FILE` on the server.
+3. Clone the repo and create `.env` from `.env.example` on the server (never commit it). Use the
+   production block (`APP_DOMAIN`, `JWT_ISSUER`, `APP_BASE_URL`, `CADDYFILE=./Caddyfile.production`),
+   drop the `COMPOSE_*` lines, generate fresh secrets (`openssl rand -base64 48`), and configure
+   email as described above.
+4. Start the stack and create the database the first time, as in local steps 1 and 3:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   Do not run `seed-dev.sql` in production.
+5. Deploy updates with `git pull && docker compose up -d --build`.
+6. Back up Postgres nightly and copy the dumps off the server, e.g. via cron:
+
+   ```bash
+   docker exec postgres_db pg_dump -U postgres -Fc meeting_planner_db > /backups/mp-$(date +%F).dump
+   ```
+
 ### Notes
 
 - The API runs Flyway on startup, so the schema is created the first time the stack starts.
