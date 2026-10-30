@@ -4,9 +4,13 @@
 -- applies the migrations (which create the `users` table and the pgcrypto
 -- extension used below).
 --
--- Usage (with the Docker stack running):
---   docker exec -it postgres_db psql -U postgres -d meeting_planner_db
---   -- then paste the contents of this file
+-- Usage (with the Docker stack running, from the repo root):
+--   docker cp seed-dev.sql postgres_db:/tmp/seed-dev.sql
+--   docker exec postgres_db psql -U postgres -d meeting_planner_db -f /tmp/seed-dev.sql
+--
+-- Safe to re-run: rows that already exist are skipped. Meeting dates are set
+-- relative to the first run and don't move on a re-run. The pending time change
+-- proposal expires after 48 hours; re-run the script to create a new one.
 --
 -- All users share the password: Password123!
 -- `crypt(..., gen_salt('bf', 10))` produces a $2a$ bcrypt hash that Spring
@@ -110,4 +114,106 @@ SELECT g.id, u.id, false
 FROM groups g
 JOIN users u ON u.username ~ '^user[0-9]{2}$'
 WHERE g.group_name = 'Seed Group 01'
+ON CONFLICT DO NOTHING;
+
+-- Bob is alice's friend and a member of Seed Group 03, so two-person flows work
+-- without any setup.
+INSERT INTO friendships (user_id, friend_id, requester_id, status, created_at, responded_at)
+SELECT
+    LEAST(a.id, b.id),
+    GREATEST(a.id, b.id),
+    a.id,
+    'ACCEPTED',
+    NOW() - INTERVAL '2 days',
+    NOW() - INTERVAL '2 days' + INTERVAL '10 minutes'
+FROM users a
+JOIN users b ON b.username = 'bob'
+WHERE a.username = 'alice'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO group_members (group_id, user_id, is_admin)
+SELECT g.id, b.id, false
+FROM groups g
+JOIN users b ON b.username = 'bob'
+WHERE g.group_name = 'Seed Group 03'
+ON CONFLICT DO NOTHING;
+
+-- Meeting scenario. Upcoming meetings start at least 2 days out so reminders
+-- don't fire straight away. No user is double-booked, because the API rejects
+-- creating a meeting that overlaps the creator's schedule. Conflicts come up when:
+--   - alice schedules over one of her own meetings
+--   - alice invites bob to a time that overlaps Client Call
+--   - alice votes on the Design Review proposal, which overlaps Dentist Appointment
+-- meetings has no natural unique key, so guard with NOT EXISTS.
+INSERT INTO meetings (group_id, start_time, end_time, location, title, creator_id, is_private)
+SELECT
+    g.id,
+    date_trunc('day', NOW()) + v.start_offset,
+    date_trunc('day', NOW()) + v.start_offset + INTERVAL '1 hour',
+    v.location,
+    v.title,
+    u.id,
+    v.is_private
+FROM (VALUES
+    ('Sprint Retro',        'alice', 'Seed Group 03', INTERVAL '-3 days 15 hours', 'Room B', false),
+    ('Project Kickoff',     'alice', NULL,            INTERVAL '2 days 10 hours',  'Room A', false),
+    ('Design Review',       'bob',   NULL,            INTERVAL '3 days 14 hours',  'Room C', false),
+    ('Team Sync',           'alice', 'Seed Group 03', INTERVAL '4 days 9 hours',   'Room A', false),
+    ('Dentist Appointment', 'alice', NULL,            INTERVAL '5 days 11 hours',  NULL,     true),
+    ('Client Call',         'bob',   NULL,            INTERVAL '6 days 13 hours',  NULL,     false)
+) AS v(title, creator, group_name, start_offset, location, is_private)
+JOIN users u ON u.username = v.creator
+LEFT JOIN groups g ON g.group_name = v.group_name
+WHERE NOT EXISTS (SELECT 1 FROM meetings m WHERE m.title = v.title AND m.creator_id = u.id);
+
+INSERT INTO meeting_participants (meeting_id, user_id)
+SELECT m.id, p.id
+FROM (VALUES
+    ('Sprint Retro',        'alice', 'alice'),
+    ('Sprint Retro',        'alice', 'bob'),
+    ('Project Kickoff',     'alice', 'alice'),
+    ('Project Kickoff',     'alice', 'bob'),
+    ('Design Review',       'bob',   'bob'),
+    ('Design Review',       'bob',   'alice'),
+    ('Design Review',       'bob',   'user01'),
+    ('Team Sync',           'alice', 'alice'),
+    ('Team Sync',           'alice', 'bob'),
+    ('Dentist Appointment', 'alice', 'alice'),
+    ('Client Call',         'bob',   'bob')
+) AS v(title, creator, participant)
+JOIN users c ON c.username = v.creator
+JOIN meetings m ON m.title = v.title AND m.creator_id = c.id
+JOIN users p ON p.username = v.participant
+ON CONFLICT DO NOTHING;
+
+-- Bob proposes moving Design Review to overlap alice's Dentist Appointment.
+-- user01 has approved and alice's vote is pending, so her approval applies the
+-- change. Skipped while a proposal is pending, as the API allows only one.
+INSERT INTO meeting_time_change_proposals (meeting_id, proposed_by, proposed_start_time, proposed_end_time)
+SELECT
+    m.id,
+    m.creator_id,
+    d.start_time + INTERVAL '30 minutes',
+    d.start_time + INTERVAL '90 minutes'
+FROM meetings m
+JOIN users b ON b.id = m.creator_id AND b.username = 'bob'
+JOIN users a ON a.username = 'alice'
+JOIN meetings d ON d.title = 'Dentist Appointment' AND d.creator_id = a.id
+WHERE m.title = 'Design Review'
+  AND NOT EXISTS (
+      SELECT 1 FROM meeting_time_change_proposals tcp
+      WHERE tcp.meeting_id = m.id AND tcp.status = 'PENDING'
+  );
+
+INSERT INTO meeting_time_change_votes (proposal_id, user_id, status, responded_at)
+SELECT
+    tcp.id,
+    v.id,
+    CASE WHEN v.username = 'user01' THEN 'APPROVED' ELSE 'PENDING' END,
+    CASE WHEN v.username = 'user01' THEN NOW() END
+FROM meeting_time_change_proposals tcp
+JOIN meetings m ON m.id = tcp.meeting_id AND m.title = 'Design Review'
+JOIN users b ON b.id = m.creator_id AND b.username = 'bob'
+JOIN users v ON v.username IN ('alice', 'user01')
+WHERE tcp.status = 'PENDING'
 ON CONFLICT DO NOTHING;
