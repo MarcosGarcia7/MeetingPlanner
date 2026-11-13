@@ -1,7 +1,10 @@
 'use client';
 
 import clsx from 'clsx';
+import type {ScheduleConflict, TimeChangeProposalResponse} from '@/lib/types/meeting';
 import {usePostAction} from '@/app/components/dashboard/use-post-action';
+import TimeChangeVote from '@/app/components/dashboard/meetings/time-change-vote';
+import InviteResponseActions from '@/app/components/dashboard/meetings/invite-response';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import homeStyles from '@/app/components/dashboard/home/home.module.css';
 import styles from './inbox.module.css';
@@ -23,6 +26,10 @@ export interface InboxItem {
   details?: string[];
   warnings?: string[];
   actions: InboxAction[];
+  // A time change to vote on: rendered with TimeChangeVote (which handles clashes) after the actions.
+  vote?: {proposal: TimeChangeProposalResponse; timeZone: string};
+  // A meeting invite to answer: rendered with InviteResponseActions (which handles clashes) after the actions.
+  invite?: {inviteId: number; conflicts: ScheduleConflict[]; timeZone: string};
 }
 
 interface ActionListProps {
@@ -63,15 +70,22 @@ export default function ActionList({title, items, empty, truncated}: ActionListP
                   ))}
                   {error && <span className={dashboardStyles.error}>{error}</span>}
                 </div>
-                <div className={dashboardStyles.actions}>
-                  {item.actions.map((action) => (
-                    <button key={action.label} type='button' disabled={busy}
-                            className={action.secondary ? dashboardStyles.buttonSecondary : dashboardStyles.button}
-                            onClick={() => run(item.key, action.url, action.body, action.method)}>
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
+                {item.actions.length > 0 && (
+                  <div className={dashboardStyles.actions}>
+                    {item.actions.map((action) => (
+                      <button key={action.label} type='button' disabled={busy}
+                              className={action.secondary ? dashboardStyles.buttonSecondary : dashboardStyles.button}
+                              onClick={() => run(item.key, action.url, action.body, action.method)}>
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {item.vote && <TimeChangeVote proposal={item.vote.proposal} timeZone={item.vote.timeZone}/>}
+                {item.invite && (
+                  <InviteResponseActions inviteId={item.invite.inviteId} conflicts={item.invite.conflicts}
+                                         timeZone={item.invite.timeZone}/>
+                )}
               </li>
             );
           })}

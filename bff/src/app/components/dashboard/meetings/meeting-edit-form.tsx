@@ -1,11 +1,12 @@
 'use client';
 
-import {useState} from 'react';
-import {useForm} from 'react-hook-form';
+import {useEffect, useState} from 'react';
+import {useForm, useWatch} from 'react-hook-form';
 import {useRouter} from 'next/navigation';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {z} from 'zod';
-import type {MeetingResponse, MeetingUpdateRequest} from '@/lib/types/meeting';
+import type {MeetingDraftCheckResponse, MeetingResponse, MeetingUpdateRequest, TimeChangeCheckRequest}
+  from '@/lib/types/meeting';
 import {sendJson} from '@/lib/send-json';
 import {isoToZonedInput, zonedTimeToIso} from '@/app/components/dashboard/home/format';
 import authStyles from '@/app/components/auth/auth.module.css';
@@ -20,6 +21,18 @@ const editSchema = z.object({
   isPrivate: z.boolean(),
 }).refine((data) => !data.end || data.end > data.start, {path: ['end'], message: 'End must be after the start'});
 type EditFormData = z.infer<typeof editSchema>;
+
+// How long the times must stay unchanged before they're checked for clashes.
+const CHECK_DEBOUNCE_MS = 400;
+
+// What the live check found for a new time: the editor's own clashes (saving would be rejected), the
+// editor's availability, and other participants' clashes where the editor may see their schedule.
+interface TimeCheck {
+  conflicts: string[];
+  warnings: string[];
+}
+
+const NO_CHECK: TimeCheck = {conflicts: [], warnings: []};
 
 function toFormData(meeting: MeetingResponse, timeZone: string): EditFormData {
   return {
@@ -44,8 +57,55 @@ export default function MeetingEditForm({meeting, viewerId, timeZone}: MeetingEd
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const othersComing = (meeting.participants ?? []).some((p) => p.userId !== viewerId);
-  const {register, handleSubmit, reset, formState: {errors, isSubmitting, isDirty, dirtyFields}} =
+  const {register, handleSubmit, reset, control, formState: {errors, isSubmitting, isDirty, dirtyFields}} =
     useForm<EditFormData>({resolver: zodResolver(editSchema), defaultValues: toFormData(meeting, timeZone)});
+  const start = useWatch({control, name: 'start'});
+  const end = useWatch({control, name: 'end'});
+  const [check, setCheck] = useState<TimeCheck>(NO_CHECK);
+  // Only a changed time that could be scheduled is checked; anything else is the form's own error.
+  const timesDirty = Boolean(dirtyFields.start || dirtyFields.end);
+  const checkable = timesDirty && Boolean(start) && (!end || end > start);
+
+  useEffect(() => {
+    if (!checkable) {
+      return;
+    }
+    let stale = false;
+    const timer = setTimeout(async () => {
+      const body: TimeChangeCheckRequest = {
+        startTime: zonedTimeToIso(start, timeZone),
+        endTime: end ? zonedTimeToIso(end, timeZone) : undefined,
+      };
+      const result = await sendJson<MeetingDraftCheckResponse>(
+        `/api/meetings/${meeting.id}/time-change/check`, 'POST', body);
+      if (stale) {
+        return;
+      }
+      if (!result.ok) {
+        if (result.unauthenticated) {
+          router.push('/login');
+        }
+        // A failed check (e.g. a start in the past) just shows nothing; saving reports the real error.
+        setCheck(NO_CHECK);
+        return;
+      }
+      setCheck({
+        conflicts: result.data.conflicts ?? [],
+        warnings: [
+          ...(result.data.warnings ?? []),
+          ...(result.data.recipients ?? []).flatMap((recipient) =>
+            (recipient.warnings ?? []).map((warning) => `@${recipient.username}: ${warning}`)),
+        ],
+      });
+    }, CHECK_DEBOUNCE_MS);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [checkable, start, end, meeting.id, timeZone, router]);
+
+  // Results for times that are no longer checkable (or no longer changed) are hidden, not cleared.
+  const shown = checkable ? check : NO_CHECK;
 
   const onSubmit = async (data: EditFormData) => {
     setStatus(null);
@@ -111,6 +171,12 @@ export default function MeetingEditForm({meeting, viewerId, timeZone}: MeetingEd
             ? 'A time change is already waiting on votes; the time can be changed again once it’s settled.'
             : othersComing ? 'Changing the time asks the other participants to approve it first.' : ''}
         </p>
+        {(shown.conflicts.length > 0 || shown.warnings.length > 0) && (
+          <div className={styles.notes} role='status'>
+            {shown.conflicts.map((conflict) => <p key={conflict} className={authStyles.error}>{conflict}</p>)}
+            {shown.warnings.map((warning) => <p key={warning} className={dashboardStyles.meta}>{warning}</p>)}
+          </div>
+        )}
         <label className={authStyles.field}>
           <span className={authStyles.label}>Location (optional)</span>
           <input type='text' maxLength={500} {...register('location')} className={authStyles.input}/>
@@ -132,7 +198,8 @@ export default function MeetingEditForm({meeting, viewerId, timeZone}: MeetingEd
                   }}>
             Cancel
           </button>
-          <button type='submit' className={dashboardStyles.button} disabled={!isDirty || isSubmitting}>
+          <button type='submit' className={dashboardStyles.button}
+                  disabled={!isDirty || isSubmitting || shown.conflicts.length > 0}>
             {isSubmitting ? 'Saving…' : 'Save changes'}
           </button>
         </div>

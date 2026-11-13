@@ -1,4 +1,5 @@
 import type {TargetKind} from './api';
+import type {ScheduleConflict} from './meeting';
 
 // Mirrors server common/api/model/InviteStatus.
 export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'LEFT';
@@ -19,7 +20,10 @@ export interface InviteResponse {
   meetingStartTime: string | null;
   meetingEndTime: string | null;
   meetingLocation: string | null;
+  // Heads-ups for the sender; set on invites just sent.
   warnings: string[];
+  // The recipient's meetings this one overlaps; set on pending meeting invites listed for the recipient.
+  conflicts: ScheduleConflict[];
 }
 
 // Mirrors server common/api/dto/InviteFailure.

@@ -10,6 +10,7 @@ public record TimeChangeProposalResponse(
         Long id,
         Long meetingId,
         String meetingTitle,
+        boolean meetingCreatedByViewer,
         Long proposedById,
         String proposedByUsername,
         OffsetDateTime proposedStartTime,
@@ -18,6 +19,6 @@ public record TimeChangeProposalResponse(
         OffsetDateTime timeSent,
         OffsetDateTime resolvedAt,
         VoteStatus myVote,
-        List<TimeChangeConflict> conflicts
+        List<ScheduleConflict> conflicts
 ) {
 }

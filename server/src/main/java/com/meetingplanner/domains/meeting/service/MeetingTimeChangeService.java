@@ -4,7 +4,7 @@ import com.meetingplanner.common.api.CursorCodec;
 import com.meetingplanner.common.api.MeetingTimes;
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.PendingTimeChange;
-import com.meetingplanner.common.api.dto.TimeChangeConflict;
+import com.meetingplanner.common.api.dto.ScheduleConflict;
 import com.meetingplanner.common.api.dto.TimeChangeProposalResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.ProposalRole;
@@ -159,19 +159,53 @@ public class MeetingTimeChangeService {
         if (vote.getStatus() != VoteStatus.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "You have already voted on this proposal");
         }
+        MeetingEntity meeting = proposal.getMeeting();
+        if (approve) {
+            // Approving would double-book the voter; they must decline or clear the clash first.
+            conflictService.assertNoScheduleConflict(userId, proposal.getProposedStartTime(),
+                    proposal.getProposedEndTime(), meeting.getId());
+        }
 
         vote.setStatus(approve ? VoteStatus.APPROVED : VoteStatus.DECLINED);
         vote.setRespondedAt(OffsetDateTime.now());
         voteRepository.save(vote);
 
-        MeetingEntity meeting = proposal.getMeeting();
         if (!approve) {
             resolve(proposal, ProposalStatus.REJECTED, meeting);
-        } else if (voteRepository.countByProposalIdAndStatus(proposalId, VoteStatus.PENDING) == 0) {
-            applyTimes(meeting, proposal);
-            resolve(proposal, ProposalStatus.APPROVED, meeting);
+        } else {
+            finalizeIfComplete(proposal, meeting);
         }
         return toResponse(proposal, userId);
+    }
+
+    /**
+     * A participant left or was removed from the meeting (caller holds the meeting lock): their pending
+     * vote no longer counts, which may complete the proposal for everyone else.
+     */
+    @Transactional
+    public void onParticipantRemoved(long meetingId, long userId) {
+        proposalRepository.findByMeetingIdAndStatus(meetingId, ProposalStatus.PENDING).ifPresent(proposal -> {
+            if (voteRepository.deleteByProposalIdAndUserIdAndStatus(proposal.getId(), userId, VoteStatus.PENDING) > 0) {
+                finalizeIfComplete(proposal, proposal.getMeeting());
+            }
+        });
+    }
+
+    // Once nobody is left to vote, applies the times, unless someone (e.g. an earlier approver who has since
+    // joined another meeting) would now be double-booked, in which case the proposal is rejected instead.
+    private void finalizeIfComplete(MeetingTimeChangeProposalEntity proposal, MeetingEntity meeting) {
+        if (voteRepository.countByProposalIdAndStatus(proposal.getId(), VoteStatus.PENDING) > 0) {
+            return;
+        }
+        boolean anyoneClashes = recipientsOf(meeting).keySet().stream()
+                .anyMatch(id -> !conflictService.findScheduleConflicts(id, proposal.getProposedStartTime(),
+                        proposal.getProposedEndTime(), meeting.getId()).isEmpty());
+        if (anyoneClashes) {
+            resolve(proposal, ProposalStatus.REJECTED, meeting);
+            return;
+        }
+        applyTimes(meeting, proposal);
+        resolve(proposal, ProposalStatus.APPROVED, meeting);
     }
 
     @Transactional
@@ -279,15 +313,13 @@ public class MeetingTimeChangeService {
         VoteStatus myVote = voteRepository.findByProposalIdAndUserId(proposal.getId(), viewerId)
                 .map(MeetingTimeChangeVoteEntity::getStatus)
                 .orElse(null);
-        List<TimeChangeConflict> conflicts = conflictService.findScheduleConflicts(
-                        viewerId, proposal.getProposedStartTime(), proposal.getProposedEndTime(), meeting.getId())
-                .stream()
-                .map(m -> new TimeChangeConflict(m.getId(), m.getTitle(), m.getStartTime()))
-                .toList();
+        List<ScheduleConflict> conflicts = conflictService.scheduleConflictsFor(
+                viewerId, proposal.getProposedStartTime(), proposal.getProposedEndTime(), meeting.getId());
         return new TimeChangeProposalResponse(
                 proposal.getId(),
                 meeting.getId(),
                 meeting.getTitle(),
+                meeting.getCreator() != null && meeting.getCreator().getId().equals(viewerId),
                 proposal.getProposedBy() == null ? null : proposal.getProposedBy().getId(),
                 proposal.getProposedBy() == null ? null : proposal.getProposedBy().getUsername(),
                 proposal.getProposedStartTime(),

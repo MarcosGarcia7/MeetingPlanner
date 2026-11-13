@@ -104,6 +104,33 @@
   background: var(--accent-subtle);
 }
 
+/* Answering a time change or an invite (TimeChangeVote, InviteResponseActions): full row width, below the
+   item's own text, with any schedule clashes (ScheduleConflictList) above the buttons. */
+
+.decision {
+  display: flex;
+  flex-basis: 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.conflictList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conflictRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 /* Details tab */
 
 .details {

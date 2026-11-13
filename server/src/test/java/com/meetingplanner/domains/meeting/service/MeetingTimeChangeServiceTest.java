@@ -3,6 +3,7 @@ package com.meetingplanner.domains.meeting.service;
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.TimeChangeProposalResponse;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
+import com.meetingplanner.common.api.exceptions.ScheduleConflictException;
 import com.meetingplanner.common.api.model.ProposalRole;
 import com.meetingplanner.common.api.model.ProposalStatus;
 import com.meetingplanner.common.api.model.VoteStatus;
@@ -40,6 +41,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -118,7 +120,6 @@ class MeetingTimeChangeServiceTest {
         when(proposalRepository.saveAndFlush(any(MeetingTimeChangeProposalEntity.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(voteRepository.save(any(MeetingTimeChangeVoteEntity.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(conflictService.findScheduleConflicts(eq(1L), any(), any(), eq(10L))).thenReturn(List.of());
 
         TimeChangeProposalResponse response = service.createProposal(1L, meeting, newStart, null);
 
@@ -141,7 +142,6 @@ class MeetingTimeChangeServiceTest {
         when(proposalRepository.saveAndFlush(any(MeetingTimeChangeProposalEntity.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(voteRepository.save(any(MeetingTimeChangeVoteEntity.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(conflictService.findScheduleConflicts(eq(1L), any(), any(), eq(10L))).thenReturn(List.of());
 
         service.createProposal(1L, meeting, newStart, null);
 
@@ -167,7 +167,7 @@ class MeetingTimeChangeServiceTest {
         when(meetingRepository.save(meeting)).thenReturn(meeting);
         when(proposalRepository.transitionStatus(eq(5L), eq(ProposalStatus.PENDING), eq(ProposalStatus.APPROVED),
                 any(OffsetDateTime.class))).thenReturn(1);
-        when(conflictService.findScheduleConflicts(eq(2L), any(), any(), eq(10L))).thenReturn(List.of());
+        when(conflictService.findScheduleConflicts(anyLong(), any(), any(), eq(10L))).thenReturn(List.of());
 
         service.vote(2L, 10L, 5L, true);
 
@@ -191,7 +191,6 @@ class MeetingTimeChangeServiceTest {
         when(voteRepository.findByProposalIdAndUserId(5L, 2L)).thenReturn(Optional.of(bobVote));
         when(proposalRepository.transitionStatus(eq(5L), eq(ProposalStatus.PENDING), eq(ProposalStatus.REJECTED),
                 any(OffsetDateTime.class))).thenReturn(1);
-        when(conflictService.findScheduleConflicts(eq(2L), any(), any(), eq(10L))).thenReturn(List.of());
 
         service.vote(2L, 10L, 5L, false);
 
@@ -212,7 +211,6 @@ class MeetingTimeChangeServiceTest {
         when(proposalRepository.findByIdAndMeetingId(5L, 10L)).thenReturn(Optional.of(proposal));
         when(proposalRepository.transitionStatus(eq(5L), eq(ProposalStatus.PENDING), eq(ProposalStatus.CANCELLED),
                 any(OffsetDateTime.class))).thenReturn(1);
-        when(conflictService.findScheduleConflicts(eq(1L), any(), any(), eq(10L))).thenReturn(List.of());
 
         service.cancel(1L, 10L, 5L);
 
@@ -401,5 +399,112 @@ class MeetingTimeChangeServiceTest {
         assertEquals(1, page.items().size());
         assertNull(page.nextCursor());
         verify(proposalRepository, never()).listProposedBy(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void approvingIntoOwnScheduleConflictIsRejectedAndVoteStaysPending() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice, alice, bob);
+        OffsetDateTime newStart = OffsetDateTime.parse("2026-10-21T10:00:00Z");
+        MeetingTimeChangeProposalEntity proposal = proposal(5L, meeting, alice, newStart);
+        MeetingTimeChangeVoteEntity bobVote = vote(proposal, bob);
+
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(proposalRepository.findByIdAndMeetingId(5L, 10L)).thenReturn(Optional.of(proposal));
+        when(voteRepository.findByProposalIdAndUserId(5L, 2L)).thenReturn(Optional.of(bobVote));
+        doThrow(new ScheduleConflictException("Conflicts with an existing meeting"))
+                .when(conflictService).assertNoScheduleConflict(eq(2L), eq(newStart), any(), eq(10L));
+
+        assertThrows(ScheduleConflictException.class, () -> service.vote(2L, 10L, 5L, true));
+
+        assertEquals(VoteStatus.PENDING, bobVote.getStatus());
+        assertEquals(ProposalStatus.PENDING, proposal.getStatus());
+        verify(voteRepository, never()).save(any());
+        verify(meetingRepository, never()).save(any(MeetingEntity.class));
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void decliningIsAllowedEvenWithAScheduleConflict() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice, alice, bob);
+        MeetingTimeChangeProposalEntity proposal = proposal(5L, meeting, alice,
+                OffsetDateTime.parse("2026-10-21T10:00:00Z"));
+
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(proposalRepository.findByIdAndMeetingId(5L, 10L)).thenReturn(Optional.of(proposal));
+        when(voteRepository.findByProposalIdAndUserId(5L, 2L)).thenReturn(Optional.of(vote(proposal, bob)));
+        when(proposalRepository.transitionStatus(eq(5L), eq(ProposalStatus.PENDING), eq(ProposalStatus.REJECTED),
+                any(OffsetDateTime.class))).thenReturn(1);
+
+        service.vote(2L, 10L, 5L, false);
+
+        assertEquals(ProposalStatus.REJECTED, proposal.getStatus());
+        verify(conflictService, never()).assertNoScheduleConflict(anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void finalApprovalRejectsWhenAnEarlierApproverNowClashes() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        UserEntity carol = user(3L, "carol");
+        MeetingEntity meeting = meeting(10L, alice, alice, bob, carol);
+        OffsetDateTime newStart = OffsetDateTime.parse("2026-10-21T10:00:00Z");
+        MeetingTimeChangeProposalEntity proposal = proposal(5L, meeting, alice, newStart);
+        MeetingEntity carolsOtherMeeting = meeting(11L, carol, carol);
+
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(proposalRepository.findByIdAndMeetingId(5L, 10L)).thenReturn(Optional.of(proposal));
+        when(voteRepository.findByProposalIdAndUserId(5L, 2L)).thenReturn(Optional.of(vote(proposal, bob)));
+        when(voteRepository.countByProposalIdAndStatus(5L, VoteStatus.PENDING)).thenReturn(0L);
+        when(conflictService.findScheduleConflicts(anyLong(), any(), any(), eq(10L))).thenReturn(List.of());
+        when(conflictService.findScheduleConflicts(eq(3L), any(), any(), eq(10L))).thenReturn(List.of(carolsOtherMeeting));
+        when(proposalRepository.transitionStatus(eq(5L), eq(ProposalStatus.PENDING), eq(ProposalStatus.REJECTED),
+                any(OffsetDateTime.class))).thenReturn(1);
+
+        service.vote(2L, 10L, 5L, true);
+
+        assertEquals(ProposalStatus.REJECTED, proposal.getStatus());
+        assertEquals(OffsetDateTime.parse("2026-10-20T10:00:00Z"), meeting.getStartTime());
+        verify(meetingRepository, never()).save(any(MeetingEntity.class));
+    }
+
+    @Test
+    void participantLeavingWithLastPendingVoteCompletesProposal() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice, alice);
+        OffsetDateTime newStart = OffsetDateTime.parse("2026-10-21T10:00:00Z");
+        MeetingTimeChangeProposalEntity proposal = proposal(5L, meeting, alice, newStart);
+
+        when(proposalRepository.findByMeetingIdAndStatus(10L, ProposalStatus.PENDING)).thenReturn(Optional.of(proposal));
+        when(voteRepository.deleteByProposalIdAndUserIdAndStatus(5L, 2L, VoteStatus.PENDING)).thenReturn(1);
+        when(voteRepository.countByProposalIdAndStatus(5L, VoteStatus.PENDING)).thenReturn(0L);
+        when(conflictService.findScheduleConflicts(anyLong(), any(), any(), eq(10L))).thenReturn(List.of());
+        when(proposalRepository.transitionStatus(eq(5L), eq(ProposalStatus.PENDING), eq(ProposalStatus.APPROVED),
+                any(OffsetDateTime.class))).thenReturn(1);
+
+        service.onParticipantRemoved(10L, 2L);
+
+        assertEquals(ProposalStatus.APPROVED, proposal.getStatus());
+        assertEquals(newStart, meeting.getStartTime());
+    }
+
+    @Test
+    void participantLeavingWithoutPendingVoteLeavesProposalAlone() {
+        UserEntity alice = user(1L, "alice");
+        MeetingEntity meeting = meeting(10L, alice, alice);
+        MeetingTimeChangeProposalEntity proposal = proposal(5L, meeting, alice,
+                OffsetDateTime.parse("2026-10-21T10:00:00Z"));
+
+        when(proposalRepository.findByMeetingIdAndStatus(10L, ProposalStatus.PENDING)).thenReturn(Optional.of(proposal));
+        when(voteRepository.deleteByProposalIdAndUserIdAndStatus(5L, 2L, VoteStatus.PENDING)).thenReturn(0);
+
+        service.onParticipantRemoved(10L, 2L);
+
+        assertEquals(ProposalStatus.PENDING, proposal.getStatus());
+        verify(proposalRepository, never()).transitionStatus(anyLong(), any(), any(), any());
     }
 }

@@ -3,6 +3,9 @@ package com.meetingplanner.domains.meeting.repository;
 import com.meetingplanner.common.api.model.VoteStatus;
 import com.meetingplanner.domains.meeting.model.MeetingTimeChangeVoteEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -18,4 +21,10 @@ public interface MeetingTimeChangeVoteRepository extends JpaRepository<MeetingTi
     long countByProposalIdAndStatus(Long proposalId, VoteStatus status);
 
     boolean existsByProposalIdAndStatus(Long proposalId, VoteStatus status);
+
+    @Modifying(flushAutomatically = true)
+    @Query("delete from MeetingTimeChangeVoteEntity v "
+            + "where v.proposal.id = :proposalId and v.user.id = :userId and v.status = :status")
+    int deleteByProposalIdAndUserIdAndStatus(@Param("proposalId") Long proposalId, @Param("userId") Long userId,
+                                             @Param("status") VoteStatus status);
 }

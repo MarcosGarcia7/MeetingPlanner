@@ -10,6 +10,7 @@ import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
+import com.meetingplanner.common.api.dto.TimeChangeCheckRequest;
 import com.meetingplanner.common.api.model.MeetingTimeframe;
 
 import java.util.List;
@@ -21,6 +22,8 @@ public interface MeetingService {
     MeetingResponse createInGroup(long userId, long groupId, MeetingCreateRequest request);
 
     MeetingDraftCheckResponse checkDraft(long userId, MeetingDraftCheckRequest request);
+
+    MeetingDraftCheckResponse checkTimeChange(long userId, long meetingId, TimeChangeCheckRequest request);
 
     MeetingResponse get(long userId, long meetingId);
 

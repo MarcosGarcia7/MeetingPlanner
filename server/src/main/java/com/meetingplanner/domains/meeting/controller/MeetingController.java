@@ -7,6 +7,7 @@ import com.meetingplanner.common.api.dto.JoinRequestResponse;
 import com.meetingplanner.common.api.dto.MeetingCreateRequest;
 import com.meetingplanner.common.api.dto.MeetingDraftCheckRequest;
 import com.meetingplanner.common.api.dto.MeetingDraftCheckResponse;
+import com.meetingplanner.common.api.dto.TimeChangeCheckRequest;
 import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
@@ -55,6 +56,12 @@ public class MeetingController {
     public MeetingDraftCheckResponse checkDraft(@AuthenticationPrincipal Jwt jwt,
                                                 @Valid @RequestBody MeetingDraftCheckRequest request) {
         return meetingService.checkDraft(CurrentUser.from(jwt).id(), request);
+    }
+
+    @PostMapping("/{meetingId}/time-change/check")
+    public MeetingDraftCheckResponse checkTimeChange(@AuthenticationPrincipal Jwt jwt, @PathVariable long meetingId,
+                                                     @Valid @RequestBody TimeChangeCheckRequest request) {
+        return meetingService.checkTimeChange(CurrentUser.from(jwt).id(), meetingId, request);
     }
 
     @GetMapping

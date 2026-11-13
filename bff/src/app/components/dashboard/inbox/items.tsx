@@ -1,6 +1,6 @@
 import type {FriendshipResponse} from '@/lib/types/friend';
 import type {InviteResponse} from '@/lib/types/invite';
-import type {TimeChangeProposalResponse, TimeChangeVoteRequest} from '@/lib/types/meeting';
+import type {TimeChangeProposalResponse} from '@/lib/types/meeting';
 import type {JoinRequestResponse} from '@/lib/types/request';
 import {formatMeetingTime} from '@/app/components/dashboard/home/format';
 import type {InboxItem} from './action-list';
@@ -32,16 +32,21 @@ export function inviteDetails(invite: InviteResponse, timeZone: string): string[
 export function inviteItem(invite: InviteResponse, timeZone: string): InboxItem {
   const base = `/api/invites/${kindPath(invite.kind)}/${invite.id}`;
   const target = (invite.kind === 'GROUP' ? invite.groupName : invite.meetingTitle) ?? `a ${kindPath(invite.kind)}`;
-  return {
+  const item: InboxItem = {
     key: `invite-${invite.kind}-${invite.id}`,
     kind: kindLabel(invite.kind),
     title: <>@{invite.senderUsername} invited you to <strong>{target}</strong></>,
     details: inviteDetails(invite, timeZone),
-    actions: [
+    actions: [],
+  };
+  // Meeting invites can clash with the viewer's schedule, so InviteResponseActions answers them; group
+  // invites keep plain Accept/Decline.
+  return invite.kind === 'MEETING'
+    ? {...item, invite: {inviteId: invite.id, conflicts: invite.conflicts, timeZone}}
+    : {...item, actions: [
       {label: 'Accept', url: `${base}/accept`},
       {label: 'Decline', url: `${base}/decline`, secondary: true},
-    ],
-  };
+    ]};
 }
 
 export function incomingRequestItem(request: JoinRequestResponse): InboxItem {
@@ -100,20 +105,14 @@ export function outgoingFriendItem(friend: FriendshipResponse): InboxItem {
 
 export function voteItem(proposal: TimeChangeProposalResponse, timeZone: string): InboxItem {
   const {day, time} = formatMeetingTime(proposal.proposedStartTime, proposal.proposedEndTime, timeZone);
-  const url = `/api/meetings/${proposal.meetingId}/time-change/${proposal.id}/vote`;
-  const approve: TimeChangeVoteRequest = {approve: true};
-  const decline: TimeChangeVoteRequest = {approve: false};
-  const conflicts = proposal.conflicts.length;
   return {
     key: `vote-${proposal.id}`,
     kind: 'Meeting',
     title: <strong>{proposal.meetingTitle ?? 'Meeting'}</strong>,
     details: [`@${proposal.proposedByUsername} proposed ${day}, ${time}`],
-    warnings: conflicts > 0 ? [`Conflicts with ${conflicts} of your meetings`] : [],
-    actions: [
-      {label: 'Approve', url, body: approve},
-      {label: 'Decline', url, body: decline, secondary: true},
-    ],
+    // Approve/Decline, and the ways out of a clash, come from TimeChangeVote.
+    actions: [],
+    vote: {proposal, timeZone},
   };
 }
 

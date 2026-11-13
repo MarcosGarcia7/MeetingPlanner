@@ -50,7 +50,9 @@ export default async function ScheduleOverviewPage() {
   return (
     <>
       <PendingVotes proposals={valueOrNull(results[0])} timeZone={timeZone}/>
-      {(invites.length > 0 || requests.length > 0) && <PendingMeetingItems invites={invites} requests={requests}/>}
+      {(invites.length > 0 || requests.length > 0) && (
+        <PendingMeetingItems invites={invites} requests={requests} timeZone={timeZone}/>
+      )}
       <div className={styles.shelves}>
         <section className={dashboardStyles.card}>
           <div className={dashboardStyles.cardHeader}>

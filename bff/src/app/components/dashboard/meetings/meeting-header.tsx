@@ -9,6 +9,7 @@ import {formatLongDate, formatMeetingTime} from '@/app/components/dashboard/home
 import ConfirmButton from '@/app/components/dashboard/confirm-button';
 import {usePostAction} from '@/app/components/dashboard/use-post-action';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
+import InviteResponseActions from './invite-response';
 import styles from './meetings.module.css';
 
 interface MeetingHeaderProps {
@@ -18,8 +19,9 @@ interface MeetingHeaderProps {
 }
 
 // Title, badges, and when it is, plus the viewer's action: Leave for participants other than the creator
-// (who deletes the meeting from Manage instead), Accept/Decline for a pending invite, Cancel for a pending
-// join request, or Request to join when the meeting is open to requests.
+// (who deletes the meeting from Manage instead), Accept/Decline for a pending invite (InviteResponseActions,
+// which also lists clashes with the viewer's schedule), Cancel for a pending join request, or Request to
+// join when the meeting is open to requests.
 export default function MeetingHeader({meeting, viewerId, timeZone}: MeetingHeaderProps) {
   const router = useRouter();
   const [leaving, setLeaving] = useState(false);
@@ -57,19 +59,6 @@ export default function MeetingHeader({meeting, viewerId, timeZone}: MeetingHead
       case 'PARTICIPANT':
         return isCreator ? null : (
           <ConfirmButton label='Leave meeting' confirmLabel='Leave' disabled={busy} onConfirm={leave}/>
-        );
-      case 'INVITED':
-        return (
-          <>
-            <button type='button' className={dashboardStyles.button} disabled={busy}
-                    onClick={() => act(`/api/invites/meeting/${meeting.pendingInviteId}/accept`)}>
-              Accept invite
-            </button>
-            <button type='button' className={dashboardStyles.buttonSecondary} disabled={busy}
-                    onClick={() => act(`/api/invites/meeting/${meeting.pendingInviteId}/decline`)}>
-              Decline
-            </button>
-          </>
         );
       case 'REQUESTED':
         return (
@@ -115,6 +104,11 @@ export default function MeetingHeader({meeting, viewerId, timeZone}: MeetingHead
           {error && <span className={dashboardStyles.error} role='alert'>{error}</span>}
         </div>
         {actions && <div className={dashboardStyles.actions}>{actions}</div>}
+        {/* A pending invite is answered below the title, full width, so any schedule clash can be listed. */}
+        {meeting.viewerStatus === 'INVITED' && meeting.pendingInviteId !== null && (
+          <InviteResponseActions inviteId={meeting.pendingInviteId} conflicts={meeting.viewerConflicts}
+                                 timeZone={timeZone} acceptLabel='Accept invite'/>
+        )}
       </div>
     </section>
   );

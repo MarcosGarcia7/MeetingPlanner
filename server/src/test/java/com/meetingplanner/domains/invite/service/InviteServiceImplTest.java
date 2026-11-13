@@ -2,7 +2,9 @@ package com.meetingplanner.domains.invite.service;
 
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteResponse;
+import com.meetingplanner.common.api.dto.ScheduleConflict;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
+import com.meetingplanner.common.api.exceptions.ScheduleConflictException;
 import com.meetingplanner.common.api.model.InviteStatus;
 import com.meetingplanner.common.api.model.TargetKind;
 import com.meetingplanner.domains.friend.service.BlockService;
@@ -43,6 +45,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -336,14 +339,14 @@ class InviteServiceImplTest {
         when(meetingRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(meeting));
         when(meetingInviteRepository.transitionStatus(eq(7L), eq(InviteStatus.PENDING),
                 eq(InviteStatus.ACCEPTED), any(OffsetDateTime.class))).thenReturn(1);
-        when(conflictService.findScheduleConflicts(eq(2L), any(), any(), eq(3L))).thenReturn(List.of());
 
         service.acceptMeetingInvite(2L, 7L);
 
-        InOrder order = inOrder(groupRepository, meetingRepository, meetingInviteRepository,
+        InOrder order = inOrder(groupRepository, meetingRepository, conflictService, meetingInviteRepository,
                 meetingParticipantRepository);
         order.verify(groupRepository).findByIdForUpdate(9L);
         order.verify(meetingRepository).findByIdForUpdate(3L);
+        order.verify(conflictService).assertNoScheduleConflict(eq(2L), any(), any(), eq(3L));
         order.verify(meetingInviteRepository).transitionStatus(eq(7L), eq(InviteStatus.PENDING),
                 eq(InviteStatus.ACCEPTED), any(OffsetDateTime.class));
         order.verify(meetingParticipantRepository).saveAndFlush(any());
@@ -416,7 +419,76 @@ class InviteServiceImplTest {
         assertEquals("Room 4", meetingItem.meetingLocation());
         assertNull(groupItem.meetingStartTime());
         assertNull(groupItem.meetingLocation());
+        assertEquals(List.of(), groupItem.conflicts());
         assertNull(page.nextCursor());
+    }
+
+    @Test
+    void listMineAttachesRecipientsScheduleConflictsToPendingMeetingInvites() {
+        UserEntity owner = user(1L, "owner");
+        UserEntity recipient = user(2L, "recipient");
+        MeetingEntity meeting = meeting(4L, owner, null);
+        MeetingInviteEntity pending = meetingInvite(meeting, owner, recipient, InviteStatus.PENDING);
+        ScheduleConflict clash = new ScheduleConflict(8L, "Dentist", meeting.getStartTime(), null, true);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
+        when(meetingInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(null),
+                eq("MEETING"), any(), any(), any(), any())).thenReturn(List.of(pending));
+        when(conflictService.scheduleConflictsFor(2L, meeting.getStartTime(), null, 4L)).thenReturn(List.of(clash));
+
+        CursorPage<InviteResponse> page = service.listMine(2L, null, TargetKind.MEETING, null, 20);
+
+        assertEquals(List.of(clash), page.items().getFirst().conflicts());
+    }
+
+    @Test
+    void listMineSkipsConflictLookupForAnsweredMeetingInvites() {
+        UserEntity owner = user(1L, "owner");
+        UserEntity recipient = user(2L, "recipient");
+        MeetingInviteEntity declined = meetingInvite(meeting(4L, owner, null), owner, recipient, InviteStatus.DECLINED);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
+        when(meetingInviteRepository.listForRecipient(eq(2L), eq("recipient@example.com"), eq(null),
+                eq("MEETING"), any(), any(), any(), any())).thenReturn(List.of(declined));
+
+        CursorPage<InviteResponse> page = service.listMine(2L, null, TargetKind.MEETING, null, 20);
+
+        assertEquals(List.of(), page.items().getFirst().conflicts());
+        verifyNoInteractions(conflictService);
+    }
+
+    @Test
+    void acceptingMeetingInviteIntoScheduleConflictLeavesItPending() {
+        UserEntity sender = user(1L, "alice");
+        UserEntity recipient = user(2L, "bob");
+        MeetingEntity meeting = meeting(3L, sender, null);
+        MeetingInviteEntity invite = meetingInvite(meeting, sender, recipient, InviteStatus.PENDING);
+        when(meetingInviteRepository.findById(7L)).thenReturn(Optional.of(invite));
+        when(meetingRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(meeting));
+        doThrow(new ScheduleConflictException("Conflicts with an existing meeting"))
+                .when(conflictService).assertNoScheduleConflict(eq(2L), any(), any(), eq(3L));
+
+        assertThrows(ScheduleConflictException.class, () -> service.acceptMeetingInvite(2L, 7L));
+
+        assertEquals(InviteStatus.PENDING, invite.getStatus());
+        verify(meetingInviteRepository, never()).transitionStatus(anyLong(), any(), any(), any());
+        verifyNoInteractions(meetingParticipantRepository, notificationService);
+    }
+
+    @Test
+    void acceptingMeetingInviteByTokenIntoScheduleConflictLeavesItPending() {
+        UserEntity sender = user(1L, "alice");
+        UserEntity recipient = user(2L, "bob");
+        MeetingEntity meeting = meeting(3L, sender, null);
+        MeetingInviteEntity invite = meetingInvite(meeting, sender, recipient, InviteStatus.PENDING);
+        when(meetingInviteRepository.findByTokenHash(anyString())).thenReturn(Optional.of(invite));
+        when(meetingRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(meeting));
+        doThrow(new ScheduleConflictException("Conflicts with an existing meeting"))
+                .when(conflictService).assertNoScheduleConflict(eq(2L), any(), any(), eq(3L));
+
+        assertThrows(ScheduleConflictException.class, () -> service.acceptMeetingInviteByToken("token"));
+
+        assertEquals(InviteStatus.PENDING, invite.getStatus());
+        verify(meetingInviteRepository, never()).transitionStatus(anyLong(), any(), any(), any());
+        verifyNoInteractions(meetingParticipantRepository);
     }
 
     @Test

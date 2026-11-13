@@ -20,6 +20,9 @@ public record InviteResponse(
         OffsetDateTime meetingStartTime,
         OffsetDateTime meetingEndTime,
         String meetingLocation,
-        List<String> warnings
+        // Heads-ups for the sender (e.g. the recipient may be busy); set on invites just sent.
+        List<String> warnings,
+        // The recipient's meetings this meeting overlaps; set on meeting invites listed for their recipient.
+        List<ScheduleConflict> conflicts
 ) {
 }

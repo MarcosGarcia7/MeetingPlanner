@@ -4,8 +4,10 @@ import Link from 'next/link';
 import type {CursorPage} from '@/lib/types/api';
 import type {FriendshipResponse} from '@/lib/types/friend';
 import type {InviteResponse} from '@/lib/types/invite';
+import type {ScheduleConflict} from '@/lib/types/meeting';
 import {usePostAction} from '@/app/components/dashboard/use-post-action';
 import {inviteDetails} from '@/app/components/dashboard/inbox/items';
+import InviteResponseActions from '@/app/components/dashboard/meetings/invite-response';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './home.module.css';
 
@@ -22,6 +24,8 @@ interface Item {
   details: string[];
   acceptUrl: string;
   declineUrl: string;
+  // Meeting invites: answered with InviteResponseActions, which shows and handles schedule clashes.
+  invite?: {inviteId: number; conflicts: ScheduleConflict[]};
 }
 
 function inviteItem(invite: InviteResponse, timeZone: string): Item {
@@ -39,6 +43,7 @@ function inviteItem(invite: InviteResponse, timeZone: string): Item {
     details: inviteDetails(invite, timeZone),
     acceptUrl: `${base}/accept`,
     declineUrl: `${base}/decline`,
+    invite: invite.kind === 'MEETING' ? {inviteId: invite.id, conflicts: invite.conflicts} : undefined,
   };
 }
 
@@ -82,7 +87,7 @@ export default function NeedsAttention({invites, friendRequests, timeZone}: Need
           {items.map((item) => {
             const error = errorFor(item.key);
             return (
-              <li key={item.key} className={styles.item}>
+              <li key={item.key} className={item.invite ? styles.decisionItem : styles.item}>
                 <div className={styles.itemBody}>
                   <span className={styles.itemTitle}>{item.title}</span>
                   {item.details.map((detail) => (
@@ -90,16 +95,21 @@ export default function NeedsAttention({invites, friendRequests, timeZone}: Need
                   ))}
                   {error && <span className={dashboardStyles.error}>{error}</span>}
                 </div>
-                <div className={dashboardStyles.actions}>
-                  <button type='button' className={dashboardStyles.button} disabled={busy}
-                          onClick={() => run(item.key, item.acceptUrl)}>
-                    Accept
-                  </button>
-                  <button type='button' className={dashboardStyles.buttonSecondary} disabled={busy}
-                          onClick={() => run(item.key, item.declineUrl)}>
-                    Decline
-                  </button>
-                </div>
+                {item.invite ? (
+                  <InviteResponseActions inviteId={item.invite.inviteId} conflicts={item.invite.conflicts}
+                                         timeZone={timeZone}/>
+                ) : (
+                  <div className={dashboardStyles.actions}>
+                    <button type='button' className={dashboardStyles.button} disabled={busy}
+                            onClick={() => run(item.key, item.acceptUrl)}>
+                      Accept
+                    </button>
+                    <button type='button' className={dashboardStyles.buttonSecondary} disabled={busy}
+                            onClick={() => run(item.key, item.declineUrl)}>
+                      Decline
+                    </button>
+                  </div>
+                )}
               </li>
             );
           })}

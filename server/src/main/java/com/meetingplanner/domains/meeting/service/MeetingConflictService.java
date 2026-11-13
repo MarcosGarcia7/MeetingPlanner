@@ -1,6 +1,8 @@
 package com.meetingplanner.domains.meeting.service;
 
 import com.meetingplanner.common.api.MeetingTimes;
+import com.meetingplanner.common.api.dto.ScheduleConflict;
+import com.meetingplanner.common.api.exceptions.ScheduleConflictException;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
 import com.meetingplanner.domains.meeting.repository.MeetingRepository;
 import com.meetingplanner.domains.user.model.UserAvailabilityEntity;
@@ -53,8 +55,42 @@ public class MeetingConflictService {
         return meetingRepository.findScheduleConflicts(userId, start, effectiveEnd(start, end), excludeMeetingId);
     }
 
+    /** The viewer's meetings these times overlap (other than {@code excludeMeetingId}), as shown to the viewer. */
+    @Transactional(readOnly = true)
+    public List<ScheduleConflict> scheduleConflictsFor(long viewerId, OffsetDateTime start, OffsetDateTime end,
+                                                       Long excludeMeetingId) {
+        return findScheduleConflicts(viewerId, start, end, excludeMeetingId).stream()
+                .map(m -> new ScheduleConflict(m.getId(), m.getTitle(), m.getStartTime(), m.getEndTime(),
+                        m.getCreator() != null && m.getCreator().getId().equals(viewerId)))
+                .toList();
+    }
+
+    /**
+     * Throws {@link ScheduleConflictException} if these times overlap a meeting on the user's own schedule
+     * (other than {@code excludeMeetingId}). The message names the first clash, in the user's time zone.
+     */
+    @Transactional(readOnly = true)
+    public void assertNoScheduleConflict(long userId, OffsetDateTime start, OffsetDateTime end, Long excludeMeetingId) {
+        List<MeetingEntity> conflicts = findScheduleConflicts(userId, start, end, excludeMeetingId);
+        if (!conflicts.isEmpty()) {
+            throw new ScheduleConflictException(
+                    scheduleConflictMessage(conflicts.getFirst(), zoneFor(userRepository.findById(userId).orElse(null))));
+        }
+    }
+
+    public static String scheduleConflictMessage(MeetingEntity conflict, ZoneId zone) {
+        return "Conflicts with an existing meeting: \"" + conflict.getTitle() + "\" at "
+                + MeetingTimes.format(conflict.getStartTime(), conflict.getEndTime(), zone);
+    }
+
     @Transactional(readOnly = true)
     public List<String> scheduleWarningsForViewer(long viewerId, long targetUserId, OffsetDateTime start, OffsetDateTime end) {
+        return scheduleWarningsForViewer(viewerId, targetUserId, start, end, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> scheduleWarningsForViewer(long viewerId, long targetUserId, OffsetDateTime start, OffsetDateTime end,
+                                                  Long excludeMeetingId) {
         if (start == null || !scheduleAuthorization.canViewSchedule(viewerId, targetUserId)) {
             return List.of();
         }
@@ -63,7 +99,7 @@ public class MeetingConflictService {
             return List.of();
         }
         List<MeetingEntity> conflicts = meetingRepository.findScheduleConflictsForUser(
-                targetUserId, true, start, effectiveEnd(start, end), null);
+                targetUserId, true, start, effectiveEnd(start, end), excludeMeetingId);
         // Shown to the viewer, so times are in the viewer's zone.
         ZoneId zone = zoneFor(userRepository.findById(viewerId).orElse(null));
         List<String> warnings = new ArrayList<>();

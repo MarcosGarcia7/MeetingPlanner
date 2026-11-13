@@ -17,6 +17,7 @@ import com.meetingplanner.common.api.dto.MeetingInviteRequest;
 import com.meetingplanner.common.api.dto.MeetingResponse;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingUpdateRequest;
+import com.meetingplanner.common.api.dto.TimeChangeCheckRequest;
 import com.meetingplanner.common.api.dto.ParticipantResponse;
 import com.meetingplanner.common.api.exceptions.EmailNotVerifiedException;
 import com.meetingplanner.common.api.exceptions.ForbiddenException;
@@ -174,8 +175,52 @@ public class MeetingServiceImpl implements MeetingService {
 
     // Shown to the acting user, so times are in their profile zone.
     private static String scheduleConflictMessage(MeetingEntity conflict, ZoneId zone) {
-        return "Conflicts with an existing meeting: \"" + conflict.getTitle() + "\" at "
-                + MeetingTimes.format(conflict.getStartTime(), conflict.getEndTime(), zone);
+        return MeetingConflictService.scheduleConflictMessage(conflict, zone);
+    }
+
+    // Previews a new time for an existing meeting before it's saved or proposed: the editor's own clashes
+    // (which update rejects with schedule_conflict), their availability, and each other participant's clashes
+    // where the editor may see their schedule.
+    @Override
+    @Transactional(readOnly = true)
+    public MeetingDraftCheckResponse checkTimeChange(long userId, long meetingId, TimeChangeCheckRequest request) {
+        MeetingEntity meeting = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+        if (!authorization.canManage(userId, meeting)) {
+            throw new ResourceNotFoundException("Meeting not found");
+        }
+        UserEntity editor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        validateTimes(request.startTime(), request.endTime());
+
+        ZoneId zone = MeetingTimes.zoneFor(editor.getTimezone(), defaultTimezone);
+        List<String> conflicts = conflictService.findScheduleConflicts(
+                        userId, request.startTime(), request.endTime(), meetingId).stream()
+                .map(conflict -> scheduleConflictMessage(conflict, zone))
+                .toList();
+        List<String> warnings = conflictService.availabilityWarnings(userId, request.startTime(), request.endTime());
+
+        Map<Long, UserEntity> others = new LinkedHashMap<>();
+        for (MeetingParticipantEntity p : meeting.getParticipants()) {
+            others.putIfAbsent(p.getUser().getId(), p.getUser());
+        }
+        if (meeting.getCreator() != null) {
+            others.putIfAbsent(meeting.getCreator().getId(), meeting.getCreator());
+        }
+        others.remove(userId);
+        List<InviteCheckResult> results = new ArrayList<>();
+        for (UserEntity other : others.values()) {
+            // Exclude this meeting: the participant is already in it, so only their other meetings clash.
+            List<String> otherWarnings = new ArrayList<>();
+            otherWarnings.addAll(conflictService.scheduleWarningsForViewer(
+                    userId, other.getId(), request.startTime(), request.endTime(), meetingId));
+            otherWarnings.addAll(conflictService.availabilityWarningsForViewer(
+                    userId, other.getId(), request.startTime(), request.endTime()));
+            if (!otherWarnings.isEmpty()) {
+                results.add(new InviteCheckResult(other.getUsername(), null, otherWarnings));
+            }
+        }
+        return new MeetingDraftCheckResponse(conflicts, warnings, results);
     }
 
     // Previews what creating a meeting at these times would run into, before it exists: the creator's own
@@ -235,6 +280,8 @@ public class MeetingServiceImpl implements MeetingService {
         OffsetDateTime newEnd = endChanging ? request.endTime() : meeting.getEndTime();
         if (timesChanging) {
             validateTimes(newStart, newEnd);
+            // Whether applied directly or proposed, the editor must not end up double-booked.
+            conflictService.assertNoScheduleConflict(userId, newStart, newEnd, meetingId);
         }
 
         boolean nonTimeChanged = false;
@@ -466,7 +513,11 @@ public class MeetingServiceImpl implements MeetingService {
                 canManage,
                 viewer.status(),
                 viewer.pendingRequestId(),
-                viewer.pendingInviteId());
+                viewer.pendingInviteId(),
+                // An invited viewer sees what accepting would clash with before they click.
+                viewer.status() == MeetingViewerStatus.INVITED
+                        ? conflictService.scheduleConflictsFor(viewerId, m.getStartTime(), m.getEndTime(), m.getId())
+                        : List.of());
     }
 
     private record ViewerState(MeetingViewerStatus status, Long pendingRequestId, Long pendingInviteId) {
@@ -544,6 +595,7 @@ public class MeetingServiceImpl implements MeetingService {
             throw new ResourceNotFoundException("Meeting not found");
         }
         meetingParticipantRepository.deleteByMeetingIdAndUserId(meetingId, targetUserId);
+        timeChangeService.onParticipantRemoved(meetingId, targetUserId);
     }
 
     @Override
@@ -558,6 +610,7 @@ public class MeetingServiceImpl implements MeetingService {
             throw new ResourceNotFoundException("Meeting not found");
         }
         meetingParticipantRepository.deleteByMeetingIdAndUserId(meetingId, userId);
+        timeChangeService.onParticipantRemoved(meetingId, userId);
     }
 
     @Override
@@ -842,6 +895,7 @@ public class MeetingServiceImpl implements MeetingService {
                 invite.getMeeting() == null ? null : invite.getMeeting().getStartTime(),
                 invite.getMeeting() == null ? null : invite.getMeeting().getEndTime(),
                 invite.getMeeting() == null ? null : invite.getMeeting().getLocation(),
-                warnings);
+                warnings,
+                List.of());
     }
 }

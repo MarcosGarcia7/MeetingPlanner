@@ -4,6 +4,9 @@ import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteBatchResponse;
 import com.meetingplanner.common.api.dto.MeetingDraftCheckRequest;
 import com.meetingplanner.common.api.dto.MeetingDraftCheckResponse;
+import com.meetingplanner.common.api.dto.ScheduleConflict;
+import com.meetingplanner.common.api.dto.TimeChangeCheckRequest;
+import com.meetingplanner.common.api.exceptions.ScheduleConflictException;
 import com.meetingplanner.common.api.dto.MeetingInviteBatchRequest;
 import com.meetingplanner.common.api.dto.MeetingSummaryResponse;
 import com.meetingplanner.common.api.dto.MeetingInviteRequest;
@@ -230,7 +233,9 @@ class MeetingServiceImplTest {
         assertEquals(MeetingViewerStatus.PARTICIPANT, response.viewerStatus());
         assertNull(response.pendingRequestId());
         assertNull(response.pendingInviteId());
+        assertEquals(List.of(), response.viewerConflicts());
         verifyNoInteractions(meetingInviteRepository, meetingJoinRequestRepository, blockService);
+        verify(conflictService, never()).scheduleConflictsFor(anyLong(), any(), any(), any());
     }
 
     @Test
@@ -241,10 +246,14 @@ class MeetingServiceImplTest {
         when(meetingInviteRepository.findFirstByMeetingIdAndRecipientIdAndStatus(10L, 2L, InviteStatus.PENDING))
                 .thenReturn(Optional.of(invite));
 
+        ScheduleConflict clash = new ScheduleConflict(11L, "Dentist", OffsetDateTime.now(), null, false);
+        when(conflictService.scheduleConflictsFor(eq(2L), any(), any(), eq(10L))).thenReturn(List.of(clash));
+
         MeetingResponse response = service.get(2L, 10L);
 
         assertEquals(MeetingViewerStatus.INVITED, response.viewerStatus());
         assertEquals(30L, response.pendingInviteId());
+        assertEquals(List.of(clash), response.viewerConflicts());
         assertNull(response.pendingRequestId());
         verifyNoInteractions(meetingJoinRequestRepository);
     }
@@ -899,6 +908,7 @@ class MeetingServiceImplTest {
 
         verify(meetingRepository, never()).findById(anyLong());
         verify(meetingParticipantRepository).deleteByMeetingIdAndUserId(10L, 2L);
+        verify(timeChangeService).onParticipantRemoved(10L, 2L);
     }
 
     @Test
@@ -1007,5 +1017,85 @@ class MeetingServiceImplTest {
 
         assertThrows(ResourceNotFoundException.class, () -> service.checkDraft(1L,
                 new MeetingDraftCheckRequest(OffsetDateTime.now().plusDays(1), null, null)));
+    }
+
+    @Test
+    void updateIntoEditorsOwnScheduleConflictIsRejected() {
+        UserEntity creator = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, creator, creator, bob);
+        OffsetDateTime originalStart = meeting.getStartTime();
+        OffsetDateTime newStart = originalStart.plusDays(1);
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        doThrow(new ScheduleConflictException("Conflicts with an existing meeting"))
+                .when(conflictService).assertNoScheduleConflict(1L, newStart, null, 10L);
+
+        assertThrows(ScheduleConflictException.class,
+                () -> service.update(1L, 10L, new MeetingUpdateRequest(newStart, null, null, null, null)));
+
+        assertEquals(originalStart, meeting.getStartTime());
+        verify(timeChangeService, never()).createProposal(anyLong(), any(), any(), any());
+        verify(meetingRepository, never()).save(any(MeetingEntity.class));
+    }
+
+    @Test
+    void leaveMeetingDropsPendingTimeChangeVote() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice, alice, bob);
+
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(authorization.canView(2L, meeting)).thenReturn(true);
+
+        service.leaveMeeting(2L, 10L);
+
+        verify(meetingParticipantRepository).deleteByMeetingIdAndUserId(10L, 2L);
+        verify(timeChangeService).onParticipantRemoved(10L, 2L);
+    }
+
+    @Test
+    void checkTimeChangeExcludesThisMeetingAndReportsParticipantWarnings() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        MeetingEntity meeting = meeting(10L, alice, alice, bob);
+        MeetingEntity standup = meeting(11L, alice, alice);
+        standup.setTitle("Standup");
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(conflictService.findScheduleConflicts(1L, start, null, 10L)).thenReturn(List.of(standup));
+        when(conflictService.scheduleWarningsForViewer(1L, 2L, start, null, 10L)).thenReturn(List.of("bob may be busy"));
+        when(conflictService.availabilityWarningsForViewer(1L, 2L, start, null)).thenReturn(List.of());
+
+        MeetingDraftCheckResponse response = service.checkTimeChange(1L, 10L, new TimeChangeCheckRequest(start, null));
+
+        assertEquals(1, response.conflicts().size());
+        assertTrue(response.conflicts().getFirst().contains("Standup"));
+        assertEquals(1, response.recipients().size());
+        assertEquals("bob", response.recipients().getFirst().username());
+        assertEquals(List.of("bob may be busy"), response.recipients().getFirst().warnings());
+    }
+
+    @Test
+    void checkTimeChangeByNonManagerIsNotFound() {
+        UserEntity alice = user(1L, "alice");
+        MeetingEntity meeting = meeting(10L, alice, alice);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(authorization.canManage(3L, meeting)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.checkTimeChange(3L, 10L,
+                new TimeChangeCheckRequest(OffsetDateTime.now().plusDays(1), null)));
+        verifyNoInteractions(conflictService);
+    }
+
+    @Test
+    void checkTimeChangeOnMissingMeetingIsNotFound() {
+        when(meetingRepository.findById(10L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.checkTimeChange(1L, 10L,
+                new TimeChangeCheckRequest(OffsetDateTime.now().plusDays(1), null)));
     }
 }

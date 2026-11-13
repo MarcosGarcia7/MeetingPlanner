@@ -39,7 +39,7 @@ export function usePostAction() {
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setError({key, message: 'Couldn’t reach the server. Please try again.'});
+      setError({key, message: 'Couldn\'t reach the server. Please try again.'});
       return false;
     } finally {
       setPendingKey(null);

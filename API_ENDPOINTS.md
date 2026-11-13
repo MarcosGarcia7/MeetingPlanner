@@ -1,6 +1,6 @@
 # Server API Endpoints
 
-114 endpoints across 16 controllers, generated from the Spring controllers in
+115 endpoints across 16 controllers, generated from the Spring controllers in
 `server/src/main/java/com/meetingplanner/domains/*/controller`.
 
 ## AuthController (9)
@@ -100,7 +100,7 @@
 | POST | `/api/requests/meeting/{requestId}/decline` | `declineMeeting` |
 | POST | `/api/requests/meeting/{requestId}/cancel` | `cancelMeeting` |
 
-## MeetingController (14)
+## MeetingController (15)
 
 | Method | Path | Handler |
 | --- | --- | --- |
@@ -116,6 +116,7 @@
 | DELETE | `/api/meetings/{meetingId}/participants/me` | `leave` |
 | POST | `/api/meetings/{meetingId}/invites` | `invite` |
 | POST | `/api/meetings/{meetingId}/invites/check` | `checkInvites` |
+| POST | `/api/meetings/{meetingId}/time-change/check` | `checkTimeChange` |
 | POST | `/api/meetings/{meetingId}/join-requests` | `requestJoin` |
 | GET | `/api/meetings/{meetingId}/join-requests` (`?status=` optional) | `listJoinRequests` |
 

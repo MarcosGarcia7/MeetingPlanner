@@ -3,6 +3,7 @@ package com.meetingplanner.domains.invite.service;
 import com.meetingplanner.common.api.CursorCodec;
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteResponse;
+import com.meetingplanner.common.api.dto.ScheduleConflict;
 import com.meetingplanner.common.api.exceptions.InvalidTokenException;
 import com.meetingplanner.common.api.exceptions.ResourceNotFoundException;
 import com.meetingplanner.common.api.model.InviteStatus;
@@ -113,7 +114,14 @@ public class InviteServiceImpl implements InviteService {
             entries.add(new FeedEntry(toGroupResponse(invite), invite.getTimeSent(), "GROUP", invite.getId()));
         }
         for (MeetingInviteEntity invite : meetingInvites) {
-            entries.add(new FeedEntry(toMeetingResponse(invite), invite.getTimeSent(), "MEETING", invite.getId()));
+            MeetingEntity meeting = invite.getMeeting();
+            // Only pending invites can still be accepted, so only they need the recipient's clashes.
+            List<ScheduleConflict> conflicts = meeting != null && invite.getStatus() == InviteStatus.PENDING
+                    ? conflictService.scheduleConflictsFor(userId, meeting.getStartTime(), meeting.getEndTime(),
+                            meeting.getId())
+                    : List.of();
+            entries.add(new FeedEntry(toMeetingResponse(invite, conflicts), invite.getTimeSent(), "MEETING",
+                    invite.getId()));
         }
         entries.sort(Comparator
                 .comparing(FeedEntry::timeSent).reversed()
@@ -169,9 +177,9 @@ public class InviteServiceImpl implements InviteService {
         assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         assertNotBannedFromMeetingGroup(invite.getMeeting(), invite.getRecipient());
         lockMeeting(invite.getMeeting());
+        assertNoScheduleConflict(invite);
         respondPendingOnly(invite, InviteStatus.ACCEPTED, "Invite has already been responded to");
         if (invite.getRecipient() != null) {
-            assertNoScheduleConflict(invite.getRecipient(), invite.getMeeting());
             addParticipant(invite.getMeeting(), invite.getRecipient());
         }
         sendAcceptedEmail(invite);
@@ -232,9 +240,9 @@ public class InviteServiceImpl implements InviteService {
         assertNotBlockedForPending(invite.getSender(), invite.getRecipient(), invite.getStatus());
         assertNotBannedFromMeetingGroup(invite.getMeeting(), invite.getRecipient());
         lockMeeting(invite.getMeeting());
+        assertNoScheduleConflict(invite);
         respondPendingOnly(invite, InviteStatus.ACCEPTED, "Invite has already been responded to");
         if (invite.getRecipient() != null) {
-            assertNoScheduleConflict(invite.getRecipient(), invite.getMeeting());
             addParticipant(invite.getMeeting(), invite.getRecipient());
         } else {
             addExternalParticipant(invite.getMeeting(), invite.getRecipientEmail());
@@ -324,12 +332,15 @@ public class InviteServiceImpl implements InviteService {
                 .orElseThrow(() -> new ResourceNotFoundException("Invite not found"));
     }
 
-    private void assertNoScheduleConflict(UserEntity recipient, MeetingEntity meeting) {
-        boolean conflicts = !conflictService.findScheduleConflicts(
-                recipient.getId(), meeting.getStartTime(), meeting.getEndTime(), meeting.getId()).isEmpty();
-        if (conflicts) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "This meeting conflicts with your schedule");
+    // Checked before the invite is marked accepted, so a refused accept leaves it pending. Email-only
+    // recipients (no account) have no schedule to clash with.
+    private void assertNoScheduleConflict(MeetingInviteEntity invite) {
+        if (invite.getRecipient() == null) {
+            return;
         }
+        MeetingEntity meeting = invite.getMeeting();
+        conflictService.assertNoScheduleConflict(invite.getRecipient().getId(), meeting.getStartTime(),
+                meeting.getEndTime(), meeting.getId());
     }
 
     private void addParticipant(MeetingEntity meeting, UserEntity user) {
@@ -448,10 +459,15 @@ public class InviteServiceImpl implements InviteService {
                 null,
                 null,
                 null,
+                List.of(),
                 List.of());
     }
 
     private static InviteResponse toMeetingResponse(MeetingInviteEntity invite) {
+        return toMeetingResponse(invite, List.of());
+    }
+
+    private static InviteResponse toMeetingResponse(MeetingInviteEntity invite, List<ScheduleConflict> conflicts) {
         UserEntity sender = invite.getSender();
         return new InviteResponse(
                 invite.getId(),
@@ -468,6 +484,7 @@ public class InviteServiceImpl implements InviteService {
                 invite.getMeeting() == null ? null : invite.getMeeting().getStartTime(),
                 invite.getMeeting() == null ? null : invite.getMeeting().getEndTime(),
                 invite.getMeeting() == null ? null : invite.getMeeting().getLocation(),
-                List.of());
+                List.of(),
+                conflicts);
     }
 }

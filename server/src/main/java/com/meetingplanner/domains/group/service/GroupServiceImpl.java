@@ -463,6 +463,7 @@ public class GroupServiceImpl implements GroupService {
                 null,
                 null,
                 null,
+                List.of(),
                 List.of());
     }
 

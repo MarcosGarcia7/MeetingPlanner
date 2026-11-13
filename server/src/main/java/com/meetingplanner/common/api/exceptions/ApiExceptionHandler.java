@@ -148,6 +148,14 @@ public class ApiExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(ScheduleConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleScheduleConflict(ScheduleConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "error", "schedule_conflict",
+                "message", e.getMessage()
+        ));
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException e) {
         HttpStatus status = HttpStatus.resolve(e.getStatusCode().value());

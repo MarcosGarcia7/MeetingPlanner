@@ -25,6 +25,12 @@
   padding-top: 0;
 }
 
+/* A time change or invite to answer: the controls wrap onto their own line below the text. */
+.decisionItem {
+  composes: item;
+  flex-wrap: wrap;
+}
+
 /* List of clickable items, each its own bordered card instead of a separated row. */
 .cardList {
   composes: list;

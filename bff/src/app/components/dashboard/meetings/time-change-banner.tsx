@@ -1,9 +1,10 @@
 'use client';
 
-import type {TimeChangeProposalResponse, TimeChangeVoteRequest} from '@/lib/types/meeting';
+import type {TimeChangeProposalResponse} from '@/lib/types/meeting';
 import {formatLongDate, formatMeetingTime} from '@/app/components/dashboard/home/format';
 import {usePostAction} from '@/app/components/dashboard/use-post-action';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
+import TimeChangeVote from './time-change-vote';
 import styles from './meetings.module.css';
 
 interface TimeChangeBannerProps {
@@ -13,7 +14,8 @@ interface TimeChangeBannerProps {
 }
 
 // A pending time change on this meeting. Participants who haven't voted can approve or decline (one
-// decline rejects it; it applies once everyone approves); whoever proposed it can withdraw it.
+// decline rejects it; it applies once everyone approves) through TimeChangeVote, which also stops them
+// approving into a clash on their schedule. Whoever proposed it can withdraw it.
 export default function TimeChangeBanner({proposal, viewerId, timeZone}: TimeChangeBannerProps) {
   const {run, busy, errorFor} = usePostAction();
   const key = `proposal-${proposal.id}`;
@@ -21,11 +23,6 @@ export default function TimeChangeBanner({proposal, viewerId, timeZone}: TimeCha
   const base = `/api/meetings/${proposal.meetingId}/time-change/${proposal.id}`;
   const {time} = formatMeetingTime(proposal.proposedStartTime, proposal.proposedEndTime, timeZone);
   const proposedByMe = proposal.proposedById === viewerId;
-
-  function vote(approve: boolean) {
-    const body: TimeChangeVoteRequest = {approve};
-    return run(key, `${base}/vote`, body);
-  }
 
   return (
     <section className={styles.banner} aria-labelledby='time-change-title'>
@@ -39,32 +36,17 @@ export default function TimeChangeBanner({proposal, viewerId, timeZone}: TimeCha
             : `Proposed by @${proposal.proposedByUsername}.`}
           {proposal.myVote === 'APPROVED' && ' You approved it; waiting on the others.'}
         </span>
-        {proposal.conflicts.map((conflict) => (
-          <span key={conflict.meetingId} className={dashboardStyles.meta}>
-            Clashes with “{conflict.title}” on your schedule.
-          </span>
-        ))}
         {error && <span className={dashboardStyles.error} role='alert'>{error}</span>}
       </div>
-      <div className={dashboardStyles.actions}>
-        {proposal.myVote === 'PENDING' && (
-          <>
-            <button type='button' className={dashboardStyles.button} disabled={busy} onClick={() => vote(true)}>
-              Approve
-            </button>
-            <button type='button' className={dashboardStyles.buttonSecondary} disabled={busy}
-                    onClick={() => vote(false)}>
-              Decline
-            </button>
-          </>
-        )}
-        {proposedByMe && (
+      {proposedByMe && (
+        <div className={dashboardStyles.actions}>
           <button type='button' className={dashboardStyles.buttonSecondary} disabled={busy}
                   onClick={() => run(key, `${base}/cancel`)}>
             Withdraw
           </button>
-        )}
-      </div>
+        </div>
+      )}
+      {proposal.myVote === 'PENDING' && <TimeChangeVote proposal={proposal} timeZone={timeZone}/>}
     </section>
   );
 }

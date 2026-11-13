@@ -23,11 +23,14 @@ export type ProposalRole = 'PROPOSER' | 'VOTER';
 // Mirrors server common/api/model/VoteStatus.
 export type VoteStatus = 'PENDING' | 'APPROVED' | 'DECLINED';
 
-// Mirrors server common/api/dto/TimeChangeConflict.
-export interface TimeChangeConflict {
+// Mirrors server common/api/dto/ScheduleConflict. A meeting on the viewer's schedule that a proposed time
+// or an invite overlaps; `createdByViewer` decides whether they can leave it or only delete it.
+export interface ScheduleConflict {
   meetingId: number;
   title: string;
   startTime: string;
+  endTime: string | null;
+  createdByViewer: boolean;
 }
 
 // Mirrors server common/api/dto/TimeChangeProposalResponse.
@@ -35,6 +38,7 @@ export interface TimeChangeProposalResponse {
   id: number;
   meetingId: number;
   meetingTitle: string | null;
+  meetingCreatedByViewer: boolean;
   proposedById: number | null;
   proposedByUsername: string | null;
   proposedStartTime: string;
@@ -43,7 +47,13 @@ export interface TimeChangeProposalResponse {
   timeSent: string;
   resolvedAt: string | null;
   myVote: VoteStatus | null;
-  conflicts: TimeChangeConflict[];
+  conflicts: ScheduleConflict[];
+}
+
+// Mirrors server common/api/dto/TimeChangeCheckRequest.
+export interface TimeChangeCheckRequest {
+  startTime: string;
+  endTime?: string | null;
 }
 
 // Mirrors server common/api/dto/TimeChangeVoteRequest.
@@ -98,6 +108,8 @@ export interface MeetingResponse {
   // Set only when viewerStatus is REQUESTED / INVITED.
   pendingRequestId: number | null;
   pendingInviteId: number | null;
+  // For an INVITED viewer: their meetings this one overlaps.
+  viewerConflicts: ScheduleConflict[];
 }
 
 // Mirrors server common/api/dto/MeetingUpdateRequest. Omitted/null fields are left unchanged. A time

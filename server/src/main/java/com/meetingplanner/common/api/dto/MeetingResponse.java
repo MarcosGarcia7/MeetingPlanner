@@ -25,6 +25,8 @@ public record MeetingResponse(
         // The viewer's relationship to the meeting; the pending ids are set only for INVITED / REQUESTED.
         MeetingViewerStatus viewerStatus,
         Long pendingRequestId,
-        Long pendingInviteId
+        Long pendingInviteId,
+        // For an INVITED viewer: their meetings this one overlaps (accepting is refused until none are left).
+        List<ScheduleConflict> viewerConflicts
 ) {
 }
