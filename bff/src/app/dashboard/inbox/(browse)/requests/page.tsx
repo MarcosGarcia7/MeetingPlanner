@@ -15,6 +15,7 @@ import {
   outgoingFriendItem,
   sentRequestItem,
 } from '@/app/components/dashboard/inbox/items';
+import {profileTimeZone} from '@/lib/timezone';
 
 export default async function InboxRequestsPage() {
   await verifySession();
@@ -37,7 +38,7 @@ export default async function InboxRequestsPage() {
   const joinIn = valueOrNull(results[1]);
   const friendsOut = valueOrNull(results[2]);
   const joinOut = valueOrNull(results[3]);
-  const timeZone = valueOrNull(results[4])?.timezone ?? 'UTC';
+  const timeZone = profileTimeZone(valueOrNull(results[4]));
 
   const incoming = friendsIn && joinIn
     ? [...friendsIn.items.map(incomingFriendItem), ...joinIn.items.map(incomingRequestItem)]

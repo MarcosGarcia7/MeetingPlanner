@@ -1,6 +1,7 @@
 package com.meetingplanner.domains.meeting.service;
 
 import com.meetingplanner.common.api.CursorCodec;
+import com.meetingplanner.common.api.MeetingTimes;
 import com.meetingplanner.common.api.SearchQuery;
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.InviteBatchResponse;
@@ -51,7 +52,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -85,6 +86,10 @@ public class MeetingServiceImpl implements MeetingService {
 
     @Value("${app.meeting.start-grace-minutes:5}")
     private long startGraceMinutes;
+
+    // Time zone for users without a profile zone (and non-users), from DEFAULT_TIMEZONE.
+    @Value("${app.default-timezone:UTC}")
+    private String defaultTimezone;
 
     public MeetingServiceImpl(MeetingAuthorizationService authorization,
                               GroupAuthorizationService groupAuthorization,
@@ -139,7 +144,8 @@ public class MeetingServiceImpl implements MeetingService {
         List<MeetingEntity> conflicts = conflictService.findScheduleConflicts(
                 userId, request.startTime(), request.endTime(), null);
         if (!conflicts.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, scheduleConflictMessage(conflicts));
+            throw new ResponseStatusException(HttpStatus.CONFLICT, scheduleConflictMessage(
+                    conflicts.getFirst(), MeetingTimes.zoneFor(creator.getTimezone(), defaultTimezone)));
         }
 
         MeetingEntity meeting = new MeetingEntity();
@@ -166,13 +172,10 @@ public class MeetingServiceImpl implements MeetingService {
         }
     }
 
-    private static String scheduleConflictMessage(List<MeetingEntity> conflicts) {
-        return scheduleConflictMessage(conflicts.getFirst());
-    }
-
-    private static String scheduleConflictMessage(MeetingEntity conflict) {
+    // Shown to the acting user, so times are in their profile zone.
+    private static String scheduleConflictMessage(MeetingEntity conflict, ZoneId zone) {
         return "Conflicts with an existing meeting: \"" + conflict.getTitle() + "\" at "
-                + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(conflict.getStartTime());
+                + MeetingTimes.format(conflict.getStartTime(), conflict.getEndTime(), zone);
     }
 
     // Previews what creating a meeting at these times would run into, before it exists: the creator's own
@@ -188,7 +191,7 @@ public class MeetingServiceImpl implements MeetingService {
 
         List<String> conflicts = conflictService.findScheduleConflicts(
                         userId, request.startTime(), request.endTime(), null).stream()
-                .map(MeetingServiceImpl::scheduleConflictMessage)
+                .map(conflict -> scheduleConflictMessage(conflict, MeetingTimes.zoneFor(creator.getTimezone(), defaultTimezone)))
                 .toList();
         List<String> warnings = conflictService.availabilityWarnings(userId, request.startTime(), request.endTime());
 
@@ -314,6 +317,8 @@ public class MeetingServiceImpl implements MeetingService {
         for (UserEntity recipient : recipients.values()) {
             Map<String, String> perUser = new HashMap<>(vars);
             perUser.put("name", displayName(recipient));
+            perUser.put("when", MeetingTimes.format(meeting.getStartTime(), meeting.getEndTime(),
+                    MeetingTimes.zoneFor(recipient.getTimezone(), defaultTimezone)));
             notificationService.push(recipient.getId(), type, "meeting_updates", type, perUser);
         }
     }
@@ -321,7 +326,6 @@ public class MeetingServiceImpl implements MeetingService {
     private Map<String, String> notificationVars(MeetingEntity meeting) {
         Map<String, String> vars = new HashMap<>();
         vars.put("title", meeting.getTitle());
-        vars.put("start_time", DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getStartTime()));
         vars.put("location", meeting.getLocation() == null ? "" : meeting.getLocation());
         vars.put("link", appBaseUrl + "/meetings/" + meeting.getId());
         return vars;
@@ -692,12 +696,12 @@ public class MeetingServiceImpl implements MeetingService {
         meetingInviteRepository.saveAndFlush(invite);
 
         String link = appBaseUrl + "/invites/meeting?token=" + rawToken;
-        String details = "Starts: " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getStartTime());
-        if (meeting.getEndTime() != null) {
-            details += "\nEnds: " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getEndTime());
-        }
+        // Recipients without an account (or a profile time zone) see the organizer's zone, labeled.
+        ZoneId zone = MeetingTimes.zoneFor(
+                recipient != null ? recipient.getTimezone() : null, sender.getTimezone(), defaultTimezone);
+        String details = "When: " + MeetingTimes.format(meeting.getStartTime(), meeting.getEndTime(), zone);
         if (meeting.getLocation() != null && !meeting.getLocation().isBlank()) {
-            details += "\nLocation: " + meeting.getLocation();
+            details += "\nWhere: " + meeting.getLocation();
         }
         notificationService.queueEmailToForUser(recipient, recipientEmail, "MEETING_INVITE", Map.of(
                 "name", recipient != null ? recipient.getUsername() : emailDisplayName(recipientEmail),

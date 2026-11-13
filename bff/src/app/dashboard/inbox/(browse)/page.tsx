@@ -13,6 +13,7 @@ import type {JoinRequestResponse} from '@/lib/types/request';
 import type {UserProfileResponse} from '@/lib/types/user';
 import ActivityFeed from '@/app/components/dashboard/inbox/activity-feed';
 import styles from '@/app/components/dashboard/inbox/inbox.module.css';
+import {profileTimeZone} from '@/lib/timezone';
 
 const COUNT_SIZE = 50;
 
@@ -64,7 +65,7 @@ export default async function InboxOverviewPage() {
           </Link>
         ))}
       </nav>
-      <ActivityFeed initial={valueOrNull(results[4])} timeZone={valueOrNull(results[5])?.timezone ?? 'UTC'}/>
+      <ActivityFeed initial={valueOrNull(results[4])} timeZone={profileTimeZone(valueOrNull(results[5]))}/>
     </>
   );
 }

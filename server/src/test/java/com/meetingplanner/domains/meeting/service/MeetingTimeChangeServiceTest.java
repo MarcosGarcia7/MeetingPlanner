@@ -28,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -124,6 +126,29 @@ class MeetingTimeChangeServiceTest {
         verify(voteRepository).save(any(MeetingTimeChangeVoteEntity.class));
         verify(notificationService).push(eq(2L), eq("MEETING_TIME_CHANGE_REQUEST"), eq("meeting_updates"),
                 eq("MEETING_TIME_CHANGE_REQUEST"), anyMap());
+    }
+
+    @Test
+    void createProposalFormatsTimesInRecipientsZone() {
+        UserEntity alice = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        bob.setTimezone("America/Chicago");
+        MeetingEntity meeting = meeting(10L, alice, alice, bob);
+        OffsetDateTime newStart = OffsetDateTime.parse("2026-10-21T15:00:00Z");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(proposalRepository.findByMeetingIdAndStatus(10L, ProposalStatus.PENDING)).thenReturn(Optional.empty());
+        when(proposalRepository.saveAndFlush(any(MeetingTimeChangeProposalEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(voteRepository.save(any(MeetingTimeChangeVoteEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(conflictService.findScheduleConflicts(eq(1L), any(), any(), eq(10L))).thenReturn(List.of());
+
+        service.createProposal(1L, meeting, newStart, null);
+
+        verify(notificationService).push(eq(2L), eq("MEETING_TIME_CHANGE_REQUEST"), eq("meeting_updates"),
+                eq("MEETING_TIME_CHANGE_REQUEST"),
+                argThat((Map<String, String> vars) -> "Tue, Oct 20, 2026, 5:00 AM CDT".equals(vars.get("old_start"))
+                        && "Wed, Oct 21, 2026, 10:00 AM CDT".equals(vars.get("new_start"))));
     }
 
     @Test

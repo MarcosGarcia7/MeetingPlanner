@@ -1,6 +1,7 @@
 package com.meetingplanner.domains.meeting.service;
 
 import com.meetingplanner.common.api.CursorCodec;
+import com.meetingplanner.common.api.MeetingTimes;
 import com.meetingplanner.common.api.dto.CursorPage;
 import com.meetingplanner.common.api.dto.PendingTimeChange;
 import com.meetingplanner.common.api.dto.TimeChangeConflict;
@@ -28,12 +29,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Unanimous reschedule voting for meeting time changes.
@@ -61,6 +63,10 @@ public class MeetingTimeChangeService {
 
     @Value("${app.meeting.time-change-deadline-hours:48}")
     private long deadlineHours;
+
+    // Time zone for users without a profile zone (and non-users), from DEFAULT_TIMEZONE.
+    @Value("${app.default-timezone:UTC}")
+    private String defaultTimezone;
 
     public MeetingTimeChangeService(MeetingRepository meetingRepository,
                                     MeetingTimeChangeProposalRepository proposalRepository,
@@ -122,7 +128,8 @@ public class MeetingTimeChangeService {
             voteRepository.save(vote);
         }
 
-        notifyParticipants(meeting, actorUserId, "MEETING_TIME_CHANGE_REQUEST", requestVars(meeting, proposal));
+        notifyParticipants(meeting, actorUserId, "MEETING_TIME_CHANGE_REQUEST",
+                zone -> requestVars(meeting, proposal, zone));
         return toResponse(proposal, actorUserId);
     }
 
@@ -229,9 +236,9 @@ public class MeetingTimeChangeService {
             case CANCELLED -> "MEETING_TIME_CHANGE_CANCELLED";
             case PENDING -> "MEETING_TIME_CHANGE_PENDING";
         };
-        Map<String, String> vars = resultVars(meeting, proposal);
         for (UserEntity recipient : recipientsOf(meeting).values()) {
-            Map<String, String> perUser = new LinkedHashMap<>(vars);
+            Map<String, String> perUser = new LinkedHashMap<>(
+                    resultVars(meeting, proposal, MeetingTimes.zoneFor(recipient.getTimezone(), defaultTimezone)));
             perUser.put("name", displayName(recipient));
             notificationService.push(recipient.getId(), type, CATEGORY, type, perUser);
         }
@@ -300,32 +307,38 @@ public class MeetingTimeChangeService {
                 proposal.getProposedEndTime());
     }
 
-    private Map<String, String> requestVars(MeetingEntity meeting, MeetingTimeChangeProposalEntity proposal) {
+    // Times are formatted in the recipient's profile time zone, so vars are built per recipient.
+    private Map<String, String> requestVars(MeetingEntity meeting, MeetingTimeChangeProposalEntity proposal,
+                                            ZoneId zone) {
         Map<String, String> vars = new LinkedHashMap<>();
         vars.put("title", meeting.getTitle());
-        vars.put("old_start", DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getStartTime()));
-        vars.put("new_start", DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(proposal.getProposedStartTime()));
+        vars.put("old_start", MeetingTimes.format(meeting.getStartTime(), meeting.getEndTime(), zone));
+        vars.put("new_start", MeetingTimes.format(proposal.getProposedStartTime(), proposal.getProposedEndTime(), zone));
         vars.put("link", appBaseUrl + "/meetings/" + meeting.getId());
         return vars;
     }
 
-    private Map<String, String> resultVars(MeetingEntity meeting, MeetingTimeChangeProposalEntity proposal) {
+    private Map<String, String> resultVars(MeetingEntity meeting, MeetingTimeChangeProposalEntity proposal,
+                                           ZoneId zone) {
         Map<String, String> vars = new LinkedHashMap<>();
         vars.put("title", meeting.getTitle());
-        vars.put("start_time", DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(
-                proposal.getStatus() == ProposalStatus.APPROVED
-                        ? proposal.getProposedStartTime()
-                        : meeting.getStartTime()));
+        boolean approved = proposal.getStatus() == ProposalStatus.APPROVED;
+        vars.put("start_time", MeetingTimes.format(
+                approved ? proposal.getProposedStartTime() : meeting.getStartTime(),
+                approved ? proposal.getProposedEndTime() : meeting.getEndTime(),
+                zone));
         vars.put("link", appBaseUrl + "/meetings/" + meeting.getId());
         return vars;
     }
 
-    private void notifyParticipants(MeetingEntity meeting, long actorUserId, String type, Map<String, String> vars) {
+    private void notifyParticipants(MeetingEntity meeting, long actorUserId, String type,
+                                    Function<ZoneId, Map<String, String>> varsForZone) {
         for (UserEntity recipient : recipientsOf(meeting).values()) {
             if (recipient.getId().equals(actorUserId)) {
                 continue;
             }
-            Map<String, String> perUser = new LinkedHashMap<>(vars);
+            Map<String, String> perUser = new LinkedHashMap<>(varsForZone.apply(
+                    MeetingTimes.zoneFor(recipient.getTimezone(), defaultTimezone)));
             perUser.put("name", displayName(recipient));
             notificationService.push(recipient.getId(), type, CATEGORY, type, perUser);
         }

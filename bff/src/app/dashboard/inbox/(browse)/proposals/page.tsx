@@ -9,6 +9,7 @@ import type {UserProfileResponse} from '@/lib/types/user';
 import ActionList from '@/app/components/dashboard/inbox/action-list';
 import {ProposalHistory} from '@/app/components/dashboard/inbox/history';
 import {ownProposalItem, voteItem} from '@/app/components/dashboard/inbox/items';
+import {profileTimeZone} from '@/lib/timezone';
 
 export default async function InboxProposalsPage() {
   await verifySession();
@@ -27,7 +28,7 @@ export default async function InboxProposalsPage() {
 
   const toVote = valueOrNull(results[0]);
   const mine = valueOrNull(results[1]);
-  const timeZone = valueOrNull(results[2])?.timezone ?? 'UTC';
+  const timeZone = profileTimeZone(valueOrNull(results[2]));
 
   return (
     <>

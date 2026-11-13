@@ -5,12 +5,15 @@ import type {CursorPage} from '@/lib/types/api';
 import type {FriendshipResponse} from '@/lib/types/friend';
 import type {InviteResponse} from '@/lib/types/invite';
 import {usePostAction} from '@/app/components/dashboard/use-post-action';
+import {inviteDetails} from '@/app/components/dashboard/inbox/items';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './home.module.css';
 
 interface NeedsAttentionProps {
   invites: CursorPage<InviteResponse> | null;
   friendRequests: CursorPage<FriendshipResponse> | null;
+  // Profile time zone (DEFAULT_TIMEZONE when unset), so server and client render the same meeting times.
+  timeZone: string;
 }
 
 interface Item {
@@ -21,7 +24,7 @@ interface Item {
   declineUrl: string;
 }
 
-function inviteItem(invite: InviteResponse): Item {
+function inviteItem(invite: InviteResponse, timeZone: string): Item {
   const kind = invite.kind === 'GROUP' ? 'group' : 'meeting';
   const target = invite.kind === 'GROUP' ? invite.groupName : invite.meetingTitle;
   const base = `/api/invites/${kind}/${invite.id}`;
@@ -33,7 +36,7 @@ function inviteItem(invite: InviteResponse): Item {
         <strong>{target ?? `a ${kind}`}</strong>
       </>
     ),
-    details: invite.warnings,
+    details: inviteDetails(invite, timeZone),
     acceptUrl: `${base}/accept`,
     declineUrl: `${base}/decline`,
   };
@@ -56,12 +59,12 @@ function friendRequestItem(request: FriendshipResponse): Item {
   };
 }
 
-export default function NeedsAttention({invites, friendRequests}: NeedsAttentionProps) {
+export default function NeedsAttention({invites, friendRequests, timeZone}: NeedsAttentionProps) {
   const {run, busy, errorFor} = usePostAction();
 
   const items = [
     ...(friendRequests?.items.map(friendRequestItem) ?? []),
-    ...(invites?.items.map(inviteItem) ?? []),
+    ...(invites?.items.map((invite) => inviteItem(invite, timeZone)) ?? []),
   ];
   const failed = invites === null || friendRequests === null;
   const hasMore = Boolean(invites?.nextCursor || friendRequests?.nextCursor);

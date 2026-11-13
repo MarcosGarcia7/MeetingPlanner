@@ -137,6 +137,8 @@ npx tsc --noEmit     # typecheck; there is no test suite yet
 - Security headers/CSP are set in `next.config.ts`; images must be self-hosted or `data:`/`blob:`.
 - When wiring dashboard components to data, server components call `authFetch` directly; client
   components need a BFF route under `src/app/api/` rather than fetching from the client to the API.
-- Dates on dashboard pages are formatted in the profile timezone (`'UTC'` when unset) via
-  `components/dashboard/home/format.ts`, so server and client render identical text.
+- Dates on dashboard pages are formatted in the profile timezone via
+  `components/dashboard/home/format.ts`, so server and client render identical text. Resolve the zone
+  with `profileTimeZone(profile)` from `lib/timezone.ts`, which falls back to `DEFAULT_TIMEZONE` (the
+  same variable the API uses), never a hard-coded `'UTC'`.
 - Server endpoints available to wire up are listed in `../API_ENDPOINTS.md`.

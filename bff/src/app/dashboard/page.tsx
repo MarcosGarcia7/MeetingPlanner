@@ -17,6 +17,7 @@ import NeedsAttention from '@/app/components/dashboard/home/needs-attention';
 import PendingVotes from '@/app/components/dashboard/home/pending-votes';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from '@/app/components/dashboard/home/home.module.css';
+import {profileTimeZone} from '@/lib/timezone';
 
 export default async function DashboardPage() {
   const session = await verifySession();
@@ -44,7 +45,7 @@ export default async function DashboardPage() {
   const friendRequests = valueOrNull(results[4]);
   const votes = valueOrNull(results[5]);
   const unread = valueOrNull(results[6]);
-  const timeZone = profile?.timezone ?? 'UTC';
+  const timeZone = profileTimeZone(profile);
 
   return (
     <main className={dashboardStyles.page}>
@@ -52,7 +53,7 @@ export default async function DashboardPage() {
       <PendingVotes proposals={votes} timeZone={timeZone}/>
       <div className={styles.cardGroup}>
         <UpcomingMeetings meetings={meetings} timeZone={timeZone}/>
-        <NeedsAttention invites={invites} friendRequests={friendRequests}/>
+        <NeedsAttention invites={invites} friendRequests={friendRequests} timeZone={timeZone}/>
         <RecentPosts posts={posts}/>
       </div>
     </main>

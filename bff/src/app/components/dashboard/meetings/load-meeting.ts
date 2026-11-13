@@ -5,6 +5,7 @@ import {notFound, redirect} from 'next/navigation';
 import {ApiError, AuthError, authFetch, getClientIp} from '@/lib/api-client';
 import type {MeetingResponse} from '@/lib/types/meeting';
 import type {UserProfileResponse} from '@/lib/types/user';
+import {defaultTimeZone, profileTimeZone} from '@/lib/timezone';
 
 // The meeting for /dashboard/schedule/[meetingId]. Cached per request, so the layout and the tab page
 // share one API call. Unknown or malformed ids, and meetings the viewer can't see, render the 404 page.
@@ -23,16 +24,16 @@ export const loadMeeting = cache(async (meetingId: string): Promise<MeetingRespo
   }
 });
 
-// The viewer's profile timezone ('UTC' when unset or unavailable), shared by the layout and tab pages.
+// The viewer's profile timezone (DEFAULT_TIMEZONE when unset or unavailable), shared by the layout and tab pages.
 export const loadTimeZone = cache(async (): Promise<string> => {
   try {
     const profile = await authFetch<UserProfileResponse>('/api/users/me', {}, getClientIp(await headers()));
-    return profile.timezone ?? 'UTC';
+    return profileTimeZone(profile);
   } catch (error) {
     if (error instanceof AuthError) {
       redirect('/login');
     }
-    return 'UTC';
+    return defaultTimeZone();
   }
 });
 

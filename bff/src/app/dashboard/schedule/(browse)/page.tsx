@@ -16,6 +16,7 @@ import AvailabilitySummary from '@/app/components/dashboard/schedule/availabilit
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import homeStyles from '@/app/components/dashboard/home/home.module.css';
 import styles from '@/app/components/dashboard/schedule/schedule.module.css';
+import {profileTimeZone} from '@/lib/timezone';
 
 const PREVIEW_SIZE = 5;
 
@@ -37,7 +38,7 @@ export default async function ScheduleOverviewPage() {
     redirect('/login');
   }
 
-  const timeZone = valueOrNull(results[5])?.timezone ?? 'UTC';
+  const timeZone = profileTimeZone(valueOrNull(results[5]));
   const invites = valueOrNull(results[1])?.items ?? [];
   const requests = valueOrNull(results[2])?.items ?? [];
   const upcoming = valueOrNull(results[3]);

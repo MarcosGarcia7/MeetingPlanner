@@ -8,6 +8,7 @@ import type {PostResponse} from '@/lib/types/group';
 import type {UserProfileResponse} from '@/lib/types/user';
 import {loadGroup, roleIn} from '@/app/components/dashboard/groups/load-group';
 import GroupPosts from '@/app/components/dashboard/groups/group-posts';
+import {profileTimeZone} from '@/lib/timezone';
 
 // Posts tab. The layout already stopped non-members, so role is set here.
 export default async function GroupPostsPage({params}: PageProps<'/dashboard/groups/[groupId]'>) {
@@ -33,6 +34,6 @@ export default async function GroupPostsPage({params}: PageProps<'/dashboard/gro
   return (
     <GroupPosts groupId={Number(groupId)} initial={valueOrNull(results[0])} viewerId={userId} role={role}
                 canPost={role !== 'MEMBER' || group.membersCanPost}
-                timeZone={valueOrNull(results[1])?.timezone ?? 'UTC'}/>
+                timeZone={profileTimeZone(valueOrNull(results[1]))}/>
   );
 }

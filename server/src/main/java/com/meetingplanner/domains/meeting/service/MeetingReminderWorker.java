@@ -1,5 +1,6 @@
 package com.meetingplanner.domains.meeting.service;
 
+import com.meetingplanner.common.api.MeetingTimes;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
 import com.meetingplanner.domains.meeting.model.MeetingParticipantEntity;
 import com.meetingplanner.domains.meeting.repository.MeetingReminderSentRepository;
@@ -8,13 +9,13 @@ import com.meetingplanner.domains.notification.model.NotificationPreferenceEntit
 import com.meetingplanner.domains.notification.repository.NotificationPreferenceRepository;
 import com.meetingplanner.domains.notification.service.NotificationService;
 import com.meetingplanner.domains.user.model.UserEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -27,6 +28,10 @@ public class MeetingReminderWorker {
     private final MeetingReminderSentRepository reminderSentRepository;
     private final NotificationPreferenceRepository preferenceRepository;
     private final NotificationService notificationService;
+
+    // Time zone for users without a profile zone, from DEFAULT_TIMEZONE.
+    @Value("${app.default-timezone:UTC}")
+    private String defaultTimezone;
 
     public MeetingReminderWorker(MeetingRepository meetingRepository,
                                  MeetingReminderSentRepository reminderSentRepository,
@@ -81,7 +86,9 @@ public class MeetingReminderWorker {
     }
 
     private java.util.Map<String, String> reminderVars(MeetingEntity meeting, UserEntity user) {
-        String startTime = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.getStartTime());
+        // Start only: the template reads "starts at {{start_time}}".
+        String startTime = MeetingTimes.format(meeting.getStartTime(), null,
+                MeetingTimes.zoneFor(user.getTimezone(), defaultTimezone));
         String name = user.getFirstName() != null && !user.getFirstName().isBlank()
                 ? user.getFirstName()
                 : user.getUsername();

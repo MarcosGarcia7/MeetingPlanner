@@ -76,7 +76,22 @@ public class EmailTemplateRegistry {
                     "Hi {{name}},\n\nA quick reminder that \"{{title}}\" starts at {{start_time}}.\n\n- {{app_url}}");
             case "MEETING_UPDATED" -> new Template(
                     "{{title}} was updated",
-                    "Hi {{name}},\n\n\"{{title}}\" was updated.\nStart time: {{start_time}}\nLocation: {{location}}\nOpen the meeting:\n{{link}}\n\n- {{app_url}}");
+                    "Hi {{name}},\n\n\"{{title}}\" was updated.\nWhen: {{when}}\nLocation: {{location}}\nOpen the meeting:\n{{link}}\n\n- {{app_url}}");
+            case "MEETING_TIME_CHANGE_REQUEST" -> new Template(
+                    "New time proposed for \"{{title}}\"",
+                    "Hi {{name}},\n\nA new time was proposed for \"{{title}}\".\nCurrent: {{old_start}}\nProposed: {{new_start}}\n\nVote on the change:\n{{link}}\n\n- {{app_url}}");
+            case "MEETING_TIME_CHANGE_APPROVED" -> new Template(
+                    "\"{{title}}\" has a new time",
+                    "Hi {{name}},\n\nThe proposed time change for \"{{title}}\" was approved.\nMeeting time: {{start_time}}\nOpen the meeting:\n{{link}}\n\n- {{app_url}}");
+            case "MEETING_TIME_CHANGE_REJECTED" -> new Template(
+                    "Time change for \"{{title}}\" was declined",
+                    "Hi {{name}},\n\nThe proposed time change for \"{{title}}\" was declined, so the meeting keeps its time.\nMeeting time: {{start_time}}\nOpen the meeting:\n{{link}}\n\n- {{app_url}}");
+            case "MEETING_TIME_CHANGE_EXPIRED" -> new Template(
+                    "Time change for \"{{title}}\" expired",
+                    "Hi {{name}},\n\nThe proposed time change for \"{{title}}\" expired before everyone voted, so the meeting keeps its time.\nMeeting time: {{start_time}}\nOpen the meeting:\n{{link}}\n\n- {{app_url}}");
+            case "MEETING_TIME_CHANGE_CANCELLED" -> new Template(
+                    "Time change for \"{{title}}\" was cancelled",
+                    "Hi {{name}},\n\nThe proposed time change for \"{{title}}\" was cancelled, so the meeting keeps its time.\nMeeting time: {{start_time}}\nOpen the meeting:\n{{link}}\n\n- {{app_url}}");
             case "MEETING_DELETED" -> new Template(
                     "{{title}} was deleted",
                     "Hi {{name}},\n\n\"{{title}}\" has been deleted by the organizer.\n\n- {{app_url}}");

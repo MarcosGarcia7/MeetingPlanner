@@ -6,6 +6,7 @@ import {hasAuthError, valueOrNull} from '@/lib/settled';
 import type {UserAvailabilityResponse, UserProfileResponse} from '@/lib/types/user';
 import AvailabilityForm from '@/app/components/dashboard/schedule/availability-form';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
+import {profileTimeZone} from '@/lib/timezone';
 
 export default async function AvailabilityPage() {
   await verifySession();
@@ -32,5 +33,5 @@ export default async function AvailabilityPage() {
     );
   }
 
-  return <AvailabilityForm availability={valueOrNull(results[0])} timeZone={valueOrNull(results[1])?.timezone ?? 'UTC'}/>;
+  return <AvailabilityForm availability={valueOrNull(results[0])} timeZone={profileTimeZone(valueOrNull(results[1]))}/>;
 }

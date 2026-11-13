@@ -1,5 +1,6 @@
 package com.meetingplanner.domains.meeting.service;
 
+import com.meetingplanner.common.api.MeetingTimes;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
 import com.meetingplanner.domains.meeting.repository.MeetingRepository;
 import com.meetingplanner.domains.user.model.UserAvailabilityEntity;
@@ -17,7 +18,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -64,10 +64,12 @@ public class MeetingConflictService {
         }
         List<MeetingEntity> conflicts = meetingRepository.findScheduleConflictsForUser(
                 targetUserId, true, start, effectiveEnd(start, end), null);
+        // Shown to the viewer, so times are in the viewer's zone.
+        ZoneId zone = zoneFor(userRepository.findById(viewerId).orElse(null));
         List<String> warnings = new ArrayList<>();
         for (MeetingEntity conflict : conflicts) {
             warnings.add(target.getUsername() + " may be busy: \"" + conflict.getTitle() + "\" at "
-                    + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(conflict.getStartTime()));
+                    + MeetingTimes.format(conflict.getStartTime(), conflict.getEndTime(), zone));
         }
         return warnings;
     }
@@ -149,14 +151,7 @@ public class MeetingConflictService {
     }
 
     private ZoneId zoneFor(UserEntity user) {
-        if (user != null && user.getTimezone() != null && !user.getTimezone().isBlank()) {
-            try {
-                return ZoneId.of(user.getTimezone());
-            } catch (RuntimeException ignored) {
-                // fall through to default
-            }
-        }
-        return ZoneId.of(defaultTimezone);
+        return MeetingTimes.zoneFor(user != null ? user.getTimezone() : null, defaultTimezone);
     }
 
     private static int[][] windowsFor(UserAvailabilityEntity availability, DayOfWeek day) {

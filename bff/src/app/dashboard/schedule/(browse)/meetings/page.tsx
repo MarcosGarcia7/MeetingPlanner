@@ -10,6 +10,7 @@ import type {MeetingSummaryResponse} from '@/lib/types/meeting';
 import type {UserProfileResponse} from '@/lib/types/user';
 import ScheduleMeetings from '@/app/components/dashboard/schedule/schedule-meetings';
 import {listUrl, type MeetingsView} from '@/app/components/dashboard/schedule/meetings-views';
+import {profileTimeZone} from '@/lib/timezone';
 
 // Groups offered in the form and friends suggested as invitees; one page of each is plenty.
 const OPTIONS_SIZE = 100;
@@ -44,7 +45,7 @@ export default async function ScheduleMeetingsPage({searchParams}: PageProps<'/d
   // Keyed by view so switching filters starts a fresh list instead of keeping the last one's pages.
   return (
     <ScheduleMeetings key={view} view={view} initial={valueOrNull(results[0])}
-                      timeZone={valueOrNull(results[1])?.timezone ?? 'UTC'} groups={groups} friendUsernames={friends}
+                      timeZone={profileTimeZone(valueOrNull(results[1]))} groups={groups} friendUsernames={friends}
                       viewerId={userId} creating={creating === '1'}/>
   );
 }

@@ -35,6 +35,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -43,6 +44,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -364,6 +366,27 @@ class MeetingServiceImplTest {
     }
 
     @Test
+    void updateFormatsTimeInEachRecipientsZone() {
+        UserEntity creator = user(1L, "alice");
+        UserEntity bob = user(2L, "bob");
+        bob.setTimezone("America/Chicago");
+        UserEntity carol = user(3L, "carol");
+        MeetingEntity meeting = meeting(10L, creator, creator, bob, carol);
+        meeting.setStartTime(OffsetDateTime.parse("2026-10-27T19:00:00Z"));
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.save(meeting)).thenReturn(meeting);
+
+        service.update(1L, 10L, new MeetingUpdateRequest(null, null, "Room 2", null, null));
+
+        verify(notificationService).push(eq(2L), eq("MEETING_UPDATED"), eq("meeting_updates"), eq("MEETING_UPDATED"),
+                argThat((Map<String, String> vars) -> "Tue, Oct 27, 2026, 2:00 PM CDT".equals(vars.get("when"))));
+        verify(notificationService).push(eq(3L), eq("MEETING_UPDATED"), eq("meeting_updates"), eq("MEETING_UPDATED"),
+                argThat((Map<String, String> vars) -> "Tue, Oct 27, 2026, 7:00 PM UTC".equals(vars.get("when"))));
+    }
+
+    @Test
     void updateWithNoActualChangesDoesNotNotify() {
         UserEntity creator = user(1L, "alice");
         UserEntity bob = user(2L, "bob");
@@ -564,6 +587,59 @@ class MeetingServiceImplTest {
         verify(notificationService).queueEmailToForUser(isNull(), eq("dave@example.com"), eq("MEETING_INVITE"),
                 anyMap(), eq("meeting_invites"));
         verify(notificationService, never()).pushInApp(anyLong(), anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    void emailInviteFallsBackToConfiguredDefaultZone() {
+        ReflectionTestUtils.setField(service, "defaultTimezone", "America/Chicago");
+        UserEntity alice = user(1L, "alice");
+        MeetingEntity meeting = meeting(10L, alice);
+        meeting.setStartTime(OffsetDateTime.parse("2026-10-27T19:00:00Z"));
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByEmail("dave@example.com")).thenReturn(Optional.empty());
+        when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "dave@example.com"))
+                .thenReturn(Optional.empty());
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        service.inviteBatch(1L, 10L, new MeetingInviteBatchRequest(
+                List.of(new MeetingInviteRequest(null, "dave@example.com"))));
+
+        verify(notificationService).queueEmailToForUser(isNull(), eq("dave@example.com"), eq("MEETING_INVITE"),
+                argThat((Map<String, String> vars) -> "When: Tue, Oct 27, 2026, 2:00 PM CDT".equals(vars.get("details"))),
+                eq("meeting_invites"));
+    }
+
+    @Test
+    void emailInviteToUnregisteredAddressShowsTimeInOrganizerZone() {
+        UserEntity alice = user(1L, "alice");
+        alice.setTimezone("America/Chicago");
+        MeetingEntity meeting = meeting(10L, alice);
+        meeting.setStartTime(OffsetDateTime.parse("2026-10-27T19:00:00Z"));
+        meeting.setEndTime(OffsetDateTime.parse("2026-10-27T20:30:00Z"));
+        meeting.setLocation("Room 4");
+
+        when(authorization.canManage(1L, meeting)).thenReturn(true);
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByEmail("dave@example.com")).thenReturn(Optional.empty());
+        when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "dave@example.com"))
+                .thenReturn(Optional.empty());
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        service.inviteBatch(1L, 10L, new MeetingInviteBatchRequest(
+                List.of(new MeetingInviteRequest(null, "dave@example.com"))));
+
+        verify(notificationService).queueEmailToForUser(isNull(), eq("dave@example.com"), eq("MEETING_INVITE"),
+                argThat((Map<String, String> vars) -> "When: Tue, Oct 27, 2026, 2:00 – 3:30 PM CDT\nWhere: Room 4"
+                        .equals(vars.get("details"))),
+                eq("meeting_invites"));
     }
 
     @Test
@@ -810,6 +886,24 @@ class MeetingServiceImplTest {
         assertTrue(response.conflicts().getFirst().contains("Standup"));
         assertEquals(List.of("Outside alice's stated availability"), response.warnings());
         assertTrue(response.recipients().isEmpty());
+    }
+
+    @Test
+    void checkDraftShowsConflictTimeInCreatorsZone() {
+        UserEntity alice = user(1L, "alice");
+        alice.setTimezone("America/Chicago");
+        MeetingEntity existing = meeting(10L, alice, alice);
+        existing.setTitle("Standup");
+        existing.setStartTime(OffsetDateTime.parse("2026-12-01T15:00:00Z"));
+        existing.setEndTime(OffsetDateTime.parse("2026-12-01T15:30:00Z"));
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(conflictService.findScheduleConflicts(1L, start, null, null)).thenReturn(List.of(existing));
+
+        MeetingDraftCheckResponse response = service.checkDraft(1L, new MeetingDraftCheckRequest(start, null, null));
+
+        assertEquals(List.of("Conflicts with an existing meeting: \"Standup\" at Tue, Dec 1, 2026, 9:00 – 9:30 AM CST"),
+                response.conflicts());
     }
 
     @Test

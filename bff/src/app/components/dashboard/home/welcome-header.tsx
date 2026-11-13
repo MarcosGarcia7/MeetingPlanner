@@ -6,6 +6,7 @@ import type {UserProfileResponse} from '@/lib/types/user';
 import {greeting} from './format';
 import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './home.module.css';
+import {profileTimeZone} from '@/lib/timezone';
 
 interface WelcomeHeaderProps {
   username: string;
@@ -14,7 +15,7 @@ interface WelcomeHeaderProps {
 }
 
 export default function WelcomeHeader({username, profile, unread}: WelcomeHeaderProps) {
-  const timeZone = profile?.timezone ?? 'UTC';
+  const timeZone = profileTimeZone(profile);
   const name = profile?.firstName || `@${username}`;
   const avatarVersion = new URLSearchParams({
     v: [username, profile?.avatarColor, profile?.firstName, profile?.lastName].join('|'),

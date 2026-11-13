@@ -15,14 +15,28 @@ function friendName(friend: FriendshipResponse) {
   return fullName ? `${fullName} (@${friend.username})` : `@${friend.username}`;
 }
 
-export function inviteItem(invite: InviteResponse): InboxItem {
+// A meeting invite's time ("Tue, Oct 27 · 2:00 – 3:30 PM") and location, in the profile time zone.
+// Shared with the dashboard's "Needs your attention" card.
+export function inviteDetails(invite: InviteResponse, timeZone: string): string[] {
+  if (invite.kind !== 'MEETING') return [];
+  const details: string[] = [];
+  if (invite.meetingStartTime) {
+    const {day, time} = formatMeetingTime(invite.meetingStartTime, invite.meetingEndTime, timeZone);
+    details.push(`${day} · ${time}`);
+  }
+  const location = invite.meetingLocation?.trim();
+  if (location) details.push(location);
+  return details;
+}
+
+export function inviteItem(invite: InviteResponse, timeZone: string): InboxItem {
   const base = `/api/invites/${kindPath(invite.kind)}/${invite.id}`;
   const target = (invite.kind === 'GROUP' ? invite.groupName : invite.meetingTitle) ?? `a ${kindPath(invite.kind)}`;
   return {
     key: `invite-${invite.kind}-${invite.id}`,
     kind: kindLabel(invite.kind),
     title: <>@{invite.senderUsername} invited you to <strong>{target}</strong></>,
-    warnings: invite.warnings,
+    details: inviteDetails(invite, timeZone),
     actions: [
       {label: 'Accept', url: `${base}/accept`},
       {label: 'Decline', url: `${base}/decline`, secondary: true},

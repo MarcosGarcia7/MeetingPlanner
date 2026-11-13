@@ -1,5 +1,6 @@
 package com.meetingplanner.domains.meeting.service;
 
+import com.meetingplanner.common.api.MeetingTimes;
 import com.meetingplanner.domains.meeting.model.MeetingEntity;
 import com.meetingplanner.domains.meeting.repository.MeetingReminderSentRepository;
 import com.meetingplanner.domains.meeting.repository.MeetingRepository;
@@ -14,13 +15,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -74,6 +78,23 @@ class MeetingReminderWorkerTest {
         order.verify(reminderSentRepository).claim(eq(10L), eq(1L), any(OffsetDateTime.class));
         order.verify(notificationService).push(eq(1L), eq("MEETING_REMINDER"), eq("meeting_reminders"),
                 eq("MEETING_REMINDER"), anyMap());
+    }
+
+    @Test
+    void reminderShowsStartTimeInUsersZone() {
+        UserEntity alice = user(1L, "alice");
+        alice.setTimezone("America/Chicago");
+        MeetingEntity meeting = meetingStartingIn(10, alice);
+        when(meetingRepository.findByStartTimeBetween(any(), any())).thenReturn(List.of(meeting));
+        when(reminderSentRepository.existsByMeetingIdAndUserId(10L, 1L)).thenReturn(false);
+        when(preferenceRepository.findByUserId(1L)).thenReturn(Optional.empty());
+        when(reminderSentRepository.claim(eq(10L), eq(1L), any(OffsetDateTime.class))).thenReturn(1);
+
+        worker.sendDueReminders();
+
+        String expected = MeetingTimes.format(meeting.getStartTime(), null, ZoneId.of("America/Chicago"));
+        verify(notificationService).push(eq(1L), eq("MEETING_REMINDER"), eq("meeting_reminders"), eq("MEETING_REMINDER"),
+                argThat((Map<String, String> vars) -> expected.equals(vars.get("start_time"))));
     }
 
     @Test

@@ -8,6 +8,7 @@ import type {MeetingSummaryResponse} from '@/lib/types/meeting';
 import type {UserProfileResponse} from '@/lib/types/user';
 import {loadGroup, roleIn} from '@/app/components/dashboard/groups/load-group';
 import GroupMeetings from '@/app/components/dashboard/groups/group-meetings';
+import {profileTimeZone} from '@/lib/timezone';
 
 export default async function GroupMeetingsPage({params}: PageProps<'/dashboard/groups/[groupId]/meetings'>) {
   const {userId} = await verifySession();
@@ -31,7 +32,7 @@ export default async function GroupMeetingsPage({params}: PageProps<'/dashboard/
 
   return (
     <GroupMeetings groupId={Number(groupId)} initial={valueOrNull(results[0])}
-                   timeZone={valueOrNull(results[1])?.timezone ?? 'UTC'}
+                   timeZone={profileTimeZone(valueOrNull(results[1]))}
                    canCreate={role !== 'MEMBER' || group.membersCanCreate}
                    memberUsernames={(group.members ?? []).flatMap((member) =>
                      member.userId !== userId && member.username ? [member.username] : [])}/>

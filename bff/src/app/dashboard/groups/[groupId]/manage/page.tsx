@@ -13,6 +13,7 @@ import GroupInviteForm from '@/app/components/dashboard/groups/group-invite-form
 import JoinRequestList from '@/app/components/dashboard/groups/join-request-list';
 import BanList from '@/app/components/dashboard/groups/ban-list';
 import DeleteGroup from '@/app/components/dashboard/groups/delete-group';
+import {profileTimeZone} from '@/lib/timezone';
 
 // Manage tab, for admins and the owner: settings, invites, join requests, bans, and (owner) delete.
 // Member actions (roles, remove, ban, transfer) are on the Members tab.
@@ -40,7 +41,7 @@ export default async function GroupManagePage({params}: PageProps<'/dashboard/gr
   if (hasAuthError(results)) {
     redirect('/login');
   }
-  const timeZone = valueOrNull(results[2])?.timezone ?? 'UTC';
+  const timeZone = profileTimeZone(valueOrNull(results[2]));
 
   return (
     <>
