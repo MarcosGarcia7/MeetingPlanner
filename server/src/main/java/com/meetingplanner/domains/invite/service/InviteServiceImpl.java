@@ -445,6 +445,9 @@ public class InviteServiceImpl implements InviteService {
                 group == null ? null : group.getGroupName(),
                 null,
                 null,
+                null,
+                null,
+                null,
                 List.of());
     }
 
@@ -462,6 +465,9 @@ public class InviteServiceImpl implements InviteService {
                 null,
                 invite.getMeeting() == null ? null : invite.getMeeting().getId(),
                 invite.getMeeting() == null ? null : invite.getMeeting().getTitle(),
+                invite.getMeeting() == null ? null : invite.getMeeting().getStartTime(),
+                invite.getMeeting() == null ? null : invite.getMeeting().getEndTime(),
+                invite.getMeeting() == null ? null : invite.getMeeting().getLocation(),
                 List.of());
     }
 }

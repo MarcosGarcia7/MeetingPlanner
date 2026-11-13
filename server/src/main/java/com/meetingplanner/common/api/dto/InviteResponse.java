@@ -2,6 +2,7 @@ package com.meetingplanner.common.api.dto;
 
 import com.meetingplanner.common.api.model.InviteStatus;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 public record InviteResponse(
@@ -16,6 +17,9 @@ public record InviteResponse(
         String groupName,
         Long meetingId,
         String meetingTitle,
+        OffsetDateTime meetingStartTime,
+        OffsetDateTime meetingEndTime,
+        String meetingLocation,
         List<String> warnings
 ) {
 }

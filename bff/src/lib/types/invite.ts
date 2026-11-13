@@ -16,6 +16,9 @@ export interface InviteResponse {
   groupName: string | null;
   meetingId: number | null;
   meetingTitle: string | null;
+  meetingStartTime: string | null;
+  meetingEndTime: string | null;
+  meetingLocation: string | null;
   warnings: string[];
 }
 

@@ -1,6 +1,7 @@
 import {NextResponse} from 'next/server';
 import type {NextRequest} from 'next/server';
 import {refreshSessionTtl, SESSION_COOKIE, SESSION_COOKIE_OPTIONS} from '@/lib/session';
+import {safeNextPath} from '@/lib/next-path';
 
 const protectedRoutes = ['/dashboard'];
 
@@ -40,6 +41,10 @@ function route(request: NextRequest, hasSession: boolean): NextResponse {
   }
 
   if (isAuthRoute && hasSession) {
+    const next = safeNextPath(request.nextUrl.searchParams.get('next'));
+    if (next) {
+      return NextResponse.redirect(new URL(next, request.nextUrl.origin));
+    }
     return redirectTo(request, '/dashboard');
   }
 

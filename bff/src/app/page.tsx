@@ -4,7 +4,6 @@ import {
   BellAlertIcon,
   CalendarDaysIcon,
   EnvelopeOpenIcon,
-  ExclamationTriangleIcon,
   HandRaisedIcon,
   ShieldCheckIcon,
   UserGroupIcon,

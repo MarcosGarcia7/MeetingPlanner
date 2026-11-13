@@ -10,7 +10,7 @@ export function greeting(timeZone?: string): string {
   return 'Good evening';
 }
 
-// "Tue, Oct 28" + "2:00 – 3:30 PM" (end omitted when the meeting has none).
+// "Tue, Oct 27" + "2:00 – 3:30 PM" (end omitted when the meeting has none).
 export function formatMeetingTime(
   start: string,
   end: string | null,
@@ -46,7 +46,7 @@ export function formatRelative(iso: string): string {
   return 'just now';
 }
 
-// "Oct 28, 2026, 2:00 PM": an absolute timestamp, safe to render on both server and client.
+// "Oct 27, 2026, 2:00 PM": an absolute timestamp, safe to render on both server and client.
 export function formatDateTime(iso: string, timeZone?: string): string {
   return new Intl.DateTimeFormat('en-US', {dateStyle: 'medium', timeStyle: 'short', timeZone})
     .format(new Date(iso));
@@ -64,7 +64,7 @@ function zoneOffset(date: Date, timeZone: string): number {
   return wallClock - Math.floor(date.getTime() / 1000) * 1000;
 }
 
-// Reads a <input type="datetime-local"> value ("2026-10-28T14:00") as wall-clock time in `timeZone`
+// Reads a <input type="datetime-local"> value ("2026-10-27T14:00") as wall-clock time in `timeZone`
 // (the profile timezone, not the browser's) and returns it as an ISO instant for the API.
 export function zonedTimeToIso(local: string, timeZone: string): string {
   const asUtc = Date.parse(`${local}:00Z`);
@@ -73,7 +73,7 @@ export function zonedTimeToIso(local: string, timeZone: string): string {
   return new Date(asUtc - zoneOffset(new Date(guess), timeZone)).toISOString();
 }
 
-// The inverse of zonedTimeToIso: an ISO instant as a <input type="datetime-local"> value ("2026-10-28T14:00")
+// The inverse of zonedTimeToIso: an ISO instant as a <input type="datetime-local"> value ("2026-10-27T14:00")
 // showing its wall-clock time in `timeZone`.
 export function isoToZonedInput(iso: string, timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -83,7 +83,7 @@ export function isoToZonedInput(iso: string, timeZone: string): string {
   return `${value('year')}-${value('month')}-${value('day')}T${value('hour')}:${value('minute')}`;
 }
 
-// "Tuesday, October 28, 2026": the full date of a meeting's start, for its detail page.
+// "Tuesday, October 27, 2026": the full date of a meeting's start, for its detail page.
 export function formatLongDate(iso: string, timeZone?: string): string {
   return new Intl.DateTimeFormat('en-US', {dateStyle: 'full', timeZone}).format(new Date(iso));
 }

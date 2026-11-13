@@ -394,6 +394,8 @@ class InviteServiceImplTest {
         GroupEntity group = group(3L, owner);
         group.setGroupName("Book club");
         MeetingEntity meeting = meeting(4L, owner, null);
+        meeting.setEndTime(meeting.getStartTime().plusHours(1));
+        meeting.setLocation("Room 4");
         GroupInviteEntity groupInvite = groupInvite(group, owner, recipient);
         MeetingInviteEntity meetingInvite = meetingInvite(meeting, owner, recipient, InviteStatus.PENDING);
         when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
@@ -409,6 +411,11 @@ class InviteServiceImplTest {
         InviteResponse meetingItem = page.items().stream().filter(i -> i.kind().equals("MEETING")).findFirst().orElseThrow();
         assertEquals("Book club", groupItem.groupName());
         assertEquals("Standup", meetingItem.meetingTitle());
+        assertEquals(meeting.getStartTime(), meetingItem.meetingStartTime());
+        assertEquals(meeting.getEndTime(), meetingItem.meetingEndTime());
+        assertEquals("Room 4", meetingItem.meetingLocation());
+        assertNull(groupItem.meetingStartTime());
+        assertNull(groupItem.meetingLocation());
         assertNull(page.nextCursor());
     }
 

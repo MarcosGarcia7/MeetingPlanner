@@ -808,6 +808,9 @@ public class MeetingServiceImpl implements MeetingService {
                 null,
                 invite.getMeeting() == null ? null : invite.getMeeting().getId(),
                 invite.getMeeting() == null ? null : invite.getMeeting().getTitle(),
+                invite.getMeeting() == null ? null : invite.getMeeting().getStartTime(),
+                invite.getMeeting() == null ? null : invite.getMeeting().getEndTime(),
+                invite.getMeeting() == null ? null : invite.getMeeting().getLocation(),
                 warnings);
     }
 }

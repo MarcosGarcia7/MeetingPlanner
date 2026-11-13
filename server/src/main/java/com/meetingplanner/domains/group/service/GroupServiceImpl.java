@@ -460,6 +460,9 @@ public class GroupServiceImpl implements GroupService {
                 invite.getGroup() == null ? null : invite.getGroup().getGroupName(),
                 null,
                 null,
+                null,
+                null,
+                null,
                 List.of());
     }
 

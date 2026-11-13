@@ -43,6 +43,16 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
+  // Paths the API puts in notification emails (built from app.base-url), mapped to the dashboard
+  // pages that show them. Kept as redirects so links in already-sent emails keep working.
+  async redirects() {
+    return [
+      {source: '/groups/:groupId/posts/:postId', destination: '/dashboard/groups/:groupId', permanent: false},
+      {source: '/groups/:groupId', destination: '/dashboard/groups/:groupId', permanent: false},
+      {source: '/meetings/:meetingId', destination: '/dashboard/schedule/:meetingId', permanent: false},
+      {source: '/friends/requests', destination: '/dashboard/friends/requests', permanent: false},
+    ];
+  },
   async headers() {
     return [
       {

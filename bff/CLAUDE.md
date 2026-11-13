@@ -42,10 +42,12 @@ npx tsc --noEmit     # typecheck; there is no test suite yet
   and by client-side previews, so both render the same image.
 - `src/lib/password-schema.ts` — the zod password rule (mirrors the server's 12–72 chars / 72 bytes).
 - `src/lib/dal.ts` — `verifySession()`; call it at the top of server components that need the user.
+  `getSessionUser()` is the non-redirecting variant (null when signed out) for public pages.
   It returns only `{ userId, username }` — keep tokens out of anything a page can pass to a client
   component. `session.ts`, `api-client.ts`, and `dal.ts` import `server-only`.
 - `src/proxy.ts` — Next 16's replacement for `middleware.ts`: redirects unauthenticated users away
   from `/dashboard` and signed-in users away from `/login`, `/signup`, `/forgot-password`, `/`.
+  `/login?next=/path` returns to that path after sign-in (validated by `lib/next-path.ts`).
 
 ## Route handlers
 
@@ -68,7 +70,8 @@ npx tsc --noEmit     # typecheck; there is no test suite yet
   `Retry-After`); `AuthError` → `401 { error: 'unauthenticated' }`; anything else →
   `500 { error: 'internal_error' }`. UI code branches on `error` codes, never message text.
 - Unauthenticated auth endpoints that don't touch the session (`auth/create`, `auth/verify-email`,
-  `auth/verify-email/resend`, `auth/forgot-password`, `auth/reset-password`) are plain `forward`s too — with no session it sends no bearer.
+  `auth/verify-email/resend`, `auth/forgot-password`, `auth/reset-password`, and the token-based
+  `invite-links/*`) are plain `forward`s too — with no session it sends no bearer.
 - Exceptions to mirroring/forwarding: `auth/login` (picks the email/username endpoint, creates the
   session via `apiFetch`), `auth/logout` (revokes, destroys the session), and BFF-computed resources
   like `avatar/me`.

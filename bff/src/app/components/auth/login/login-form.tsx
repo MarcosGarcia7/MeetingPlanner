@@ -21,7 +21,12 @@ const loginSchema = z.object({
 });
 type LoginFormData = z.infer<typeof loginSchema>;
 
-export default function LoginForm() {
+interface LoginFormProps {
+  // Validated same-origin path to return to after signing in (from `?next=`), or null for the dashboard.
+  next: string | null;
+}
+
+export default function LoginForm({next}: LoginFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [unverified, setUnverified] = useState(false);
@@ -63,7 +68,7 @@ export default function LoginForm() {
         return;
       }
 
-      router.push('/dashboard');
+      router.push(next ?? '/dashboard');
       router.refresh();
     } catch {
       setError('Something went wrong. Please try again.');
