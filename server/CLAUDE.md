@@ -71,7 +71,8 @@ mvn verify -Pit                            # unit tests + Testcontainers *IT tes
 
 ## Security
 
-- Public paths: `/api/auth/**` and `/api/invite-links/**`; everything else requires a valid access JWT.
+- Public paths: `/api/auth/**`, `/api/invite-links/**`, `GET /api/share-links/{token}`, and
+  `POST /api/share-links/{token}/guest`; everything else requires a valid access JWT.
 - Separate access and refresh secrets/encoders/decoders; inject the right one with
   `@Qualifier("accessJwtDecoder")` etc. Refresh tokens rotate; reuse revokes all sessions (`JtiStorageService`).
 - Login lockout and rate limits are Redis-backed (`LoginAttemptService`, `AccountLockoutService`).

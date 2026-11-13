@@ -7,10 +7,12 @@ import type {CursorPage} from '@/lib/types/api';
 import type {FriendshipResponse} from '@/lib/types/friend';
 import type {GroupResponse} from '@/lib/types/group';
 import type {JoinRequestResponse} from '@/lib/types/request';
+import type {ShareLinkResponse} from '@/lib/types/invite';
 import {loadMeeting, loadTimeZone} from '@/app/components/dashboard/meetings/load-meeting';
 import ParticipantList from '@/app/components/dashboard/meetings/participant-list';
 import MeetingInviteForm from '@/app/components/dashboard/meetings/meeting-invite-form';
 import MeetingJoinRequests from '@/app/components/dashboard/meetings/meeting-join-requests';
+import ShareLinkPanel from '@/app/components/dashboard/share-link/share-link-panel';
 
 export default async function MeetingPeoplePage({params}: PageProps<'/dashboard/schedule/[meetingId]/people'>) {
   const {userId} = await verifySession();
@@ -30,18 +32,23 @@ export default async function MeetingPeoplePage({params}: PageProps<'/dashboard/
         .then((group) => (group.members ?? []).flatMap((m) => m.username ? [m.username] : []))
       : get<CursorPage<FriendshipResponse>>('/api/users/me/friends?size=100')
         .then((page) => page.items.map((friend) => friend.username)),
+    // 204 (undefined) when the meeting has no active link.
+    get<ShareLinkResponse | undefined>(`/api/meetings/${meeting.id}/share-link`),
   ] as const);
   if (hasAuthError(results)) {
     redirect('/login');
   }
   const taken = new Set((meeting.participants ?? []).map((p) => p.username?.toLowerCase()));
   const suggestions = (valueOrNull(results[1]) ?? []).filter((username) => !taken.has(username.toLowerCase()));
+  const timeZone = await loadTimeZone();
 
   return (
     <>
       <ParticipantList meeting={meeting} viewerId={userId}/>
       <MeetingInviteForm meetingId={meeting.id!} suggestions={suggestions}/>
-      <MeetingJoinRequests meetingId={meeting.id!} initial={valueOrNull(results[0])} timeZone={await loadTimeZone()}/>
+      <ShareLinkPanel target={{kind: 'meeting', meetingId: meeting.id!}} initial={valueOrNull(results[2]) ?? null}
+                      timeZone={timeZone}/>
+      <MeetingJoinRequests meetingId={meeting.id!} initial={valueOrNull(results[0])} timeZone={timeZone}/>
     </>
   );
 }

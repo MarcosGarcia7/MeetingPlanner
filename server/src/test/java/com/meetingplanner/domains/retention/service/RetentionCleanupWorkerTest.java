@@ -4,6 +4,7 @@ import com.meetingplanner.domains.email.repository.EmailOutboxRepository;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
 import com.meetingplanner.domains.group.repository.GroupInviteRepository;
 import com.meetingplanner.domains.group.repository.GroupJoinRequestRepository;
+import com.meetingplanner.domains.group.repository.GroupShareLinkRepository;
 import com.meetingplanner.domains.notification.repository.NotificationRepository;
 import com.meetingplanner.domains.user.repository.AccountTokenRepository;
 import com.meetingplanner.domains.user.repository.UserRepository;
@@ -33,6 +34,8 @@ class RetentionCleanupWorkerTest {
     private GroupJoinRequestRepository groupJoinRequestRepository;
     @Mock
     private GroupInviteRepository groupInviteRepository;
+    @Mock
+    private GroupShareLinkRepository groupShareLinkRepository;
     @Mock
     private AccountTokenRepository accountTokenRepository;
     @Mock
@@ -67,6 +70,10 @@ class RetentionCleanupWorkerTest {
         verify(groupInviteRepository).deleteExpiredAndResponded(expired.capture(), responded.capture());
         assertAgo(before, expired.getValue(), GroupInviteEntity.EXPIRY);
         assertAgo(before, responded.getValue(), Duration.ofDays(30));
+
+        ArgumentCaptor<OffsetDateTime> shareLinks = ArgumentCaptor.forClass(OffsetDateTime.class);
+        verify(groupShareLinkRepository).deleteRevokedOrExpiredBefore(shareLinks.capture());
+        assertAgo(before, shareLinks.getValue(), Duration.ofDays(30));
 
         ArgumentCaptor<OffsetDateTime> tokens = ArgumentCaptor.forClass(OffsetDateTime.class);
         verify(accountTokenRepository).deleteExpiredOrConsumed(tokens.capture());

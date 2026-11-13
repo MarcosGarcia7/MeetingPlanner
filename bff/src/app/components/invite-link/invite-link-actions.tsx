@@ -1,10 +1,11 @@
 'use client';
 
-import {useState, useSyncExternalStore} from 'react';
+import {useState} from 'react';
 import Link from 'next/link';
 import authStyles from '@/app/components/auth/auth.module.css';
 import styles from './invite-link.module.css';
 import {formatMeetingTime} from '@/app/components/dashboard/home/format';
+import {useBrowserTimeZone} from './use-browser-time-zone';
 import {readApiError} from '@/lib/api-error';
 import type {InviteResponse} from '@/lib/types/invite';
 
@@ -21,18 +22,6 @@ interface InviteLinkActionsProps {
 }
 
 const FAILED_MESSAGE = 'Something went wrong. Please try again.';
-
-const subscribeNoop = () => () => {};
-
-// The viewer's browser time zone, or null during server render. Invite recipients often have no
-// profile time zone, and the server renders in its own (UTC), so the time is filled in on the client.
-function useBrowserTimeZone(): string | null {
-  return useSyncExternalStore(
-    subscribeNoop,
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
-    () => null
-  );
-}
 
 export default function InviteLinkActions({
   kind,

@@ -4,6 +4,7 @@ import com.meetingplanner.domains.email.repository.EmailOutboxRepository;
 import com.meetingplanner.domains.group.model.GroupInviteEntity;
 import com.meetingplanner.domains.group.repository.GroupInviteRepository;
 import com.meetingplanner.domains.group.repository.GroupJoinRequestRepository;
+import com.meetingplanner.domains.group.repository.GroupShareLinkRepository;
 import com.meetingplanner.domains.notification.repository.NotificationRepository;
 import com.meetingplanner.domains.user.repository.AccountTokenRepository;
 import com.meetingplanner.domains.user.repository.UserRepository;
@@ -29,11 +30,13 @@ public class RetentionCleanupWorker {
     private static final int RESPONDED_REQUEST_RETENTION_DAYS = 30;
     private static final int RESPONDED_INVITE_RETENTION_DAYS = 30;
     private static final int UNVERIFIED_USER_RETENTION_DAYS = 7;
+    private static final int DEAD_SHARE_LINK_RETENTION_DAYS = 30;
 
     private final EmailOutboxRepository emailOutboxRepository;
     private final NotificationRepository notificationRepository;
     private final GroupJoinRequestRepository groupJoinRequestRepository;
     private final GroupInviteRepository groupInviteRepository;
+    private final GroupShareLinkRepository groupShareLinkRepository;
     private final AccountTokenRepository accountTokenRepository;
     private final UserRepository userRepository;
 
@@ -41,12 +44,14 @@ public class RetentionCleanupWorker {
                                   NotificationRepository notificationRepository,
                                   GroupJoinRequestRepository groupJoinRequestRepository,
                                   GroupInviteRepository groupInviteRepository,
+                                  GroupShareLinkRepository groupShareLinkRepository,
                                   AccountTokenRepository accountTokenRepository,
                                   UserRepository userRepository) {
         this.emailOutboxRepository = emailOutboxRepository;
         this.notificationRepository = notificationRepository;
         this.groupJoinRequestRepository = groupJoinRequestRepository;
         this.groupInviteRepository = groupInviteRepository;
+        this.groupShareLinkRepository = groupShareLinkRepository;
         this.accountTokenRepository = accountTokenRepository;
         this.userRepository = userRepository;
     }
@@ -63,6 +68,8 @@ public class RetentionCleanupWorker {
                 now.minusDays(RESPONDED_REQUEST_RETENTION_DAYS)));
         purge("group_invites", () -> groupInviteRepository.deleteExpiredAndResponded(
                 now.minus(GroupInviteEntity.EXPIRY), now.minusDays(RESPONDED_INVITE_RETENTION_DAYS)));
+        purge("group_share_links", () -> groupShareLinkRepository.deleteRevokedOrExpiredBefore(
+                now.minusDays(DEAD_SHARE_LINK_RETENTION_DAYS)));
         purge("account_tokens", () -> accountTokenRepository.deleteExpiredOrConsumed(now));
         purge("users", () -> userRepository.deleteUnverifiedCreatedBefore(
                 now.minusDays(UNVERIFIED_USER_RETENTION_DAYS)));

@@ -590,7 +590,7 @@ public class MeetingServiceImpl implements MeetingService {
                     continue;
                 }
                 try {
-                    invited.add(inviteOne(meeting, sender, recipient));
+                    invited.add(inviteOne(meeting, sender, recipient, false));
                 } catch (ResourceNotFoundException | EmailNotVerifiedException | ResponseStatusException e) {
                     failed.add(failure(recipient, reasonFor(e)));
                 }
@@ -606,6 +606,28 @@ public class MeetingServiceImpl implements MeetingService {
         }
 
         return new InviteBatchResponse(invited, failed);
+    }
+
+    @Override
+    @Transactional
+    public boolean inviteFromShareLink(long senderUserId, long meetingId, String email) {
+        MeetingEntity meeting = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+        if (meeting.getGroup() != null) {
+            groupRepository.findByIdForUpdate(meeting.getGroup().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+        }
+        // Lock order: group -> meeting, same as inviteBatch.
+        meeting = meetingRepository.findByIdForUpdate(meetingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+        UserEntity sender = userRepository.findById(senderUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        try {
+            inviteOne(meeting, sender, new MeetingInviteRequest(null, email), true);
+            return true;
+        } catch (ResourceNotFoundException | EmailNotVerifiedException | ResponseStatusException e) {
+            return false;
+        }
     }
 
     @Override
@@ -642,7 +664,10 @@ public class MeetingServiceImpl implements MeetingService {
         return null;
     }
 
-    private InviteResponse inviteOne(MeetingEntity meeting, UserEntity sender, MeetingInviteRequest request) {
+    // resendPending: re-issue an existing PENDING invite (fresh token, email sent again) instead of rejecting
+    // it. Used by share-link guests, who may have lost the first email.
+    private InviteResponse inviteOne(MeetingEntity meeting, UserEntity sender, MeetingInviteRequest request,
+                                     boolean resendPending) {
         if (request.hasUsername() == request.hasEmail()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide either username or email");
         }
@@ -681,7 +706,9 @@ public class MeetingServiceImpl implements MeetingService {
 
         MeetingInviteEntity invite = meetingInviteRepository
                 .findByMeetingIdAndRecipientEmail(meeting.getId(), recipientEmail)
-                .map(existing -> reuseForReinvite(existing, meeting))
+                .map(existing -> resendPending && existing.getStatus() == InviteStatus.PENDING
+                        ? existing
+                        : reuseForReinvite(existing, meeting))
                 .orElseGet(MeetingInviteEntity::new);
 
         String rawToken = InviteTokens.generateRawToken();

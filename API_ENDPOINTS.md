@@ -1,6 +1,6 @@
 # Server API Endpoints
 
-105 endpoints across 15 controllers, generated from the Spring controllers in
+114 endpoints across 16 controllers, generated from the Spring controllers in
 `server/src/main/java/com/meetingplanner/domains/*/controller`.
 
 ## AuthController (9)
@@ -171,6 +171,22 @@
 | GET | `/api/search/users` | `users` |
 | GET | `/api/search/groups` | `groups` |
 | GET | `/api/search/meetings` | `meetings` |
+
+## ShareLinkController (9)
+
+Public: `GET /api/share-links/{token}` and `POST /api/share-links/{token}/guest`.
+
+| Method | Path | Handler |
+| --- | --- | --- |
+| GET | `/api/groups/{groupId}/share-link` (204 when none) | `getGroupLink` |
+| POST | `/api/groups/{groupId}/share-link` | `createGroupLink` |
+| DELETE | `/api/groups/{groupId}/share-link` | `revokeGroupLink` |
+| GET | `/api/meetings/{meetingId}/share-link` (204 when none) | `getMeetingLink` |
+| POST | `/api/meetings/{meetingId}/share-link` | `createMeetingLink` |
+| DELETE | `/api/meetings/{meetingId}/share-link` | `revokeMeetingLink` |
+| GET | `/api/share-links/{token}` | `preview` |
+| POST | `/api/share-links/{token}/join` | `join` |
+| POST | `/api/share-links/{token}/guest` (body: `{ email }`, always 202) | `guest` |
 
 ## UserController (9)
 

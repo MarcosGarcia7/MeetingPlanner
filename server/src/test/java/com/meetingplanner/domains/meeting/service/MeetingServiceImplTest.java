@@ -49,6 +49,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -587,6 +588,49 @@ class MeetingServiceImplTest {
         verify(notificationService).queueEmailToForUser(isNull(), eq("dave@example.com"), eq("MEETING_INVITE"),
                 anyMap(), eq("meeting_invites"));
         verify(notificationService, never()).pushInApp(anyLong(), anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    void shareLinkGuestInviteResendsAPendingInviteWithAFreshToken() {
+        UserEntity alice = user(1L, "alice");
+        MeetingEntity meeting = meeting(10L, alice);
+        MeetingInviteEntity pending = new MeetingInviteEntity();
+        pending.setId(40L);
+        pending.setMeeting(meeting);
+        pending.setRecipientEmail("dave@example.com");
+        pending.setStatus(InviteStatus.PENDING);
+        pending.setTokenHash("old");
+
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        when(userRepository.findByEmail("dave@example.com")).thenReturn(Optional.empty());
+        when(meetingInviteRepository.findByMeetingIdAndRecipientEmail(10L, "dave@example.com"))
+                .thenReturn(Optional.of(pending));
+        when(meetingInviteRepository.saveAndFlush(any(MeetingInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        assertTrue(service.inviteFromShareLink(1L, 10L, "dave@example.com"));
+
+        assertNotEquals("old", pending.getTokenHash());
+        verify(notificationService).queueEmailToForUser(isNull(), eq("dave@example.com"), eq("MEETING_INVITE"),
+                anyMap(), eq("meeting_invites"));
+    }
+
+    @Test
+    void shareLinkGuestInviteSwallowsDomainFailures() {
+        UserEntity alice = verifiedUser(1L, "alice");
+        alice.setEmail("alice@example.com");
+        MeetingEntity meeting = meeting(10L, alice);
+
+        when(meetingRepository.findById(10L)).thenReturn(Optional.of(meeting));
+        when(meetingRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(meeting));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(alice));
+        // The organizer's own address: "You cannot invite yourself".
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(alice));
+
+        assertFalse(service.inviteFromShareLink(1L, 10L, "alice@example.com"));
+        verify(notificationService, never()).queueEmailToForUser(any(), anyString(), anyString(), anyMap(), anyString());
     }
 
     @Test

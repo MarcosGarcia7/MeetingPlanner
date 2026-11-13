@@ -118,6 +118,35 @@ CREATE INDEX ix_meeting_invites_recipient_email ON meeting_invites(recipient_ema
 CREATE INDEX ix_group_invites_recipient ON group_invites(recipient_id, time_sent DESC);
 CREATE INDEX ix_group_invites_recipient_email ON group_invites(recipient_email, time_sent DESC);
 
+CREATE TABLE group_share_links (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    group_id BIGINT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    join_mode VARCHAR(16) NOT NULL DEFAULT 'DIRECT',
+    expires_at TIMESTAMPTZ,
+    max_uses INT CHECK (max_uses > 0),
+    use_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    revoked_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX ux_group_share_links_active ON group_share_links(group_id) WHERE revoked_at IS NULL;
+
+CREATE TABLE meeting_share_links (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    meeting_id BIGINT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ,
+    max_uses INT CHECK (max_uses > 0),
+    use_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    revoked_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX ux_meeting_share_links_active ON meeting_share_links(meeting_id) WHERE revoked_at IS NULL;
+
 CREATE TABLE account_tokens (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

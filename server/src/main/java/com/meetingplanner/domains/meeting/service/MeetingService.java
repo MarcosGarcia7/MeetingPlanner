@@ -47,4 +47,12 @@ public interface MeetingService {
     InviteBatchResponse inviteBatch(long actorUserId, long meetingId, MeetingInviteBatchRequest request);
 
     InviteCheckResponse checkInvites(long actorUserId, long meetingId, MeetingInviteBatchRequest request);
+
+    /**
+     * Sends a regular meeting invite email to an address entered on a share link's guest form, as if the
+     * link's creator had invited it. A pending invite for the address is re-sent with a fresh token. Domain
+     * failures (already a participant, blocked, banned) are swallowed so the caller can answer the same way
+     * whatever the outcome; returns whether an invite was sent.
+     */
+    boolean inviteFromShareLink(long senderUserId, long meetingId, String email);
 }
