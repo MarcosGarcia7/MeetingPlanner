@@ -9,7 +9,7 @@ import dashboardStyles from '@/app/components/dashboard/dashboard.module.css';
 import styles from './meetings.module.css';
 
 // Deletes the meeting for everyone; its participants are notified.
-export default function DeleteMeeting({meetingId}: { meetingId: number }) {
+export default function DeleteMeeting({meetingId, ended}: { meetingId: number, ended: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export default function DeleteMeeting({meetingId}: { meetingId: number }) {
         <p className={dashboardStyles.meta}>This cancels the meeting for everyone. It can’t be undone.</p>
         {error && <p className={authStyles.error} role='alert'>{error}</p>}
         <div className={styles.formFooter}>
-          <ConfirmButton label='Delete meeting' confirmLabel='Delete for everyone' disabled={busy} onConfirm={remove}/>
+          <ConfirmButton label='Delete meeting' confirmLabel='Delete for everyone' disabled={busy || ended} onConfirm={remove}/>
         </div>
       </div>
     </section>

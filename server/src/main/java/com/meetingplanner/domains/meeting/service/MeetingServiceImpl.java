@@ -273,6 +273,11 @@ public class MeetingServiceImpl implements MeetingService {
         if (!authorization.canManage(userId, meeting)) {
             throw new ResourceNotFoundException("Meeting not found");
         }
+
+        if (meeting.hasEnded()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This meeting has already ended");
+        }
+
         boolean startChanging = request.startTime() != null && !Objects.equals(request.startTime(), meeting.getStartTime());
         boolean endChanging = request.endTime() != null && !Objects.equals(request.endTime(), meeting.getEndTime());
         boolean timesChanging = startChanging || endChanging;

@@ -48,12 +48,14 @@ interface MeetingEditFormProps {
   meeting: MeetingResponse;
   viewerId: number;
   timeZone: string;
+  ended: boolean;
 }
 
 // Edits a meeting, sending only what changed. With other participants, a new time isn't applied directly:
 // it becomes a proposal they vote on (one at a time), shown in the banner above the tabs.
-export default function MeetingEditForm({meeting, viewerId, timeZone}: MeetingEditFormProps) {
+export default function MeetingEditForm({meeting, viewerId, timeZone, ended}: MeetingEditFormProps) {
   const router = useRouter();
+  // The API rejects edits to an ended meeting, so the whole form is disabled rather than failing on save.
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const othersComing = (meeting.participants ?? []).some((p) => p.userId !== viewerId);
@@ -64,7 +66,7 @@ export default function MeetingEditForm({meeting, viewerId, timeZone}: MeetingEd
   const [check, setCheck] = useState<TimeCheck>(NO_CHECK);
   // Only a changed time that could be scheduled is checked; anything else is the form's own error.
   const timesDirty = Boolean(dirtyFields.start || dirtyFields.end);
-  const checkable = timesDirty && Boolean(start) && (!end || end > start);
+  const checkable = timesDirty && Boolean(start) && (!end || end > start) && !ended;
 
   useEffect(() => {
     if (!checkable) {
@@ -145,64 +147,71 @@ export default function MeetingEditForm({meeting, viewerId, timeZone}: MeetingEd
       <div className={dashboardStyles.cardHeader}>
         <h2 id='edit-meeting-title' className={dashboardStyles.cardTitle}>Edit meeting</h2>
       </div>
-      <form onSubmit={handleSubmit(onSubmit)} className={authStyles.form} noValidate>
-        <label className={authStyles.field}>
-          <span className={authStyles.label}>Title</span>
-          <input type='text' maxLength={100} {...register('title')} className={authStyles.input}/>
-          {errors.title && <span className={authStyles.error} role='alert'>{errors.title.message}</span>}
-        </label>
-        <div className={styles.formRow}>
-          <label className={authStyles.field}>
-            <span className={authStyles.label}>Starts</span>
-            <input type='datetime-local' disabled={meeting.pendingTimeChange !== null} {...register('start')}
-                   className={authStyles.input}/>
-            {errors.start && <span className={authStyles.error} role='alert'>{errors.start.message}</span>}
-          </label>
-          <label className={authStyles.field}>
-            <span className={authStyles.label}>Ends (optional)</span>
-            <input type='datetime-local' disabled={meeting.pendingTimeChange !== null} {...register('end')}
-                   className={authStyles.input}/>
-            {errors.end && <span className={authStyles.error} role='alert'>{errors.end.message}</span>}
-          </label>
-        </div>
-        <p className={dashboardStyles.meta}>
-          Times are in {timeZone.replaceAll('_', ' ')}.{' '}
-          {meeting.pendingTimeChange !== null
-            ? 'A time change is already waiting on votes; the time can be changed again once it’s settled.'
-            : othersComing ? 'Changing the time asks the other participants to approve it first.' : ''}
+      {ended && (
+        <p className={dashboardStyles.meta} role='status'>
+          This meeting has already ended and can no longer be edited.
         </p>
-        {(shown.conflicts.length > 0 || shown.warnings.length > 0) && (
-          <div className={styles.notes} role='status'>
-            {shown.conflicts.map((conflict) => <p key={conflict} className={authStyles.error}>{conflict}</p>)}
-            {shown.warnings.map((warning) => <p key={warning} className={dashboardStyles.meta}>{warning}</p>)}
+      )}
+      <form onSubmit={handleSubmit(onSubmit)} className={authStyles.form} noValidate>
+        <fieldset disabled={ended} className={styles.fieldset}>
+          <label className={authStyles.field}>
+            <span className={authStyles.label}>Title</span>
+            <input type='text' maxLength={100} {...register('title')} className={authStyles.input}/>
+            {errors.title && <span className={authStyles.error} role='alert'>{errors.title.message}</span>}
+          </label>
+          <div className={styles.formRow}>
+            <label className={authStyles.field}>
+              <span className={authStyles.label}>Starts</span>
+              <input type='datetime-local' disabled={meeting.pendingTimeChange !== null} {...register('start')}
+                     className={authStyles.input}/>
+              {errors.start && <span className={authStyles.error} role='alert'>{errors.start.message}</span>}
+            </label>
+            <label className={authStyles.field}>
+              <span className={authStyles.label}>Ends (optional)</span>
+              <input type='datetime-local' disabled={meeting.pendingTimeChange !== null} {...register('end')}
+                     className={authStyles.input}/>
+              {errors.end && <span className={authStyles.error} role='alert'>{errors.end.message}</span>}
+            </label>
           </div>
-        )}
-        <label className={authStyles.field}>
-          <span className={authStyles.label}>Location (optional)</span>
-          <input type='text' maxLength={500} {...register('location')} className={authStyles.input}/>
-          {errors.location && <span className={authStyles.error} role='alert'>{errors.location.message}</span>}
-        </label>
-        <label className={styles.checkboxField}>
-          <input type='checkbox' {...register('isPrivate')}/>
-          {meeting.groupId
-            ? 'Private: only participants and group admins can see it'
-            : 'Private: only participants can see it'}
-        </label>
-        {error && <p className={authStyles.error} role='alert'>{error}</p>}
-        <div className={styles.formFooter}>
-          {status && !isDirty && <span className={styles.status} role='status'>{status}</span>}
-          <button type='button' className={dashboardStyles.buttonSecondary} disabled={!isDirty || isSubmitting}
-                  onClick={() => {
-                    reset();
-                    setError(null);
-                  }}>
-            Cancel
-          </button>
-          <button type='submit' className={dashboardStyles.button}
-                  disabled={!isDirty || isSubmitting || shown.conflicts.length > 0}>
-            {isSubmitting ? 'Saving…' : 'Save changes'}
-          </button>
-        </div>
+          <p className={dashboardStyles.meta}>
+            Times are in {timeZone.replaceAll('_', ' ')}.{' '}
+            {meeting.pendingTimeChange !== null
+              ? 'A time change is already waiting on votes; the time can be changed again once it’s settled.'
+              : othersComing ? 'Changing the time asks the other participants to approve it first.' : ''}
+          </p>
+          {(shown.conflicts.length > 0 || shown.warnings.length > 0) && (
+            <div className={styles.notes} role='status'>
+              {shown.conflicts.map((conflict) => <p key={conflict} className={authStyles.error}>{conflict}</p>)}
+              {shown.warnings.map((warning) => <p key={warning} className={dashboardStyles.meta}>{warning}</p>)}
+            </div>
+          )}
+          <label className={authStyles.field}>
+            <span className={authStyles.label}>Location (optional)</span>
+            <input type='text' maxLength={500} {...register('location')} className={authStyles.input}/>
+            {errors.location && <span className={authStyles.error} role='alert'>{errors.location.message}</span>}
+          </label>
+          <label className={styles.checkboxField}>
+            <input type='checkbox' {...register('isPrivate')}/>
+            {meeting.groupId
+              ? 'Private: only participants and group admins can see it'
+              : 'Private: only participants can see it'}
+          </label>
+          {error && <p className={authStyles.error} role='alert'>{error}</p>}
+          <div className={styles.formFooter}>
+            {status && !isDirty && <span className={styles.status} role='status'>{status}</span>}
+            <button type='button' className={dashboardStyles.buttonSecondary} disabled={!isDirty || isSubmitting}
+                    onClick={() => {
+                      reset();
+                      setError(null);
+                    }}>
+              Cancel
+            </button>
+            <button type='submit' className={dashboardStyles.button}
+                    disabled={!isDirty || isSubmitting || shown.conflicts.length > 0}>
+              {isSubmitting ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </fieldset>
       </form>
     </section>
   );
